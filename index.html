@@ -1,0 +1,1928 @@
+<!doctype html>
+<html lang="en-AU">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061420">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Ccircle cx='120' cy='120' r='112' fill='%23061c28' stroke='%237ad3f5' stroke-width='12'/%3E%3Cpath d='M120 44c13 17 23 40 25 66 2 21-5 38-11 50H106c-6-12-13-29-11-50 2-26 12-49 25-66Z' fill='%2363bcdf'/%3E%3Cpath d='M97 98c-16 4-28 14-34 30 12-7 23-11 34-12zM143 98c16 4 28 14 34 30-12-7-23-11-34-12z' fill='%234a9cc2'/%3E%3Cpath d='M107 138c1 16 4 28 13 43 9-15 12-27 13-43z' fill='%23ffc247'/%3E%3Ccircle cx='120' cy='88' r='15' fill='%23ddf2fc'/%3E%3Ccircle cx='120' cy='88' r='10' fill='%2334c979'/%3E%3C/svg%3E">
+<title>Fishin' Control — go / no-go for the Bundaberg coast</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://marine-api.open-meteo.com" crossorigin>
+<link rel="dns-prefetch" href="https://ensemble-api.open-meteo.com">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap">
+<noscript><link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap"></noscript>
+<style>
+:root{
+  --ink:#061420; --ink2:#0a2233; --card:rgba(122,211,245,.045); --card2:rgba(122,211,245,.08);
+  --line:rgba(122,211,245,.18); --line2:rgba(122,211,245,.38);
+  --sky:#7ad3f5; --sky2:#bde9fb; --deepsky:#2c93bd;
+  --paper:#e9f4fb; --mute:#95b8cd; --dim:#65899f;
+  --go:#3ddc84; --mid:#ffc93c; --no:#ff6363;
+  --disp:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --body:"Outfit","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{
+  background:
+    radial-gradient(900px 480px at 82% -10%, #14526e 0%, transparent 60%),
+    radial-gradient(700px 420px at 0% 100%, #0d3b52 0%, transparent 58%),
+    var(--ink);
+  color:var(--paper); font-family:var(--body); font-size:16px; line-height:1.45;
+  font-weight:300; -webkit-font-smoothing:antialiased; padding-bottom:70px;
+}
+.wrap{max-width:780px;margin:0 auto;padding:0 15px}
+h1,h2,h3,.disp{font-family:var(--disp);font-weight:600;letter-spacing:-.03em;margin:0}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--sky);text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+header.top{display:flex;align-items:center;gap:11px;padding:18px 0 12px}
+.logo{width:38px;height:38px;flex:0 0 38px;display:block}
+.mark{font-family:var(--disp);font-size:20px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.mark span{display:block;font-size:11.5px;font-weight:400;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--sky);margin-top:1px}
+
+.stamp{font-size:11.5px;color:var(--dim);margin-left:auto;text-align:right;line-height:1.3}
+.ghost{font-size:12.5px;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+.ghost:hover{border-color:var(--line2);color:var(--sky)}
+
+.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:24px;
+  background:linear-gradient(155deg,rgba(44,147,189,.30),rgba(6,20,32,.72));padding:18px}
+.hrow{display:flex;gap:16px;align-items:center}
+.dial{width:112px;height:112px;flex:0 0 112px}
+.verdict{font-family:var(--disp);font-size:clamp(26px,7.4vw,36px);font-weight:700;letter-spacing:-.045em;line-height:1.02}
+.verdict small{display:block;font-family:var(--body);font-size:13.5px;font-weight:300;
+  color:var(--mute);letter-spacing:0;margin-top:7px;line-height:1.4}
+.pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:15px}
+.pill{font-size:12.5px;font-weight:300;background:rgba(255,255,255,.05);border:1px solid var(--line);
+  border-radius:999px;padding:5px 11px}
+.pill b{font-weight:600;color:var(--sky2)}
+.pill.g{border-color:rgba(61,220,132,.45)} .pill.g b{color:var(--go)}
+.pill.a{border-color:rgba(255,201,60,.45)} .pill.a b{color:var(--mid)}
+.pill.r{border-color:rgba(255,99,99,.45)} .pill.r b{color:var(--no)}
+
+.strip{display:flex;gap:8px;overflow-x:auto;padding:16px 15px 8px;margin:0 -15px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.day{flex:0 0 76px;border:1px solid var(--line);border-radius:16px;padding:9px 8px 10px;
+  background:var(--card);text-align:left}
+.day.on{border-color:var(--sky);background:rgba(122,211,245,.14)}
+.day .dow{font-size:12px;color:var(--mute);font-weight:400}
+.day .dd{font-size:12.5px;color:var(--dim)}
+.day .sc{font-family:var(--disp);font-size:24px;font-weight:700;letter-spacing:-.05em;line-height:1.1;margin-top:6px}
+.day .bar{height:3px;border-radius:3px;background:rgba(255,255,255,.1);margin-top:7px}
+.day .bar i{display:block;height:3px;border-radius:3px}
+
+section{margin-top:24px}
+h2{font-family:var(--body);font-size:12px;font-weight:500;color:var(--mute);letter-spacing:.02em;margin-bottom:9px}
+h2.sect{font-family:var(--disp);font-size:17px;font-weight:600;color:var(--paper);letter-spacing:-.03em;
+  margin-bottom:11px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+h2.sect span{font-family:var(--body);font-size:12.5px;font-weight:300;color:var(--dim);letter-spacing:0}
+h2.sect::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--sky);
+  flex:0 0 6px;transform:translateY(-3px)}
+.card{border:1px solid var(--line);border-radius:20px;background:var(--card);padding:16px}
+.card+.card{margin-top:10px}
+h3{font-size:17px;margin-bottom:3px}
+p{margin:0 0 9px}
+.sub{font-size:13.5px;color:var(--mute);font-weight:300}
+.rule{height:1px;background:var(--line);margin:14px -16px}
+
+.zone{display:flex;gap:12px;align-items:center;padding:10px 0;width:100%;text-align:left}
+.zone+.zone{border-top:1px solid rgba(122,211,245,.10)}
+.zone.on{background:rgba(122,211,245,.07);border-radius:12px;padding:10px 8px;margin:0 -8px}
+.led{flex:0 0 10px;height:10px;border-radius:50%}
+.zsc{font-family:var(--disp);font-size:20px;font-weight:700;letter-spacing:-.04em;flex:0 0 32px;text-align:right}
+.zb{flex:1;min-width:0}
+.zb .t{font-size:15px;font-weight:500}
+.zb .d{font-size:12.5px;color:var(--dim);margin-top:1px}
+.tag{display:inline-block;font-size:11.5px;border-radius:7px;padding:2px 7px;margin:5px 5px 0 0;
+  border:1px solid var(--line);font-weight:300}
+.tag.ok{color:var(--go);border-color:rgba(61,220,132,.35)}
+.tag.mid{color:var(--mid);border-color:rgba(255,201,60,.35)}
+.tag.bad{color:var(--no);border-color:rgba(255,99,99,.35)}
+
+.sess{display:flex;gap:13px;padding:13px 0}
+.sess+.sess{border-top:1px solid rgba(122,211,245,.10)}
+.when{flex:0 0 84px}
+.when b{display:block;font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:-.02em}
+.when i{font-style:normal;font-size:11.5px;color:var(--dim)}
+.what .t{font-size:15px;font-weight:500;margin-bottom:3px}
+.what .d{font-size:13.5px;color:var(--mute);font-weight:300}
+
+.fish{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px}
+.fc{border:1px solid var(--line);border-radius:14px;padding:9px 9px 7px;background:rgba(255,255,255,.02)}
+.fc svg{width:100%;height:auto;display:block}
+.fc .n{font-size:12px;font-weight:400;margin-top:5px;line-height:1.25}
+
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:9px}
+.kv div{border:1px solid var(--line);border-radius:12px;padding:8px 9px}
+.kv .k{font-size:10.5px;color:var(--dim)}
+.kv .v{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:-.02em}
+
+ul.tight{margin:0;padding-left:17px}
+ul.tight li{font-size:13.5px;font-weight:300;margin-bottom:6px;color:var(--paper)}
+.links{display:flex;flex-wrap:wrap;gap:7px}
+.links a{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;
+  color:var(--paper);font-weight:300}
+.links a:hover{border-color:var(--sky);color:var(--sky)}
+svg{overflow:hidden}
+.mapwrap svg,.chartwrap svg{display:block;max-width:100%}
+.mapwrap svg,.chartwrap svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--mute);flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.state{padding:44px 6px;color:var(--mute);font-size:14.5px;font-weight:300}
+.state.err{color:var(--no)}
+details{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-top:10px}
+summary{cursor:pointer;font-size:13.5px;color:var(--mute)}
+label.f{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;margin-top:12px}
+input[type=number]{background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--paper);
+  border-radius:9px;padding:7px 9px;font:inherit;width:90px;text-align:right}
+.save{border:1px solid var(--sky);color:var(--sky);border-radius:999px;padding:7px 17px;font-size:13.5px;margin-top:14px}
+footer{margin-top:28px;font-size:11.5px;color:var(--dim);line-height:1.65;font-weight:300}
+:focus-visible{outline:2px solid var(--sky);outline-offset:2px;border-radius:8px}
+.tabs{display:flex;gap:6px;margin:16px 0 2px;border:1px solid var(--line);border-radius:999px;padding:4px}
+.tabs button{flex:1;font-size:13.5px;font-weight:400;padding:8px 6px;border-radius:999px;color:var(--mute)}
+.tabs button.on{background:rgba(122,211,245,.16);color:var(--paper);font-weight:500}
+.warn{border-color:rgba(255,99,99,.45);background:rgba(255,99,99,.08)}
+.warn h3{color:var(--no)}
+.prob{height:7px;border-radius:5px;background:rgba(255,255,255,.09);margin-top:8px;overflow:hidden}
+.prob i{display:block;height:7px;border-radius:5px}
+.mk{display:flex;gap:10px;align-items:center;padding:9px 0;font-size:13.5px}
+.mk+.mk{border-top:1px solid rgba(122,211,245,.10)}
+.mk .g{flex:1;min-width:0}
+.mk .ty{font-size:11px;color:var(--dim)}
+.mk button{color:var(--no);font-size:12px;border:1px solid rgba(255,99,99,.3);border-radius:8px;padding:3px 9px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.form .wide{grid-column:1/-1}
+.form input,.form select,.form textarea{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--line);
+  color:var(--paper);border-radius:10px;padding:9px 10px;font:inherit;font-size:14px}
+.form label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px}
+.rate{display:flex;gap:6px}
+.rate button{flex:1;border:1px solid var(--line);border-radius:10px;padding:8px 4px;font-size:12.5px;color:var(--mute)}
+.rate button.on{border-color:var(--sky);background:rgba(122,211,245,.16);color:var(--paper)}
+.entry{padding:11px 0;font-size:13.5px}
+.entry+.entry{border-top:1px solid rgba(122,211,245,.10)}
+.entry .h{display:flex;gap:8px;align-items:baseline}
+.entry .h b{font-family:var(--disp);font-size:14px}
+.entry .m{font-size:12px;color:var(--dim);margin-top:2px}
+.bars{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.bars span{font-size:12px;border:1px solid var(--line);border-radius:8px;padding:3px 8px;color:var(--mute)}
+@media (prefers-reduced-motion:no-preference){.fillw{transition:y .8s cubic-bezier(.4,0,.2,1),height .8s cubic-bezier(.4,0,.2,1)}}
+</style>
+
+<body>
+<div class="wrap">
+  <header class="top">
+    <svg class="logo" viewBox="0 0 240 240" role="img" aria-label="Fishin' Control"><defs>
+      <clipPath id="lgDisc"><circle cx="120" cy="120" r="101"/></clipPath>
+      <clipPath id="lgHull"><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z"/></clipPath>
+      <linearGradient id="lgSky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#103a4e"/><stop offset="1" stop-color="#061c28"/>
+      </linearGradient>
+      <linearGradient id="lgSea" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#17485f"/><stop offset="1" stop-color="#0a2735"/>
+      </linearGradient>
+      <linearGradient id="lgHullG" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#a9dcf2"/>
+        <stop offset=".38" stop-color="#63bcdf"/>
+        <stop offset="1" stop-color="#35809f"/>
+      </linearGradient>
+      <linearGradient id="lgNoseG" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset=".45" stop-color="#ddf2fc"/>
+        <stop offset="1" stop-color="#63bcdf"/>
+      </linearGradient>
+      <radialGradient id="lgGlow" cx="50%" cy="50%">
+        <stop offset="0" stop-color="#ffc247" stop-opacity=".45"/>
+        <stop offset="1" stop-color="#ffc247" stop-opacity="0"/>
+      </radialGradient>
+    </defs><circle cx="120" cy="120" r="101" fill="url(#lgSky)"/><g clip-path="url(#lgDisc)"><path d="M34 96a92 92 0 0 1 172 0" fill="none" stroke="#7ad3f5" stroke-width="1.6" stroke-dasharray="3 9" opacity=".28"/><circle cx="66" cy="74" r="2.6" fill="#7ad3f5" opacity=".55"/><circle cx="96" cy="54" r="1.7" fill="#7ad3f5" opacity=".55"/><circle cx="176" cy="62" r="2.2" fill="#7ad3f5" opacity=".55"/><circle cx="198" cy="98" r="1.5" fill="#7ad3f5" opacity=".55"/><path d="M-10 172q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0 L250 240 L-10 240Z" fill="url(#lgSea)"/><path d="M-10 172q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0" fill="none" stroke="#7ad3f5" stroke-width="4.5" stroke-linecap="round" opacity="0.8"/><path d="M-10 187q15 -5 30 0t30 0q15 -5 30 0t30 0q15 -5 30 0t30 0q15 -5 30 0t30 0q15 -5 30 0t30 0" fill="none" stroke="#7ad3f5" stroke-width="3.4" stroke-linecap="round" opacity="0.38"/><path d="M-10 201q15 -4 30 0t30 0q15 -4 30 0t30 0q15 -4 30 0t30 0q15 -4 30 0t30 0q15 -4 30 0t30 0" fill="none" stroke="#7ad3f5" stroke-width="2.8" stroke-linecap="round" opacity="0.18"/><ellipse cx="120" cy="168" rx="34" ry="15" fill="url(#lgGlow)"/><path d="M92 98c-16 4-28 14-34 30 12-7 23-11 34-12z" fill="#4a9cc2"/><path d="M148 98c16 4 28 14 34 30-12-7-23-11-34-12z" fill="#2c6d8c"/><path d="M97 120c-13 10-23 24-27 41 13-11 22-19 31-21c-4-6-5-13-4-20z" fill="#4a9cc2"/><path d="M143 120c13 10 23 24 27 41-13-11-22-19-31-21c4-6 5-13 4-20z" fill="#2c6d8c"/><path d="M111 136l9 26 9-26z" fill="#2c6d8c" opacity=".95"/><path d="M107 138c1 16 4 28 13 43 9-15 12-27 13-43z" fill="#ffc247"/><path d="M113.5 138c1 11 3 19 6.5 28 3.5-9 5.5-17 6.5-28z" fill="#ffe6a6" opacity=".85"/><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z" fill="url(#lgHullG)"/><g clip-path="url(#lgHull)"><path d="M80 42h80v36h-80z" fill="url(#lgNoseG)"/><path d="M103 50c-5 22-7 50-5 78h9c-2-28 0-56 5-78z" fill="#fff" opacity=".18"/></g><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z" fill="none" stroke="#06171f" stroke-width="2" opacity=".18"/><circle cx="120" cy="88" r="17" fill="#ddf2fc"/><circle cx="120" cy="88" r="14.4" fill="#06171f"/><circle cx="120" cy="88" r="10" fill="#34c979"/><circle cx="120" cy="88" r="3.4" fill="#06171f"/><circle cx="115.5" cy="83" r="2.1" fill="#fff" opacity=".8"/></g><circle cx="120" cy="120" r="112" fill="none" stroke="#7ad3f5" stroke-width="7"/><circle cx="120" cy="120" r="98" fill="none" stroke="#7ad3f5" stroke-width="1.6" opacity=".32"/></svg>
+    <div class="mark">Fishin'<span> Control</span></div>
+    <button class="ghost" id="install" hidden>Install</button>
+    <button class="ghost" id="reload">Refresh</button>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <div id="app"><div class="state">Reading the water…</div></div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   FISHIN' CONTROL — single-file fishing window planner
+   ───────────────────────────────────────────────────────────────────────────
+   No build step, no dependencies. Open the file and it runs.
+
+   DATA FLOW
+     getData()   fetches Open-Meteo: one deterministic run for wind and one for
+                 waves, plus three alternate wind models and two alternate wave
+                 models for cross-checking, plus GFS ensemble members for the
+                 probability. Every request is time-boxed; wave failure degrades
+                 (scores are capped) rather than aborting.
+     build()     turns those arrays into DAYS[] — one object per day holding
+                 per-zone hourly series, scores, windows, tides, bar risk,
+                 probability and bite. This is the only place model logic lives.
+     render()    turns DAYS[SEL] into HTML. Pure string building, no DOM reads.
+
+   STATE  (module-level, deliberately small)
+     RAW    last successful fetch      DAYS   built model output
+     SEL    selected day index         ZSEL   selected zone id
+     TAB    'plan' | 'marks' | 'log'   CFG    the user's limits
+     MARKS / LOG                       persisted via saveStore()
+
+   CONVENTIONS
+     · Anything that shapes a score is in TUNING, not inline.
+     · Sampling happens 10–20 km offshore, never at the ramp — see POINTS.
+     · Every interpolated value goes through esc(); it escapes quotes too
+       because it is used inside attributes.
+     · Clicks are delegated from #app to ACTIONS — add a handler there and a
+       data-act attribute in the markup, never an inline onclick.
+     · rebuild() = recompute + repaint (use after anything that feeds the model).
+       render() = repaint only.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   1 · SETUP
+   ═══════════════════════════════════════════════════════════════ */
+const APP_VERSION='3.0';
+const DEFAULTS={maxSwell:0.7,maxWind:10,maxGust:12};
+
+/* Every magic number that shapes a score lives here, so you can tune the model
+   without reading the functions that use it. Anything not in this block is
+   either a physical constant or a layout value. */
+const TUNING={
+  // hour score: how the three inputs are weighted, and the range each maps over
+  weightSea:0.40, weightWind:0.34, weightGust:0.26,
+  seaGood:0.22, seaBad:1.35,          // metres: full marks below, zero above
+  windGood:5,   windBad:20,           // knots
+  gustGood:8,   gustBad:26,           // knots
+  breachCap:46,                       // an hour outside your limits can score no higher
+  leeWind:0.72, leeGust:0.78,         // offshore wind is knocked down by this much
+  onshoreArc:70,                      // degrees either side of the run-out bearing
+  // day score
+  topHours:5, targetGoodHours:6, windowFloor:0.55,
+  // confidence guards
+  capNoWaves:55, capLowAgreement:74, capLowProbability:62, lowProbability:35,
+  // bite
+  biteBase:52, biteMoon:14, biteMoonNear:7, biteFalling:9, biteRising:-7,
+  biteBigTide:6, biteNeap:-3, biteShower:4, biteWet:-4, logNudgeMax:6,
+  // bar risk: run-out rate in metres per hour that counts as "running hard"
+  barRunning:0.10, barHard:0.22, barWind:12, barSea:0.6,
+  // data
+  fetchTimeoutMs:15000, ensembleModel:'gfs_seamless'
+};
+let CFG={...DEFAULTS};
+
+// Launch points north → south. mlat/mlon = the ramp itself (map pin).
+// exposed = compass arc the spot copes with badly. swellF = how much
+// open-ocean swell actually reaches it. drive = travel cost from Bundaberg.
+const ZONES=[
+ {id:'baffle',barF:1,out:60,name:'Baffle Creek',ramp:'Winfield ramp, Baffle Creek',
+  lat:-24.47,lon:152.05,mlat:-24.499,mlon:152.042,swellF:.95,exposed:[30,140],drive:7,
+  grounds:'Northern limit of your range. The creek system first, then 5–15 km out off Rules Beach. The bar wants swell under a metre and plenty of water under you.'},
+ {id:'miara',barF:1,out:45,name:'Kolan River / Miara',ramp:'Miara boat ramp',
+  lat:-24.63,lon:152.14,mlat:-24.650,mlon:152.160,swellF:.95,exposed:[20,130],drive:3,
+  grounds:'River, the flats out the front, and the close reefs 6–14 km north-east.'},
+ {id:'burnett',barF:0.45,out:45,name:'Burnett Heads',ramp:'Burnett Heads / Port Bundaberg ramp',
+  lat:-24.70,lon:152.45,mlat:-24.760,mlon:152.410,swellF:1,exposed:[20,140],drive:0,
+  grounds:'All-tide ramp and deep water. The Leads, the inshore reefs off Bargara 3–8 km, the 4 and 6 mile, and wider ground out to your 20 km line.'},
+ {id:'elliott',barF:1,out:70,name:'Elliott Heads',ramp:'Elliott Heads boat ramp',
+  lat:-24.93,lon:152.55,mlat:-24.926,mlon:152.490,swellF:.9,exposed:[30,150],drive:0,
+  grounds:'Close reefs and rubble 4–12 km out plus the artificial reef ground. Shallow bar — making tide only, and only with the swell well down.'},
+ {id:'woodgate',barF:0.8,out:105,name:'Walkers Point / Woodgate',ramp:'Walkers Point ramp, Gregory River',
+  lat:-25.10,lon:152.60,mlat:-25.123,mlon:152.560,swellF:.6,exposed:[330,60],drive:9,
+  grounds:'Southern limit of your range. Top of the bay — flats, wrecks and close bay ground 5–15 km. Loses most of the south-east swell.'}
+];
+
+const ESTUARIES=[
+ {name:'Baffle Creek',z:'baffle',d:'Deep bends, rock bars and mangrove drains. The best system in the region when it blows.'},
+ {name:'Kolan River',z:'miara',d:'Mouth on the run-out, then the long weed and rubble edges inside.'},
+ {name:'Burnett River',z:'burnett',d:'Rock bars, the gravel beds up from the yacht club, the Bird Bay weed edges and the port walls.'},
+ {name:'Elliott River',z:'elliott',d:'Snags and drop-offs on the run-out, sand flats up top on the run-in.'},
+ {name:'Gregory River',z:'woodgate',d:'Timber and rock bars up from Walkers Point, and the flats out front on the run-in.'}
+];
+
+const SEASON={
+ 0:{t:'Peak summer',sp:['Mangrove jack','Threadfin','Grunter','Spanish mackerel','Spotted mackerel','Coral trout','Red emperor','Whiting','Mud crab'],
+    bait:['Live poddy mullet and herring','Fresh prawn','Whole pilchard and gar','Squid strips'],
+    lure:['3–5" paddle tails on 1/4–3/8 oz','Topwater walkers at first light','Trolled deep hardbodies along the snags','Flasha spoons and slugs for mackerel'],
+    note:'Barramundi are closed until 1 February. Hot and humid, so first and last light do most of the work.'},
+ 1:{t:'Late wet',sp:['Barramundi','Mangrove jack','Threadfin','Grunter','Mud crab','Spanish mackerel'],
+    bait:['Live mullet','Fresh prawn','Mullet fillet'],lure:['Paddle tails','Suspending hardbodies','Vibes along the ledges'],
+    note:'Run-off colours the rivers. Fish the clean and dirty line and the mouths on the run-out. Crabs move hard after rain.'},
+ 2:{t:'Warm and wet',sp:['Barramundi','Mangrove jack','Threadfin','Grunter','Spanish mackerel','Coral trout'],
+    bait:['Live baits','Fresh prawn','Gar for trolling'],lure:['Plastics','Trolled hardbodies','Stickbaits over bait schools'],
+    note:'Best month of the year for a big spanish close in, if you get a calm window.'},
+ 3:{t:'First cool change',sp:['Snapper','Grass sweetlip','Spanish mackerel','Grunter','Whiting','Flathead'],
+    bait:['Pilchard','Squid','Live herring'],lure:['Plastics on the inshore reefs','Slugs for pelagics'],
+    note:'Water starts cooling and snapper move onto the close reefs on the change of light.'},
+ 4:{t:'Early winter',sp:['Snapper','Grass sweetlip','Blackall','Bream','Longtail tuna','Squid'],
+    bait:['Pilchard','Squid','Mullet fillet','Live yakkas'],lure:['5" jerk shads','Micro jigs','Slugs at working birds'],
+    note:'Clear water and light westerlies — prime for plastics on the inshore reefs.'},
+ 5:{t:'Winter',sp:['Snapper','Bream','Blackall','Tuskfish','Longtail tuna','Mac tuna','Squid'],
+    bait:['Whole pilchard','Squid','Mullet fillet'],lure:['Plastics','Micro jigs','Small slugs and stickbaits for tuna'],
+    note:'Coldest water of the year. Slow everything down and fish the top and the bottom of the tide.'},
+ 6:{t:'Deep winter',sp:['Snapper','Bream','Blackall','Flathead','School mackerel','Longtail tuna'],
+    bait:['Pilchard','Squid','Prawn'],lure:['Plastics','Blades and vibes in the rivers'],
+    note:'Rivers fish well in the middle of the day once the sun has warmed the flats.'},
+ 7:{t:'Late winter',sp:['Flathead','Whiting','Snapper','Blackall','School mackerel','Squid'],
+    bait:['Live worms and yabbies','Pilchard','Squid'],lure:['Vibes and plastics on the sand drop-offs','Surface poppers for whiting'],
+    note:'Flathead school up to spawn. Let the big girls go.'},
+ 8:{t:'Spring warm-up',sp:['Flathead','Whiting','Grunter','School mackerel','Spanish mackerel','Coral trout','Blue salmon','Threadfin','Squid','Mud crab'],
+    bait:['Live herring and poddy mullet','Yabbies and worms for whiting','Whole pilchard and gar for mackerel'],
+    lure:['Vibes and 3" plastics on the sand edges','Surface poppers over the flats on the run-in','Trolled hardbodies and spoons for mackerel'],
+    note:'Everything is waking up. Mackerel and tuna start showing on the close reefs, so watch for working birds.'},
+ 9:{t:'Building',sp:['Spanish mackerel','Grunter','Grass sweetlip','Coral trout','Barramundi','Mangrove jack'],
+    bait:['Live baits','Gar','Pilchard'],lure:['Trolled hardbodies','Plastics','Topwater at dawn'],
+    note:'Check the coral reef fin fish closures around the new moon before you keep trout or reds.'},
+ 10:{t:'Early summer',sp:['Mangrove jack','Threadfin','Spanish mackerel','Grunter','Mud crab','Grass sweetlip'],
+    bait:['Live mullet','Fresh prawn'],lure:['Hardbodies at the snags','Paddle tails','Slugs for pelagics'],
+    note:'Barramundi close from 1 November. Jacks switch on once the water pushes past about 24°C.'},
+ 11:{t:'Summer',sp:['Mangrove jack','Threadfin','Spanish mackerel','Spotted mackerel','Coral trout','Red emperor','Whiting'],
+    bait:['Live baits','Fresh prawn','Gar'],lure:['Topwater','Trolled hardbodies','Plastics and jigs on the wider ground'],
+    note:'Take the wide trip on the neaps when the water is clean.'}
+};
+
+const SOURCES=[
+ ['Windy','https://www.windy.com/-Waves-waves?waves,-24.800,152.400,9'],
+ ['BOM Fraser Island Coast','http://www.bom.gov.au/qld/forecasts/fraser-island-coast.shtml'],
+ ['BOM Capricornia Coast','http://www.bom.gov.au/qld/forecasts/capricornia-coast.shtml'],
+ ['BOM MetEye','http://www.bom.gov.au/australia/meteye/'],
+ ['BOM radar','http://www.bom.gov.au/australia/radar/'],
+ ['MSQ tide tables','https://www.msq.qld.gov.au/Tides/Tide-tables'],
+ ['Tackle World Bundaberg report','https://www.bundabergnow.com/?s=fishing+report'],
+ ['Seabreeze Bundaberg','https://www.seabreeze.com.au/weather/wind-forecast/bundaberg'],
+ ['Willyweather Burnett Heads','https://tides.willyweather.com.au/qld/wide-bay-and-burnett/burnett-heads.html'],
+ ['QLD fishing rules','https://www.daf.qld.gov.au/business-priorities/fisheries/recreational'],
+ ['Marine safety and bar reports','https://www.msq.qld.gov.au/Safety']
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   2 · SUN & MOON  (computed on device, no network)
+   ═══════════════════════════════════════════════════════════════ */
+const rad=Math.PI/180, dayMs=864e5, J1970=2440588, J2000=2451545, eps=rad*23.4397;
+const toDays=d=>d.valueOf()/dayMs-0.5+J1970-J2000;
+const RA=(l,b)=>Math.atan2(Math.sin(l)*Math.cos(eps)-Math.tan(b)*Math.sin(eps),Math.cos(l));
+const DEC=(l,b)=>Math.asin(Math.sin(b)*Math.cos(eps)+Math.cos(b)*Math.sin(eps)*Math.sin(l));
+const sidereal=(d,lw)=>rad*(280.16+360.9856235*d)-lw;
+const altitude=(H,phi,dec)=>Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H));
+function sunCoords(d){
+  const M=rad*(357.5291+0.98560028*d);
+  const C=rad*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M));
+  const L=M+C+rad*102.9372+Math.PI;
+  return {dec:DEC(L,0),ra:RA(L,0)};
+}
+function moonCoords(d){
+  const L=rad*(218.316+13.176396*d),M=rad*(134.963+13.064993*d),F=rad*(93.272+13.229350*d);
+  const l=L+rad*6.289*Math.sin(M),b=rad*5.128*Math.sin(F),dt=385001-20905*Math.cos(M);
+  return {ra:RA(l,b),dec:DEC(l,b),dist:dt};
+}
+function moonIllum(date){
+  const d=toDays(date),s=sunCoords(d),m=moonCoords(d),sd=149598000;
+  const phi=Math.acos(Math.sin(s.dec)*Math.sin(m.dec)+Math.cos(s.dec)*Math.cos(m.dec)*Math.cos(s.ra-m.ra));
+  const inc=Math.atan2(sd*Math.sin(phi),m.dist-sd*Math.cos(phi));
+  const ang=Math.atan2(Math.cos(s.dec)*Math.sin(s.ra-m.ra),
+      Math.sin(s.dec)*Math.cos(m.dec)-Math.cos(s.dec)*Math.sin(m.dec)*Math.cos(s.ra-m.ra));
+  return {fraction:(1+Math.cos(inc))/2,phase:0.5+0.5*inc*(ang<0?-1:1)/Math.PI};
+}
+function moonAlt(date,lat,lon){
+  const lw=rad*-lon,phi=rad*lat,d=toDays(date),c=moonCoords(d),H=sidereal(d,lw)-c.ra;
+  let h=altitude(H,phi,c.dec);
+  return h+rad*0.017/Math.tan(h+rad*10.26/(h/rad+5.10));
+}
+function moonEvents(start,lat,lon){
+  let rise=null,set=null,over=null,under=null,prev=null,cur=moonAlt(start,lat,lon);
+  const step=6e5;
+  for(let t=step;t<=26*36e5;t+=step){
+    const dt=new Date(+start+t),a=moonAlt(dt,lat,lon);
+    if(cur<0&&a>=0&&!rise) rise=dt;
+    if(cur>0&&a<=0&&!set) set=dt;
+    if(prev!==null){
+      if(cur>prev&&cur>a&&!over) over=new Date(+dt-step);
+      if(cur<prev&&cur<a&&!under) under=new Date(+dt-step);
+    }
+    prev=cur; cur=a;
+  }
+  return {rise,set,over,under};
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   3 · HELPERS
+   ═══════════════════════════════════════════════════════════════ */
+const TZ='Australia/Brisbane';
+const pad=n=>String(n).padStart(2,'0');
+const hhmm=d=>d?pad(d.getHours())+':'+pad(d.getMinutes()):'—';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(v,a,b)=>clamp((v-a)/(b-a),0,1);
+const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+const COMPASS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const dirOf=d=>COMPASS[Math.round((d%360)/22.5)%16];
+const inArc=(d,[a,b])=>{d=(d%360+360)%360;return a<=b?(d>=a&&d<=b):(d>=a||d<=b);};
+const light=s=>s>=70?'var(--go)':s>=48?'var(--mid)':'var(--no)';
+const lightKey=s=>s>=70?'g':s>=48?'a':'r';
+function localDate(iso){
+  const [d,t]=iso.split('T'),[Y,M,D]=d.split('-').map(Number),[h,m]=t.split(':').map(Number);
+  return new Date(Y,M-1,D,h,m||0);
+}
+// Used for both text nodes and attribute values, so quotes must go too.
+const ESC={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>ESC[c]);
+
+/* ═══════════════════════════════════════════════════════════════
+   3b · YOUR MARKS AND YOUR CATCH LOG  (stored on the device)
+   ═══════════════════════════════════════════════════════════════ */
+let MARKS=[], LOG=[];
+
+const DEFAULT_MARKS=[
+ {ramp:'burnett',name:'The Leads',km:2,depth:8,type:'channel'},
+ {ramp:'burnett',name:'Bargara inshore reefs',km:6,depth:9,type:'reef'},
+ {ramp:'burnett',name:'The Four Mile',km:12,depth:15,type:'reef'},
+ {ramp:'burnett',name:'Burnett rock walls',km:1,depth:4,type:'rock'},
+ {ramp:'elliott',name:'Elliott artificial reef',km:6,depth:12,type:'reef'},
+ {ramp:'elliott',name:'Elliott mouth gutters',km:1,depth:3,type:'sand'},
+ {ramp:'elliott',name:'Close rubble ground',km:9,depth:11,type:'rubble'},
+ {ramp:'baffle',name:'Baffle deep bends',km:1,depth:6,type:'snags'},
+ {ramp:'baffle',name:'Rules Beach reef',km:10,depth:13,type:'reef'},
+ {ramp:'baffle',name:'Bar gutters',km:2,depth:3,type:'sand'},
+ {ramp:'miara',name:'Kolan mouth flats',km:1,depth:2,type:'flats'},
+ {ramp:'miara',name:'Close reefs NE',km:10,depth:11,type:'reef'},
+ {ramp:'woodgate',name:'Woodgate flats',km:3,depth:3,type:'flats'},
+ {ramp:'woodgate',name:'Bay wrecks',km:12,depth:12,type:'wreck'},
+ {ramp:'woodgate',name:'Gregory River snags',km:1,depth:5,type:'snags'}
+];
+const MARK_TYPES=['reef','rubble','wreck','rock','channel','sand','flats','snags'];
+
+// which kind of ground suits which part of the tide and light
+const MARK_PREF={
+ dawn:['flats','snags','reef','sand'],
+ high:['flats','snags','rock','sand'],
+ low:['reef','rubble','channel','rock','wreck'],
+ dusk:['reef','snags','rock','flats'],
+ run:['reef','wreck','rubble','channel']
+};
+function marksFor(zoneId,kind,sea){
+  const pref=MARK_PREF[kind]||MARK_PREF.run;
+  return MARKS.filter(m=>m.ramp===zoneId)
+    .map(m=>{
+      let q=pref.indexOf(m.type); q=q<0?9:q;
+      if(sea>0.6&&m.km>12) q+=3;          // lumpy — favour the closer ground
+      return {...m,q};
+    })
+    .sort((a,b)=>a.q-b.q||a.km-b.km)
+    .slice(0,2);
+}
+
+function tidePhaseAt(t,tides){
+  if(!tides||!tides.length) return 'unknown';
+  const near=tides.find(x=>Math.abs(x.t-t)<=45*6e4);
+  if(near) return near.hi?'high':'low';
+  const next=tides.find(x=>x.t>t);
+  if(!next) return 'unknown';
+  return next.hi?'run-in':'run-out';
+}
+function moonBucket(phase){
+  const nf=Math.min(Math.abs(phase),Math.abs(phase-1));
+  if(nf<0.08) return 'new';
+  if(Math.abs(phase-0.5)<0.08) return 'full';
+  if(Math.abs(phase-0.25)<0.09||Math.abs(phase-0.75)<0.09) return 'quarter';
+  return 'between';
+}
+const RATINGS=['Nothing','Slow','Steady','On fire'];
+
+// gentle nudge from your own record — capped so it can never talk you into a bad day
+function logHint(d0,zone,moon,tides){
+  if(LOG.length<6) return null;
+  const mb=moonBucket(moon.phase);
+  const label=b=>b==='between'?'mid-phase':b;
+  let hits=LOG.filter(e=>e.ramp===zone.z.id&&e.moon===mb), how='on a '+label(mb)+' moon';
+  if(hits.length<3){ hits=LOG.filter(e=>e.ramp===zone.z.id); how='overall'; }
+  if(hits.length<4) return null;
+  const avg=mean(hits.map(e=>e.rating));
+  const delta=Math.round(clamp((avg-1.5)*4,-6,6));
+  if(!delta) return null;
+  return {delta,n:hits.length,avg,
+    text:(delta>0?'Your log likes ':'Your log is cool on ')+zone.z.name+' '+how+
+      ' — '+hits.length+' sessions averaging '+avg.toFixed(1)+' out of 3.'};
+}
+
+function patterns(){
+  if(LOG.length<4) return null;
+  const by=key=>{
+    const m={};
+    LOG.forEach(e=>{const k=e[key]; if(!k)return; (m[k]=m[k]||[]).push(e.rating);});
+    return Object.entries(m).map(([k,v])=>({k,n:v.length,avg:mean(v)}))
+      .filter(x=>x.n>=2).sort((a,b)=>b.avg-a.avg);
+  };
+  const sp={};
+  LOG.forEach(e=>(e.species||'').split(/,\s*/).filter(Boolean).forEach(x=>sp[x]=(sp[x]||0)+1));
+  return {tide:by('tide'),moon:by('moon'),ramp:by('ramp'),wind:by('windDir'),
+    species:Object.entries(sp).sort((a,b)=>b[1]-a[1]).slice(0,6)};
+}
+
+/* Storage. Two backends: the artifact host's key-value store when present,
+   otherwise localStorage. Everything is wrapped in {v, data} so a future change
+   of shape can be migrated rather than silently misread. Corrupt values are
+   discarded, never thrown — losing a mark beats a blank screen. */
+const STORE_VERSION=1, SKEY='fishin-';   // old 'bundy-' keys are still read once
+async function readKey(k){
+  const parse=raw=>{
+    try{
+      const p=JSON.parse(raw);
+      if(p&&typeof p==='object'&&'v' in p) return p.v===STORE_VERSION?p.data:migrate(k,p);
+      return p;                                   // pre-versioning payload
+    }catch(e){ console.warn('[store] discarding unreadable',k,e); return null; }
+  };
+  try{ const v=await window.storage.get(k); if(v&&v.value) return parse(v.value); }catch(e){}
+  try{ const v=localStorage.getItem(SKEY+k); if(v) return parse(v); }catch(e){}
+  try{ const v=localStorage.getItem('bundy-'+k); if(v) return parse(v); }catch(e){}  // pre-rename
+  return null;
+}
+function migrate(key,payload){
+  // no migrations needed yet; add them here as {from version -> to}
+  console.warn('[store] unknown version for',key,payload.v);
+  return payload.data;
+}
+async function saveStore(k,v){
+  const body=JSON.stringify({v:STORE_VERSION,data:v});
+  let ok=false;
+  try{ await window.storage.set(k,body); ok=true; }catch(e){}
+  try{ localStorage.setItem(SKEY+k,body); ok=true; }catch(e){}
+  if(!ok) console.warn('[store] could not save',k);
+  return ok;
+}
+function validLimits(o){
+  if(!o||typeof o!=='object') return null;
+  const n=(x,lo,hi,d)=>Number.isFinite(+x)&&+x>=lo&&+x<=hi?+x:d;
+  return {maxSwell:n(o.maxSwell,0.1,6,DEFAULTS.maxSwell),
+          maxWind:n(o.maxWind,1,60,DEFAULTS.maxWind),
+          maxGust:n(o.maxGust,1,80,DEFAULTS.maxGust)};
+}
+async function loadStore(){
+  const lim=validLimits(await readKey('limits')); if(lim) CFG={...CFG,...lim};
+  const m=await readKey('marks');
+  MARKS=Array.isArray(m)?m.filter(x=>x&&x.name&&x.ramp):DEFAULT_MARKS.map((x,i)=>({...x,id:'d'+i}));
+  const l=await readKey('log');
+  LOG=Array.isArray(l)?l.filter(x=>x&&x.date&&x.ramp):[];
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   4 · DATA — Open-Meteo, primary run plus independent models
+        used purely to cross-check agreement
+   ═══════════════════════════════════════════════════════════════ */
+// Conditions at the ramp tell you nothing about what it is like out there, so
+// every ramp is sampled at 2, 10, 15 and 20 km along the bearing you run out on.
+// The 10–20 km points drive the decision; the 2 km point is only used for tide,
+// rain, pressure and the river score.
+const OFFSETS=[2,10,15,20];
+function dest(lat,lon,brg,km){
+  const R=111.32,t=brg*Math.PI/180;
+  return [lat+km*Math.cos(t)/R, lon+km*Math.sin(t)/(R*Math.cos(lat*Math.PI/180))];
+}
+const POINTS=[];
+ZONES.forEach(z=>{
+  z.pts=OFFSETS.map(d=>{
+    const [la,lo]=dest(z.mlat,z.mlon,z.out,d);
+    POINTS.push({lat:+la.toFixed(3),lon:+lo.toFixed(3),zone:z.id,km:d});
+    return POINTS.length-1;
+  });
+  z.ptOut=z.pts.slice(1);          // 10, 15, 20 km
+  z.ptIn=z.pts[0];                 // just off the ramp
+  z.ptMid=z.pts[2];                // 15 km, the reference point
+});
+const LATS=POINTS.map(p=>p.lat).join(','), LONS=POINTS.map(p=>p.lon).join(',');
+const F_HOURLY='wind_speed_10m,wind_gusts_10m,wind_direction_10m,temperature_2m,precipitation,cloud_cover,pressure_msl';
+const M_HOURLY='wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_level_height_msl,sea_surface_temperature';
+const fUrl=m=>'https://api.open-meteo.com/v1/forecast?latitude='+LATS+'&longitude='+LONS+
+  '&hourly='+F_HOURLY+'&daily=sunrise,sunset&wind_speed_unit=kn&timezone='+encodeURIComponent(TZ)+
+  '&forecast_days=7'+(m?'&models='+m:'');
+const mUrl=m=>'https://marine-api.open-meteo.com/v1/marine?latitude='+LATS+'&longitude='+LONS+
+  '&hourly='+M_HOURLY+'&timezone='+encodeURIComponent(TZ)+'&forecast_days=7'+(m?'&models='+m:'');
+
+const eUrl=(lat,lon)=>'https://ensemble-api.open-meteo.com/v1/ensemble?latitude='+lat+'&longitude='+lon+
+  '&hourly=wind_speed_10m,wind_gusts_10m&models='+TUNING.ensembleModel+'&wind_speed_unit=kn&timezone='+
+  encodeURIComponent(TZ)+'&forecast_days=7';
+const WIND_MODELS=['ecmwf_ifs025','gfs_seamless','icon_seamless'];
+const WAVE_MODELS=['ncep_gfswave025','ewam'];
+const arr=j=>Array.isArray(j)?j:[j];
+async function grab(url,ms){
+  // every request is time-boxed; without this a stalled connection hangs the app
+  const ac=new AbortController();
+  const timer=setTimeout(()=>ac.abort(),ms||TUNING.fetchTimeoutMs);
+  try{
+    const r=await fetch(url,{signal:ac.signal});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    if(j&&j.error) throw new Error(j.reason||'api error');
+    return arr(j);
+  } finally { clearTimeout(timer); }
+}
+const soft=u=>grab(u).catch(()=>null);
+
+async function getData(){
+  const fc=await grab(fUrl());                       // wind is essential
+  let m=await soft(mUrl());                          // waves: try, then retry, then carry on without
+  const blank=a=>!a||a.every(v=>v==null);
+  const noData=x=>!x||x.every(o=>!o.hourly||(blank(o.hourly.swell_wave_height)&&blank(o.hourly.wave_height)));
+  if(noData(m)){ const alt=await soft(mUrl('ncep_gfswave025')); if(!noData(alt)) m=alt; }
+  const noWaves=noData(m);
+  if(noWaves) m=[];
+  const refP=POINTS[ZONES.find(z=>z.id==='burnett').ptMid];
+  const [wm,vm,ens]=await Promise.all([
+    Promise.all(WIND_MODELS.map(k=>soft(fUrl(k)))),
+    Promise.all(WAVE_MODELS.map(k=>soft(mUrl(k)))),
+    soft(eUrl(refP.lat,refP.lon))
+  ]);
+  return {fc,mar:m,noWaves,windAlt:wm.filter(Boolean),waveAlt:vm.filter(Boolean),
+          ens:(ens&&ens[0]&&ens[0].hourly)?ens[0]:null};
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5 · SCORING
+   ═══════════════════════════════════════════════════════════════ */
+// A 0.6 m swell at 5 s is a short, square chop; the same height at 10 s is a
+// lazy roll you would hardly notice. Steepness matters more than height alone.
+function periodFactor(T){
+  if(T==null) return 1.08;                 // unknown period — assume slightly worse than average
+  if(T<=4) return 1.45;
+  if(T<=6) return 1.45-(T-4)/2*0.30;       // 1.45 → 1.15
+  if(T<=8) return 1.15-(T-6)/2*0.15;       // 1.15 → 1.00
+  if(T<=11) return 1.00-(T-8)/3*0.12;      // 1.00 → 0.88
+  return 0.88;
+}
+function seaWord(T){
+  if(T==null) return 'period unknown';
+  if(T<=5) return 'short and square';
+  if(T<=7) return 'a bit steep';
+  if(T<=9) return 'moderate';
+  return 'long and lazy';
+}
+const angDiff=(a,b)=>{const d=Math.abs(((a-b)%360+360)%360);return d>180?360-d:d;};
+
+function hourScore(h,z){
+  const sw=h.sea*z.swellF*periodFactor(h.period);
+  const onshore=inArc(h.wdir,z.exposed);
+  const T=TUNING;
+  const wEff=onshore?h.wind:h.wind*T.leeWind, gEff=onshore?h.gust:h.gust*T.leeGust;
+  const s=T.weightSea *(100*(1-lerp(sw,T.seaGood,T.seaBad)))
+         +T.weightWind*(100*(1-lerp(wEff,T.windGood,T.windBad)))
+         +T.weightGust*(100*(1-lerp(gEff,T.gustGood,T.gustBad)));
+  const ok=sw<=CFG.maxSwell&&wEff<=CFG.maxWind&&gEff<=CFG.maxGust;
+  return {s:Math.round(ok?s:Math.min(s,T.breachCap)),ok,swEff:sw,wEff,gEff,onshore};
+}
+const riverScore=h=>Math.round(0.5*(100*(1-lerp(h.wind,8,28)))+0.3*(100*(1-lerp(h.gust,12,34)))+0.2*(100*(1-lerp(h.rain,0,6))));
+
+function windows(hours,from,to){
+  const out=[]; let run=null;
+  hours.forEach(h=>{
+    if(h.z.ok&&h.t>=from&&h.t<=to){
+      if(!run) run={a:h.t,b:h.t,ss:[]};
+      run.b=new Date(+h.t+36e5); run.ss.push(h.z.s);
+    } else if(run){ out.push(run); run=null; }
+  });
+  if(run) out.push(run);
+  return out.filter(w=>w.b-w.a>=2*36e5).map(w=>({...w,avg:Math.round(mean(w.ss)),hrs:(w.b-w.a)/36e5}));
+}
+function extrema(series){
+  const out=[];
+  for(let i=1;i<series.length-1;i++){
+    const a=series[i-1].v,b=series[i].v,c=series[i+1].v;
+    if(a==null||b==null||c==null) continue;
+    if((b>a&&b>=c)||(b<a&&b<=c)){
+      const den=a-2*b+c, off=den?0.5*(a-c)/den:0;
+      out.push({t:new Date(+series[i].t+off*36e5),v:b-0.25*(a-c)*off,hi:b>a});
+    }
+  }
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6 · BUILD
+   ═══════════════════════════════════════════════════════════════ */
+function build(raw){
+  const {fc,mar,windAlt=[],waveAlt=[],noWaves=false}=raw;
+  const times=fc[0].hourly.time;
+  const has=a=>a&&a.some(v=>v!=null);
+
+  const pointHours=POINTS.map((p,i)=>{
+    const F=(fc[i]&&fc[i].hourly)||(fc[0].hourly), M=(mar[i]&&mar[i].hourly)||{};
+    let src=M;
+    if(!has(M.swell_wave_height)&&!has(M.wave_height)){
+      // grid cell has no wave data (happens inside the bay) — borrow the nearest point that does
+      const alt=mar.find(x=>x&&x.hourly&&(has(x.hourly.swell_wave_height)||has(x.hourly.wave_height)));
+      src=(alt&&alt.hourly)||{};
+    }
+    const g=(a,k)=>(a&&a[k]!=null)?a[k]:null;
+    return times.map((t,k)=>{
+      const sw=g(src.swell_wave_height,k)??g(src.wave_height,k)??0;
+      const ww=g(src.wind_wave_height,k)??0;
+      // wave_height is already the combined sea; fall back to adding the two components
+      const sea=g(src.wave_height,k)??Math.sqrt(sw*sw+ww*ww);
+      return {
+        t:localDate(t),
+        wind:F.wind_speed_10m[k]??0, gust:F.wind_gusts_10m[k]??0, wdir:F.wind_direction_10m[k]??0,
+        temp:F.temperature_2m[k], rain:F.precipitation[k]??0, pres:F.pressure_msl[k],
+        swell:sw, windWave:ww, sea:Math.max(sea,sw),
+        period:g(src.swell_wave_period,k)??g(src.wave_period,k)??null,
+        sst:g(src.sea_surface_temperature,k), lvl:g(M.sea_level_height_msl,k)
+      };
+    });
+  });
+
+  const refZ=ZONES.find(z=>z.id==='burnett');
+  const refIn=refZ.ptIn, refMid=refZ.ptMid;
+
+  // which way the tide is running, straight off the modelled sea-level curve
+  const lvl=pointHours[refIn].map(h=>h.lvl);
+  const tideDir=lvl.map((v,k)=>{
+    const a=lvl[k-1],b=lvl[k+1];
+    if(a==null||b==null) return {dir:0,rate:0};
+    const d=(b-a)/2;
+    return {dir:Math.sign(d),rate:Math.abs(d)};
+  });
+
+  // a zone's conditions are the WORST of its 10, 15 and 20 km points — the water
+  // you have to cross to get home, not the water at the ramp
+  const zoneHours=ZONES.map(z=>times.map((t,k)=>{
+    const out=z.ptOut.map(i=>pointHours[i][k]);
+    const mid=pointHours[z.ptMid][k], inn=pointHours[z.ptIn][k];
+    const periods=out.map(h=>h.period).filter(v=>v!=null);
+    const td=tideDir[k]||{dir:0,rate:0};
+    const sea=Math.max(...out.map(h=>h.sea));
+    const period=periods.length?Math.min(...periods):null;   // shortest period is the one that hurts
+    // wind against tide on the bar: run-out, onshore breeze, and enough of both
+    const onshoreBar=angDiff(mid.wdir,z.out)<TUNING.onshoreArc;
+    let bar=0;
+    if(td.dir<0&&td.rate>TUNING.barRunning){
+      if(onshoreBar) bar+=1;
+      if(inn.wind>=TUNING.barWind) bar+=1;
+      if(sea>=TUNING.barSea) bar+=1;
+      if(td.rate>=TUNING.barHard) bar+=1;
+      if(!onshoreBar) bar=Math.max(0,bar-1);
+    }
+    bar=Math.round(clamp(bar*z.barF,0,3));
+    return {
+      t:mid.t,
+      wind:Math.max(...out.map(h=>h.wind)), gust:Math.max(...out.map(h=>h.gust)), wdir:mid.wdir,
+      swell:Math.max(...out.map(h=>h.swell)), windWave:Math.max(...out.map(h=>h.windWave)),
+      sea, period, sst:mid.sst,
+      windIn:inn.wind, seaIn:inn.sea, swellIn:inn.swell,
+      seaAt:{10:out[0].sea,15:out[1].sea,20:out[2].sea},
+      tideDir:td.dir, tideRate:td.rate, bar, onshoreBar,
+      temp:mid.temp, rain:inn.rain, pres:inn.pres, sea_level:inn.lvl
+    };
+  }));
+
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dates=[...new Set(times.map(t=>t.slice(0,10)))].filter(d=>localDate(d+'T00:00')>=today).slice(0,7);
+  const allTides=extrema(pointHours[refIn].map(h=>({t:h.t,v:h.lvl})));
+
+  // ── ensemble members: what share of runs actually give a usable window
+  const ensMembers=(()=>{
+    if(!raw.ens||!raw.ens.hourly) return null;
+    const H=raw.ens.hourly;
+    const wk=Object.keys(H).filter(k=>/^wind_speed_10m_member\d+$/.test(k));
+    const gk=Object.keys(H).filter(k=>/^wind_gusts_10m_member\d+$/.test(k));
+    if(!wk.length) return null;
+    const et=(H.time||[]).map(localDate);
+    return {times:et,wind:wk.map(k=>H[k]),gust:gk.map(k=>H[k])};
+  })();
+
+  // model agreement, measured at the reference point
+  function agreement(d0,d1){
+    const idx=times.map((t,i)=>({t:localDate(t),i})).filter(x=>x.t>=d0&&x.t<d1).map(x=>x.i);
+    const winds=windAlt.map(set=>{
+      const H=set[refMid]&&set[refMid].hourly; if(!H||!H.wind_speed_10m) return null;
+      const v=idx.map(i=>H.wind_speed_10m[i]).filter(x=>x!=null); return v.length?mean(v):null;
+    }).filter(v=>v!=null);
+    const waves=waveAlt.map(set=>{
+      const H=set[refMid]&&set[refMid].hourly; if(!H) return null;
+      const a=H.swell_wave_height||H.wave_height; if(!a) return null;
+      const v=idx.map(i=>a[i]).filter(x=>x!=null); return v.length?mean(v):null;
+    }).filter(v=>v!=null);
+    const base=mean(idx.map(i=>pointHours[refMid][i].wind));
+    const wAll=[base,...winds], wSpread=wAll.length>1?Math.max(...wAll)-Math.min(...wAll):null;
+    const baseS=mean(idx.map(i=>pointHours[refMid][i].swell));
+    const sAll=[baseS,...waves], sSpread=sAll.length>1?Math.max(...sAll)-Math.min(...sAll):null;
+    let level='unknown';
+    if(wSpread!=null){
+      const w=wSpread, s=sSpread??0;
+      level=(w<3&&s<0.2)?'high':(w<6&&s<0.4)?'fair':'low';
+    }
+    return {level,wSpread,sSpread,models:wAll.length,waveModels:sAll.length};
+  }
+
+  return dates.map(ds=>{
+    const d0=localDate(ds+'T00:00'), d1=new Date(+d0+dayMs);
+    const di=fc[0].daily.time.indexOf(ds);
+    const sunrise=di>=0?localDate(fc[0].daily.sunrise[di]):new Date(+d0+5.6*36e5);
+    const sunset =di>=0?localDate(fc[0].daily.sunset[di]) :new Date(+d0+17.6*36e5);
+    const from=new Date(+sunrise-9e5), to=new Date(+sunset+9e5);
+
+    const zones=ZONES.map((z,i)=>{
+      const hours=zoneHours[i].filter(h=>h.t>=d0&&h.t<d1).map(h=>({...h,z:hourScore(h,z)}));
+      const day=hours.filter(h=>h.t>=from&&h.t<=to);
+      const win=windows(hours,from,to);
+      const top=[...day].sort((a,b)=>b.z.s-a.z.s).slice(0,TUNING.topHours);
+      const goodHrs=day.filter(h=>h.z.ok).length;
+      const score=Math.round(mean(top.map(h=>h.z.s))*
+        (TUNING.windowFloor+(1-TUNING.windowFloor)*clamp(goodHrs/TUNING.targetGoodHours,0,1)));
+      const periods=day.map(h=>h.period).filter(v=>v!=null);
+      // stretches where a run-out meets an onshore breeze
+      const barWin=[]; let runb=null;
+      day.forEach(h=>{
+        if(h.bar>=2){ if(!runb) runb={a:h.t,b:h.t,max:h.bar}; runb.b=new Date(+h.t+36e5); runb.max=Math.max(runb.max,h.bar); }
+        else if(runb){ barWin.push(runb); runb=null; }
+      });
+      if(runb) barWin.push(runb);
+      return {z,hours,win,score,goodHrs,barWin,
+        swell:day.length?Math.min(...day.map(h=>h.z.swEff)):0,
+        swellMax:day.length?Math.max(...day.map(h=>h.z.swEff)):0,
+        seaRaw:day.length?Math.max(...day.map(h=>h.sea*z.swellF)):0,
+        period:periods.length?Math.min(...periods):null,
+        wind:mean(day.map(h=>h.wind)), gust:day.length?Math.max(...day.map(h=>h.gust)):0,
+        wdir:mean(day.map(h=>h.wdir)),
+        swellIn:day.length?Math.max(...day.map(h=>h.seaIn*z.swellF)):0,
+        swell20:day.length?Math.max(...day.map(h=>h.seaAt[20]*z.swellF)):0,
+        windIn:day.length?Math.max(...day.map(h=>h.windIn)):0,
+        barMax:day.length?Math.max(...day.map(h=>h.bar)):0};
+    }).map(z=>noWaves?{...z,score:Math.min(z.score,TUNING.capNoWaves)}:z)
+      .sort((a,b)=>(b.score-b.z.drive)-(a.score-a.z.drive));
+
+    // ── chance of a usable window, from the ensemble members
+    function probFor(zs){
+      if(!ensMembers) return null;
+      const idx=ensMembers.times.map((t,i)=>({t,i})).filter(x=>x.t>=from&&x.t<=to).map(x=>x.i);
+      if(idx.length<3) return null;
+      const zi=ZONES.findIndex(x=>x.id===zs.z.id);
+      const zh=zoneHours[zi].filter(h=>h.t>=from&&h.t<=to);
+      const rh=zoneHours[ZONES.findIndex(x=>x.id==='burnett')].filter(h=>h.t>=from&&h.t<=to);
+      const dW=mean(zh.map(h=>h.wind))-mean(rh.map(h=>h.wind));
+      const dG=mean(zh.map(h=>h.gust))-mean(rh.map(h=>h.gust));
+      // the sea-state side is deterministic: which daylight hours pass on swell alone
+      const seaOk=zh.map(h=>h.sea*zs.z.swellF*periodFactor(h.period)<=CFG.maxSwell);
+      let pass=0;
+      ensMembers.wind.forEach((w,m)=>{
+        const g=ensMembers.gust[m]||w;
+        let run=0, best=0;
+        idx.forEach((i,k)=>{
+          const okW=(w[i]!=null)&&(w[i]+dW<=CFG.maxWind)&&((g[i]??w[i])+dG<=CFG.maxGust);
+          const okS=seaOk[k]!==false;
+          if(okW&&okS){ run++; best=Math.max(best,run); } else run=0;
+        });
+        if(best>=2) pass++;
+      });
+      return Math.round(100*pass/ensMembers.wind.length);
+    }
+    const prob=probFor(zones[0]);
+    const probByZone={}; zones.forEach(z=>{ probByZone[z.z.id]=probFor(z); });
+
+    const kFrom=times.findIndex(t=>localDate(t)>=d0);
+    const ref=pointHours[refIn].filter(h=>h.t>=d0&&h.t<d1)
+      .map((h,k)=>({...h,sea:h.lvl,sst:pointHours[refMid][kFrom+k]?pointHours[refMid][kFrom+k].sst:null}));
+    const refDay=ref.filter(h=>h.t>=from&&h.t<=to);
+    const river=Math.round(mean(refDay.map(riverScore)));
+    const tides=allTides.filter(t=>t.t>=d0&&t.t<d1);
+    const range=tides.length>1?Math.max(...tides.map(t=>t.v))-Math.min(...tides.map(t=>t.v)):null;
+    const moon=moonIllum(new Date(+d0+12*36e5));
+    const me=moonEvents(d0,refZ.mlat,refZ.mlon);
+    const rain=ref.reduce((a,h)=>a+(h.rain||0),0);
+    const presTrend=(ref[0]&&ref[ref.length-1])?ref[ref.length-1].pres-ref[0].pres:0;
+    const ssts=ref.map(h=>h.sst).filter(v=>v!=null);
+    const agree=agreement(d0,d1);
+
+    let bite=52;
+    const nf=Math.min(Math.abs(moon.phase),Math.abs(moon.phase-0.5),Math.abs(moon.phase-1));
+    if(nf<0.06) bite+=14; else if(nf<0.12) bite+=7; else if(Math.abs(nf-0.25)<0.05) bite-=5;
+    if(presTrend<-1.5) bite+=9; else if(presTrend>2.5) bite-=7;
+    if(range!=null){ if(range>2.6) bite+=6; else if(range<1.4) bite-=3; }
+    if(rain>0.5&&rain<12) bite+=4; else if(rain>=12) bite-=4;
+    const hint=logHint(d0,zones[0],moon,tides);
+    if(hint) bite+=hint.delta;
+    bite=clamp(Math.round(bite),5,95);
+
+    let overall=Math.round(clamp(0.74*zones[0].score+0.26*bite,0,100));
+    if(agree.level==='low') overall=Math.min(overall,TUNING.capLowAgreement);   // never call it a lock when the models disagree
+    if(noWaves) overall=Math.min(overall,TUNING.capNoWaves);                // swell unknown, so never a green light
+    if(prob!=null&&prob<TUNING.lowProbability) overall=Math.min(overall,TUNING.capLowProbability);    // most ensemble runs give you no window
+
+    return {ds,d0,sunrise,sunset,from,to,zones,river,tides,range,moon,me,rain,presTrend,agree,noWaves,
+      prob,probByZone,hint,sst:ssts.length?mean(ssts):null,bite,overall,ref};
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7 · ADVICE
+   ═══════════════════════════════════════════════════════════════ */
+function sessions(day,zone){
+  const H=36e5, maj=[day.me.over,day.me.under].filter(Boolean);
+  let wins=zone.win.slice(), where=zone.z.name, riverDay=false;
+  if(!wins.length){
+    wins=[{a:new Date(+day.sunrise-18e5),b:new Date(+day.sunset),ss:[],avg:day.river,hrs:0}];
+    where='Burnett River, or Baffle Creek for the best shelter'; riverDay=true;
+  }
+  const clip=(a,b,w)=>({a:new Date(Math.max(+a,+w.a)),b:new Date(Math.min(+b,+w.b))});
+  const cand=[];
+  wins.forEach(w=>{
+    const an=[];
+    if(day.sunrise>=new Date(+w.a-27e5)&&day.sunrise<=w.b)
+      an.push({kind:'dawn',...clip(new Date(+day.sunrise-18e5),new Date(+day.sunrise+2.5*H),w)});
+    day.tides.filter(t=>t.t>=new Date(+w.a-H)&&t.t<=new Date(+w.b+H)).forEach(t=>
+      an.push({kind:t.hi?'high':'low',...clip(new Date(+t.t-1.75*H),new Date(+t.t+1.75*H),w)}));
+    if(day.sunset>=w.a&&day.sunset<=new Date(+w.b+27e5))
+      an.push({kind:'dusk',...clip(new Date(+day.sunset-2.5*H),new Date(+day.sunset+18e5),w)});
+    if(!an.length) an.push({kind:'run',a:w.a,b:new Date(Math.min(+w.b,+w.a+4*H))});
+    an.forEach(x=>{ if(x.b-x.a>=75*6e4) cand.push({...x,win:w}); });
+  });
+  cand.forEach(c=>{
+    let q=c.win.avg||50;
+    if(c.kind==='dawn') q+=22; else if(c.kind==='dusk') q+=12;
+    if(c.kind==='high'||c.kind==='low') q+=8;
+    c.solunar=maj.some(m=>m>=c.a&&m<=c.b);
+    if(c.solunar) q+=14;
+    c.q=q;
+  });
+  cand.sort((a,b)=>b.q-a.q);
+  const picked=[];
+  cand.forEach(c=>{ if(picked.length<3&&!picked.some(p=>c.a<p.b&&c.b>p.a)) picked.push(c); });
+  picked.sort((a,b)=>a.a-b.a);
+
+  const COPY={
+   dawn:['First light','The best hour of the day for no reason other than being there. Work the shallow edges and the reef tops before the sun is on the water — topwater first, plastics once it lifts. Pelagics pin bait against the surface early, so watch for birds on the way out.'],
+   high:['Top of the tide','Fish are up on the flats and hard against the mangrove lines. Poppers and small plastics over the sand, live baits along the edges. Out wide the run eases at the top, which is the best window to sit on a mark and drop baits.'],
+   low:['Bottom of the tide','Everything is off the flats and pinned to the deeper edges. Rock bars, drains and drop-offs with vibes and paddle tails, or anchor up-current and wash a bait back. Good time to mark new structure on the sounder.'],
+   dusk:['Last of the light','Second bite of the day. Slow down, rework the structure that produced this morning, and leave yourself enough light to get back over the bar.'],
+   run:['Mid-tide run','Plenty of water moving. Troll the reef edges or drift with the run, and spot-lock up-current once you find them.']
+  };
+  return picked.map(c=>{
+    const [title,base]=COPY[c.kind];
+    let how=riverDay?'Outside is out today, so fish the system instead. '+base:base;
+    if(c.solunar) how+=' The moon is overhead or underfoot inside this window — if you only get one session, take this one.';
+    const inWin=zone.hours.filter(h=>h.t>=c.a&&h.t<c.b);
+    const bar=inWin.length?Math.max(...inWin.map(h=>h.bar)):0;
+    const sea=inWin.length?Math.max(...inWin.map(h=>h.sea*zone.z.swellF)):0;
+    return {a:c.a,b:c.b,hrs:Math.round((c.b-c.a)/H*10)/10,title,how,where,bar,kind:c.kind,
+      tide:tidePhaseAt(new Date((+c.a+ +c.b)/2),day.tides),
+      marks:riverDay?[]:marksFor(zone.z.id,c.kind,sea)};
+  });
+}
+
+function techniques(day){
+  const m=SEASON[day.d0.getMonth()], mods=[];
+  if(day.range!=null&&day.range>2.6) mods.push('Big tides and a lot of water moving. Heavier jig heads, fish the last of the run-out at the mouths, and get the pots in.');
+  if(day.range!=null&&day.range<1.6) mods.push('Neaps — less run and cleaner water outside. Good day to go wide, sit on a mark and work plastics and live baits.');
+  if(day.rain>4) mods.push('Rain about, so the rivers will colour up. Switch to scent — mullet fillet, prawn, live bait — and fish the edge where dirty meets clean.');
+  if(day.presTrend<-2) mods.push('Barometer falling ahead of a change, which is often the best bite of the week. Go early.');
+  if(day.presTrend>2.5) mods.push('Barometer climbing behind a change. Fish deeper, slow the retrieve right down, expect a shorter window.');
+  if(day.sst!=null&&day.sst<21) mods.push('Water around '+day.sst.toFixed(1)+'°C and cool. Long pauses, deeper holes, and the middle of the day is no bad shift.');
+  if(day.sst!=null&&day.sst>25) mods.push('Water around '+day.sst.toFixed(1)+'°C and warm. Jacks and pelagics are on, and the light changes do the damage.');
+  const nf=Math.min(Math.abs(day.moon.phase),Math.abs(day.moon.phase-0.5),Math.abs(day.moon.phase-1));
+  if(nf<0.06) mods.push('Right on the '+(Math.abs(day.moon.phase-0.5)<0.06?'full':'new')+' moon — big tides, strong night bite, crabs on the move.');
+  return {m,mods};
+}
+
+function launchNotes(day,zone){
+  const n=[], w=dirOf(zone.wdir);
+  if(zone.z.id==='woodgate'&&zone.score>=48)
+    n.push('Walkers Point is the pick today — the top of the bay knocks that '+w+' right down.');
+  if(zone.swellMax>CFG.maxSwell)
+    n.push('Swell touches '+zone.swellMax.toFixed(1)+' m at its worst, which is over your limit. Watch the bar and be honest about it.');
+  if(['elliott','baffle'].includes(zone.z.id))
+    n.push('Shallow bar here. Cross on a making tide, never on a big run-out into the wind.');
+  if(zone.z.drive>=11) n.push('That is a fair tow from Bundaberg, so it wants to be worth the drive.');
+  return n;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   8 · FISH — drawn per species, nothing to load
+   ═══════════════════════════════════════════════════════════════ */
+let FID=0;
+const shade=(hex,f)=>{
+  const n=parseInt(hex.slice(1),16);
+  const r=Math.round(((n>>16)&255)*f), g=Math.round(((n>>8)&255)*f), b=Math.round((n&255)*f);
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+};
+// spiny dorsal: a row of rays standing proud of the back
+function spiky(x0,y0,x1,y1,n,h){
+  let up='M'+x0+' '+y0, dn='';
+  for(let i=0;i<n;i++){
+    const t0=i/n, t1=(i+0.5)/n, t2=(i+1)/n;
+    const px=x0+(x1-x0)*t1, py=y0+(y1-y0)*t1-h*(1-Math.abs(t1-0.45)*1.1);
+    const qx=x0+(x1-x0)*t2, qy=y0+(y1-y0)*t2;
+    up+=' L'+px.toFixed(1)+' '+py.toFixed(1)+' L'+qx.toFixed(1)+' '+qy.toFixed(1);
+  }
+  return up+' Z';
+}
+
+// Each body is a real silhouette: head slope, body depth, fin shape and tail
+// are what tell a snapper from a bream at forty pixels.
+const BODY={
+ perch:{ // snapper, red emperor, mangrove jack — deep, steep forehead
+  b:"M12 29c3-12 12-20 26-22 13-2 26 3 35 11 5 5 9 9 11 11-2 2-6 6-11 11-9 8-22 13-35 11-14-2-23-10-26-22Z",
+  t:"M84 29l15-13-4 13 4 13z",
+  d:spiky(31,10,60,7,5,9)+'M60 7c7 1 12 4 16 8l-5 4c-4-4-8-7-13-8z',
+  a:"M46 50c10 4 20 3 28-2l-4-6c-7 4-15 5-23 4z",
+  p:"M42 32c8 2 14 7 17 13-7 2-14-1-19-7z",
+  g:"M31 11c-5 9-5 27 0 36", e:[24,21,3.2]},
+ oval:{ // bream, sweetlip, grunter, blackall — shallower, rounder snout
+  b:"M11 29c4-10 13-17 26-19 13-2 27 3 36 10 5 4 9 8 11 9-2 1-6 5-11 9-9 7-23 12-36 10-13-2-22-9-26-19Z",
+  t:"M84 29l14-11-3 11 3 11z",
+  d:spiky(30,13,58,10,5,8)+'M58 10c7 1 12 4 15 7l-4 4c-4-3-8-6-12-7z',
+  a:"M46 48c10 3 20 2 28-2l-4-6c-7 4-15 5-23 4z",
+  p:"M41 32c8 2 13 6 16 11-7 2-13 0-18-5z",
+  g:"M30 13c-4 8-4 24 0 32", e:[23,22,3]},
+ trout:{ // coral trout — long oval body, rounded tail
+  b:"M9 29c4-10 14-16 28-17 15-1 30 4 41 11 4 3 7 5 9 6-2 1-5 3-9 6-11 7-26 12-41 11-14-1-24-7-28-17Z",
+  t:"M87 29c5-7 9-10 12-11v22c-3-1-7-4-12-11z",
+  d:"M27 11c15-4 32-2 44 5l-3 4c-11-5-26-7-39-5z",
+  a:"M46 47c10 3 20 2 27-3l-4-3c-6 3-14 4-21 3z",
+  p:"M40 32c6 1 11 4 14 8-5 2-11 1-15-3z",
+  g:"M28 14c-4 8-4 22 0 30", lift:5, e:[21,23,2.9]},
+ tusk:{ // tuskfish — heavy head, thick lips, paddle tail
+  b:"M13 29c2-12 11-19 25-21 14-2 28 3 38 11 4 4 8 7 10 10-2 3-6 6-10 10-10 8-24 13-38 11-14-2-23-9-25-21Z",
+  t:"M85 29c5-7 10-11 13-12v24c-3-1-8-5-13-12z",
+  d:"M32 9c14-4 30-2 41 6l-4 4c-10-6-24-8-36-6z",
+  a:"M46 50c10 3 20 1 27-4l-4-3c-6 4-15 5-22 3z",
+  p:"M44 32c7 1 12 5 15 9-6 2-12 1-16-3z",
+  g:"M33 12c-5 8-5 26 0 34", lift:5, e:[26,21,3],
+  x:'<path d="M13 26c-4 1-6 3-6 4s2 3 6 4z" fill="#f2f6f8" opacity=".5"/>'},
+ whiting:{ // whiting — slender, small headed
+  b:"M10 29c7-5 19-8 33-8 16 0 31 3 42 6 4 1 7 2 9 2-2 0-5 1-9 2-11 3-26 6-42 6-14 0-26-3-33-8Z",
+  t:"M92 29l7-9-2 9 2 9z",
+  d:spiky(32,21,52,20,4,7)+'M52 20c8 1 14 2 19 4l-2 3c-6-2-11-3-17-4z',
+  a:"M44 37c11 2 23 1 31-1l-2-4c-8 2-18 3-27 2z",
+  p:"M34 31c6 1 10 3 13 7-5 1-11 0-14-3z",
+  g:"M25 21c-3 5-3 11 0 16", e:[19,26,2.6]},
+ flathead:{ // flathead — broad flat head, long taper
+  b:"M4 31c1-9 13-14 28-15 19-1 40 3 54 8 5 2 9 3 11 4-2 1-6 2-11 4-14 4-35 7-54 6-15-1-25-5-27-7Z",
+  t:"M93 31l6-8v17z",
+  d:"M35 21c16-3 34-1 46 3l-2 4c-12-3-29-5-45-3z",
+  a:"M40 45c14 3 30 2 41-1l-2-3c-11 2-25 3-38 1z",
+  p:"M29 36c8 1 14 4 17 9-7 2-14 0-19-4z",
+  g:"M24 24c-3 5-3 13 0 18", lift:5, e:[17,27,2.6]},
+ barra:{ // barramundi — concave snout, humped back, big paddle tail
+  b:"M9 34c2-6 5-11 11-15 6-4 13-8 22-10 12-3 25-1 35 4 8 4 14 9 18 14-5 6-11 11-19 14-11 4-24 5-35 2-9-3-17-7-22-12-4-4-8-7-10-9Z",
+  t:"M85 32c6-10 11-15 15-16v30c-4-1-9-6-15-14z",
+  d:spiky(28,16,48,10,4,8),
+  d2:"M53 9c9 2 17 7 23 13l-5 4c-6-6-13-10-20-12z",
+  a:"M50 51c10 2 19 0 26-4l-4-6c-7 4-15 6-23 5z",
+  p:"M38 37c8 2 13 6 16 11-7 2-13 0-18-5z",
+  g:"M30 18c-4 9-4 24 0 32", e:[20,26,3]},
+ thread:{ // threadfin and blue salmon — blunt snout, trailing filaments
+  b:"M12 29c3-10 12-17 25-19 14-2 28 2 38 9 5 4 9 8 11 10-2 2-6 6-11 10-10 7-24 11-38 9-13-2-22-9-25-19Z",
+  t:"M85 29l14-12-3 12 3 12z",
+  d:"M31 12c14-4 29-2 40 4l-3 4c-10-4-24-6-36-4z",
+  a:"M45 48c10 3 20 1 27-3l-4-4c-6 4-15 5-22 3z",
+  p:"M38 33c6 1 11 4 14 8-5 2-11 1-15-3z",
+  g:"M30 13c-4 8-4 24 0 32", lift:5, e:[24,24,3]},
+ mack:{ // mackerel — long torpedo, pointed snout, finlets, deep fork
+  b:"M6 29c10-7 26-11 42-11 14 0 26 3 34 6 5 2 8 3 10 5-2 2-5 3-10 5-8 3-20 6-34 6-16 0-32-4-42-11Z",
+  t:"M92 29l7-14-2 14 2 14z",
+  d:"M34 18c13-3 25-3 34-1l-2 5c-9-2-21-2-31-1z",
+  a:"M44 40c12 3 24 2 32-1l-2-4c-8 2-19 3-29 2z",
+  p:"M32 31c7 1 12 4 15 8-6 2-12 1-16-3z",
+  g:"M22 22c-3 5-3 10 0 15", lift:5, e:[16,26,2.8],
+  x:[74,80,86].map(x=>`<path d="M${x} 21l5-3v3z" fill="currentColor" opacity=".8"/><path d="M${x} 37l5 3v-3z" fill="currentColor" opacity=".8"/>`).join('')},
+ tuna:{ // longtail and mac tuna — deep chest, crescent tail
+  b:"M8 29c8-9 22-14 36-14 13 0 24 4 32 9 5 3 8 5 10 5-2 0-5 2-10 5-8 5-19 9-32 9-14 0-28-5-36-14Z",
+  t:"M84 29c5-11 11-17 15-18-3 6-4 12-4 18s1 12 4 18c-4-1-10-7-15-18z",
+  d:"M37 15c10-2 20-2 28 0l-2 5c-8-2-17-2-25-1z",
+  a:"M45 42c11 2 21 1 28-1l-2-4c-7 2-16 3-24 2z",
+  p:"M34 32c8 1 14 5 17 10-7 2-14 0-19-5z",
+  g:"M24 20c-3 6-3 12 0 18", lift:5, e:[17,26,3]}
+};
+
+function marksFor_(kind){
+  const P=[];
+  if(kind==='spots') [[36,20],[48,26],[58,19],[42,35],[54,37],[66,27],[30,28],[62,36]]
+    .forEach(([x,y])=>P.push(`<circle cx="${x}" cy="${y}" r="2.2" fill="#dff3ff" opacity=".6"/>`));
+  if(kind==='bluespots') [[34,19],[46,25],[56,18],[40,34],[52,36],[64,26],[30,27],[60,35],[70,21]]
+    .forEach(([x,y])=>P.push(`<circle cx="${x}" cy="${y}" r="1.9" fill="#6fd0f2" opacity=".75"/>`));
+  if(kind==='bars') [30,40,50,60,70].forEach(x=>
+    P.push(`<path d="M${x} 8c3 8 0 14 0 21s3 13 0 21" stroke="#06202c" stroke-opacity=".28" stroke-width="3.4" fill="none"/>`));
+  if(kind==='wavybars') [32,43,54,65,76].forEach(x=>
+    P.push(`<path d="M${x} 10c4 7-4 12 0 19s-4 12 0 19" stroke="#0a2a38" stroke-opacity=".3" stroke-width="3" fill="none"/>`));
+  if(kind==='blotch') [[38,24,4.5],[52,31,5],[64,24,4],[46,37,3.6],[72,32,3.4]]
+    .forEach(([x,y,r])=>P.push(`<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${r*.8}" fill="#0a2a38" opacity=".26"/>`));
+  if(kind==='stripes') [22,26,30].forEach(y=>
+    P.push(`<path d="M20 ${y}c20-3 45-3 65 1" stroke="#0a2a38" stroke-opacity=".22" stroke-width="2" fill="none"/>`));
+  if(kind==='lines') [20,25,30].forEach((y,i)=>
+    P.push(`<path d="M16 ${y}c8-2 16-2 24 ${i-1}" stroke="#6fd0f2" stroke-opacity=".55" stroke-width="1.5" fill="none"/>`));
+  if(kind==='speckle') for(let i=0;i<22;i++){
+    const x=26+(i*13)%56, y=14+(i*7)%30;
+    P.push(`<circle cx="${x}" cy="${y}" r="1.1" fill="#04161f" opacity=".3"/>`);
+  }
+  if(kind==='caudalspot') P.push('<circle cx="74" cy="24" r="4.5" fill="#04161f" opacity=".3"/>');
+  return P.join('');
+}
+
+function fishArt(key,col,pale,marks,extra){
+  const B=BODY[key], id='f'+(FID++);
+  const x=(B.x||'')+(extra||'');
+  return `<svg viewBox="0 0 100 58" aria-hidden="true" style="color:${col}">
+   <defs>
+     <clipPath id="c${id}"><path d="${B.b}"/></clipPath>
+     <linearGradient id="g${id}" x1="0" y1="0" x2="0" y2="1">
+       <stop offset="0" stop-color="${col}"/><stop offset=".55" stop-color="${col}"/>
+       <stop offset="1" stop-color="${pale}"/></linearGradient>
+   </defs>
+   <path d="${B.t}" fill="${shade(col,.82)}"/>
+   <g transform="translate(0,${-(B.lift||0)})"><path d="${B.d}" fill="${shade(col,.72)}"/>
+     ${B.d2?`<path d="${B.d2}" fill="${shade(col,.72)}"/>`:''}</g>
+   <g transform="translate(0,${B.lift||0})"><path d="${B.a}" fill="${shade(col,.75)}"/></g>
+   <path d="${B.b}" fill="url(#g${id})"/>
+   <g clip-path="url(#c${id})">${marksFor_(marks)}</g>
+   ${B.g?`<path d="${B.g}" stroke="${pale}" stroke-opacity=".45" stroke-width="1.6" fill="none"/>`:''}
+   <path d="${B.p}" fill="${shade(col,.88)}" opacity=".9"/>
+   ${x}
+   <circle cx="${B.e[0]}" cy="${B.e[1]}" r="${B.e[2]}" fill="#04161f"/>
+   <circle cx="${B.e[0]+1}" cy="${B.e[1]-1}" r="${B.e[2]*0.34}" fill="#fff" opacity=".85"/>
+  </svg>`;
+}
+
+function squidArt(){
+  const id='s'+(FID++);
+  return `<svg viewBox="0 0 100 58" aria-hidden="true">
+   <defs><linearGradient id="q${id}" x1="0" y1="0" x2="0" y2="1">
+     <stop offset="0" stop-color="#d98ba0"/><stop offset="1" stop-color="#f3ccd6"/></linearGradient></defs>
+   <path d="M50 2c7 8 11 18 11 26 0 6-2 10-4 12H43c-2-2-4-6-4-12 0-8 4-18 11-26Z" fill="url(#q${id})"/>
+   <path d="M44 8C33 12 26 18 24 24c6-2 13-8 20-13z" fill="#d98ba0" opacity=".75"/>
+   <path d="M56 8c11 4 18 10 20 16-6-2-13-8-20-13z" fill="#d98ba0" opacity=".75"/>
+   <path d="M41 40h18c0 4-3 6-9 6s-9-2-9-6z" fill="#c0748a"/>
+   ${[42,46,50,54,58].map((x,i)=>`<path d="M${x} 45c${(i-2)*3} 5 ${(i-2)*2} 9 ${(i-2)*4} 12" stroke="#d98ba0" stroke-width="2.4" fill="none" stroke-linecap="round"/>`).join('')}
+   <path d="M43 45c-7 4-12 8-15 13" stroke="#c0748a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+   <path d="M57 45c7 4 12 8 15 13" stroke="#c0748a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+   ${[14,20,26].map(y=>`<circle cx="50" cy="${y}" r="1.2" fill="#b2687d" opacity=".5"/>`).join('')}
+   <circle cx="45" cy="36" r="2.4" fill="#04161f"/><circle cx="55" cy="36" r="2.4" fill="#04161f"/>
+   <circle cx="45.8" cy="35.2" r=".8" fill="#fff" opacity=".8"/>
+  </svg>`;
+}
+
+function crabArt(){
+  const id='k'+(FID++);
+  const dk='#1c4a3f', md='#2f7d63', lt='#6fae8c';
+  return `<svg viewBox="0 0 100 58" aria-hidden="true">
+   <defs><linearGradient id="r${id}" x1="0" y1="0" x2="0" y2="1">
+     <stop offset="0" stop-color="${md}"/><stop offset=".6" stop-color="${md}"/>
+     <stop offset="1" stop-color="${lt}"/></linearGradient></defs>
+   ${[0,1,2,3].map(i=>{
+     const y=27+i*4.2, sp=13+i*4, dr=9+i*4;
+     return `<path d="M38 ${y}c-8 1 -${sp} 3 -${sp+4} ${dr}" stroke="${dk}" stroke-width="${3.4-i*0.45}"
+        fill="none" stroke-linecap="round"/>
+      <path d="M62 ${y}c8 1 ${sp} 3 ${sp+4} ${dr}" stroke="${dk}" stroke-width="${3.4-i*0.45}"
+        fill="none" stroke-linecap="round"/>`;}).join('')}
+   <g fill="${md}" stroke="${dk}" stroke-width="1">
+     <path d="M31 24c-6-5-13-9-20-9 2 3 3 6 2 8 5 0 9 2 12 5z"/>
+     <path d="M11 15c-4-3-8-4-10-1 3 1 6 3 8 5z"/>
+     <path d="M13 21c-4 1-7 3-7 6 3 1 6 0 9-2z"/>
+     <path d="M69 24c6-5 13-9 20-9-2 3-3 6-2 8-5 0-9 2-12 5z"/>
+     <path d="M89 15c4-3 8-4 10-1-3 1-6 3-8 5z"/>
+     <path d="M87 21c4 1 7 3 7 6-3 1-6 0-9-2z"/>
+   </g>
+   <path d="M50 14c14 0 25 4 30 10 2 2 2 5 0 7-5 7-16 11-30 11s-25-4-30-11c-2-2-2-5 0-7 5-6 16-10 30-10Z"
+     fill="url(#r${id})"/>
+   <path d="M20 24c4-4 9-6 13-7m34 0c4 1 9 3 13 7" stroke="${dk}" stroke-opacity=".55"
+     stroke-width="1.3" fill="none"/>
+   ${[[26,22],[31,20],[36,18],[64,18],[69,20],[74,22]].map(([x,y])=>
+     `<path d="M${x} ${y}l2.5 2.5-2.5 1z" fill="${dk}" opacity=".6"/>`).join('')}
+   <path d="M34 31c5 3 11 4 16 4s11-1 16-4" stroke="${dk}" stroke-opacity=".28" stroke-width="1.4" fill="none"/>
+   <circle cx="44" cy="22" r="2.6" fill="#04161f"/><circle cx="56" cy="22" r="2.6" fill="#04161f"/>
+   <circle cx="44.9" cy="21.2" r=".9" fill="#fff" opacity=".8"/>
+   <circle cx="56.9" cy="21.2" r=".9" fill="#fff" opacity=".8"/>
+  </svg>`;
+}
+
+
+// name → drawing. Order matters: the first match wins.
+const SPECIES_ART=[
+ [/squid/,                 ()=>squidArt()],
+ [/crab/,                  ()=>crabArt()],
+ [/barramundi/,            ()=>fishArt('barra','#8fb4cb','#f0f7fb','')],
+ [/mangrove jack/,         ()=>fishArt('perch','#c0402f','#e79a7a','caudalspot')],
+ [/red emperor/,           ()=>fishArt('perch','#d9503f','#f3a48c','bars')],
+ [/snapper/,               ()=>fishArt('perch','#e08a86','#f7d3cd','bluespots')],
+ [/bream/,                 ()=>fishArt('oval','#9fb0bd','#e8eff4','')],
+ [/sweetlip|emperor/,      ()=>fishArt('oval','#c8975c','#f0dcbd','lines')],
+ [/grunter/,               ()=>fishArt('oval','#a8b9c6','#e9f1f6','speckle')],
+ [/blackall/,              ()=>fishArt('oval','#6f7b86','#c3cdd5','blotch')],
+ [/coral trout/,           ()=>fishArt('trout','#cf4b3f','#eb9e8d','bluespots')],
+ [/tuskfish/,              ()=>fishArt('tusk','#4e93b8','#a8d6e8','')],
+ [/whiting/,               ()=>fishArt('whiting','#ddc98f','#f6efd8','')],
+ [/flathead/,              ()=>fishArt('flathead','#8b9b72','#d5dcc4','speckle')],
+ [/spanish mackerel/,      ()=>fishArt('mack','#5f9fc0','#cfe7f2','wavybars')],
+ [/spotted mackerel/,      ()=>fishArt('mack','#6aa9c8','#d4e9f4','spots')],
+ [/school mackerel|mackerel/,()=>fishArt('mack','#74b0cc','#d8ebf5','blotch')],
+ [/longtail tuna/,         ()=>fishArt('tuna','#3f7ea6','#b9dcec','stripes')],
+ [/mac tuna|tuna/,         ()=>fishArt('tuna','#48688a','#b9cde0','stripes')],
+ [/threadfin/,             ()=>fishArt('thread','#b7c9d6','#eef5f9','',
+    '<path d="M36 34c-7 8-15 14-24 18" stroke="currentColor" stroke-width="1.5" fill="none" opacity=".85"/>'+
+    '<path d="M37 35c-5 9-11 16-19 21" stroke="currentColor" stroke-width="1.5" fill="none" opacity=".6"/>')],
+ [/blue salmon|salmon/,    ()=>fishArt('thread','#8fb6ca','#e2eef5','')],
+ [/cobia/,                 ()=>fishArt('mack','#5c6b74','#b7c4cc','stripes')],
+ [/queenfish|trevally/,    ()=>fishArt('oval','#c8b978','#eee5c4','')]
+];
+const ART_CACHE=new Map();          // species art never changes; draw each once
+function speciesArt(name){
+  if(ART_CACHE.has(name)) return ART_CACHE.get(name);
+  const svg=drawSpecies(name);
+  ART_CACHE.set(name,svg);
+  return svg;
+}
+function drawSpecies(name){
+  const n=name.toLowerCase();
+  const hit=SPECIES_ART.find(([re])=>re.test(n));
+  return hit?hit[1]():fishArt('oval','#8fb2c9','#dce9f1','');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   9 · MAP  (schematic chart of the coast, drawn here)
+   ═══════════════════════════════════════════════════════════════ */
+const COAST=[[-24.1307,151.7600],[-24.1267,151.7741],[-24.1294,151.7807],[-24.1241,151.7836],[-24.1231,151.7899],[-24.1522,151.8110],[-24.1670,151.8311],[-24.1774,151.8311],[-24.1717,151.8374],[-24.1740,151.8405],[-24.1719,151.8742],[-24.1868,151.8587],[-24.2015,151.8750],[-24.1899,151.8750],[-24.1868,151.8784],[-24.1868,151.8750],[-24.1795,151.8750],[-24.1668,151.8890],[-24.1668,151.8815],[-24.1643,151.8844],[-24.1594,151.8825],[-24.1483,151.8863],[-24.2033,151.9026],[-24.2091,151.9077],[-24.2109,151.9201],[-24.2290,151.9285],[-24.2346,151.9341],[-24.2329,151.9378],[-24.2407,151.9435],[-24.3085,151.9608],[-24.3942,151.9918],[-24.4018,151.9849],[-24.4071,151.9830],[-24.4125,151.9849],[-24.4166,151.9999],[-24.4271,152.0037],[-24.4271,151.9982],[-24.4346,152.0064],[-24.4486,152.0068],[-24.4473,152.0134],[-24.5108,152.0508],[-24.5220,152.0508],[-24.5220,152.0288],[-24.5071,152.0288],[-24.5071,152.0192],[-24.5271,152.0224],[-24.5318,152.0288],[-24.5307,152.0508],[-24.5342,152.0508],[-24.5271,152.0585],[-24.5271,152.0551],[-24.5182,152.0630],[-24.5551,152.0843],[-24.5838,152.1082],[-24.5871,152.1045],[-24.5981,152.1167],[-24.5956,152.1181],[-24.6396,152.1638],[-24.6505,152.1826],[-24.6523,152.1921],[-24.6670,152.1921],[-24.6670,152.2155],[-24.6639,152.2155],[-24.6733,152.2284],[-24.6971,152.2519],[-24.7180,152.2838],[-24.7205,152.2909],[-24.7269,152.2874],[-24.7302,152.2925],[-24.7247,152.3024],[-24.7371,152.3367],[-24.7436,152.3337],[-24.7395,152.3386],[-24.7382,152.3786],[-24.7555,152.3725],[-24.7656,152.3741],[-24.7548,152.3733],[-24.7506,152.3761],[-24.7584,152.3796],[-24.7365,152.3825],[-24.7318,152.3696],[-24.7337,152.3624],[-24.7314,152.3697],[-24.7335,152.3792],[-24.7447,152.3925],[-24.7539,152.3978],[-24.7530,152.4073],[-24.7538,152.3998],[-24.7599,152.4012],[-24.7590,152.3914],[-24.7626,152.3804],[-24.7668,152.3777],[-24.7867,152.3804],[-24.7867,152.3584],[-24.7896,152.3584],[-24.7940,152.3804],[-24.7867,152.3883],[-24.7668,152.3807],[-24.7668,152.4023],[-24.7603,152.4023],[-24.7588,152.4123],[-24.7574,152.4025],[-24.7579,152.4129],[-24.7753,152.4212],[-24.7843,152.4345],[-24.7995,152.4445],[-24.8025,152.4557],[-24.8152,152.4678],[-24.8260,152.4666],[-24.8416,152.4795],[-24.8472,152.4777],[-24.8575,152.4837],[-24.8844,152.4886],[-24.8864,152.4863],[-24.8864,152.4890],[-24.9164,152.4946],[-24.9195,152.4929],[-24.9172,152.4902],[-24.9244,152.4902],[-24.9316,152.4864],[-24.9661,152.4877],[-24.9661,152.4829],[-24.9706,152.4879],[-25.0180,152.5109],[-25.0680,152.5459],[-25.0798,152.5317],[-25.0740,152.5298],[-25.0687,152.5235],[-25.0726,152.5203],[-25.0738,152.5153],[-25.0720,152.5154],[-25.0721,152.5130],[-25.0758,152.5116],[-25.0743,152.5085],[-25.0775,152.5075],[-25.0744,152.5085],[-25.0758,152.5120],[-25.0722,152.5131],[-25.0741,152.5153],[-25.0731,152.5204],[-25.0695,152.5234],[-25.0808,152.5310],[-25.0808,152.5360],[-25.0861,152.5345],[-25.0740,152.5450],[-25.1013,152.5599],[-25.1179,152.5755],[-25.1512,152.6321],[-25.1706,152.6236],[-25.1738,152.6151],[-25.1833,152.6150],[-25.2298,152.6495],[-25.2399,152.6616],[-25.2447,152.6564],[-25.2537,152.6660],[-25.2467,152.6676],[-25.2460,152.6763],[-25.2584,152.6990],[-25.2669,152.7258],[-25.2697,152.7227],[-25.2669,152.7297],[-25.2694,152.7719],[-25.2640,152.8069],[-25.2529,152.8088],[-25.2476,152.8046],[-25.2434,152.8137],[-25.2479,152.8277],[-25.2606,152.8261],[-25.2761,152.8343],[-25.2839,152.8597],[-25.2809,152.8996],[-25.2926,152.9129],[-25.2976,152.9069],[-25.2934,152.9128],[-25.2984,152.9123],[-25.2976,152.9062],[-25.3077,152.9000],[-25.3430,152.9074],[-25.3633,152.9180],[-25.3782,152.9096],[-25.3953,152.9164],[-25.4071,152.9149],[-25.4275,152.9232],[-25.4158,152.9077],[-25.4234,152.8898],[-25.4234,152.9077],[-25.4324,152.9077],[-25.4324,152.8857],[-25.4433,152.8857],[-25.4433,152.8792],[-25.4631,152.8619],[-25.4830,152.8533],[-25.4830,152.8418],[-25.4769,152.8418],[-25.4830,152.8351],[-25.4830,152.8418],[-25.4956,152.8418],[-25.4879,152.8638],[-25.4830,152.8692],[-25.4631,152.8796],[-25.4631,152.8857],[-25.4612,152.8857],[-25.4519,152.9077],[-25.4519,152.9297],[-25.4341,152.9298],[-25.4354,152.9318],[-25.4305,152.9400],[-25.4351,152.9430],[-25.4323,152.9516],[-25.4346,152.9565],[-25.4352,152.9530],[-25.4428,152.9547],[-25.4476,152.9510],[-25.4466,152.9452],[-25.4518,152.9484],[-25.4519,152.9417],[-25.4612,152.9466],[-25.4697,152.9267],[-25.4989,152.8966],[-25.5050,152.8979],[-25.5010,152.9032],[-25.5294,152.9100],[-25.5341,152.9084],[-25.5365,152.8974],[-25.5386,152.9039],[-25.5416,152.9026],[-25.5561,152.8760],[-25.5516,152.8708],[-25.5534,152.8619],[-25.5543,152.8701],[-25.5594,152.8734],[-25.5615,152.8702],[-25.5613,152.8779],[-25.5692,152.8736]];
+const FRASER=[[-25.5612,152.9499],[-25.5608,152.9596],[-25.5585,152.9538],[-25.5520,152.9512],[-25.5445,152.9624],[-25.5226,152.9726],[-25.5106,152.9857],[-25.5122,152.9889],[-25.4824,152.9892],[-25.4843,152.9935],[-25.4801,152.9938],[-25.4815,152.9892],[-25.4688,152.9839],[-25.4483,152.9868],[-25.4463,152.9930],[-25.4453,152.9888],[-25.4115,153.0078],[-25.3845,153.0343],[-25.3453,153.0513],[-25.3194,153.0506],[-25.2977,153.0424],[-25.2916,153.0461],[-25.2767,153.0400],[-25.2630,153.0452],[-25.2639,153.0509],[-25.2592,153.0525],[-25.2571,153.0475],[-25.2474,153.0458],[-25.2448,153.0513],[-25.2396,153.0490],[-25.2362,153.0429],[-25.2232,153.0387],[-25.2259,153.0339],[-25.2227,153.0327],[-25.2228,153.0262],[-25.2298,153.0179],[-25.2308,153.0101],[-25.2269,152.9977],[-25.2210,152.9933],[-25.2085,152.9995],[-25.1771,153.0305],[-25.1523,153.0784],[-25.1145,153.1277],[-25.0836,153.1603],[-25.0327,153.1998],[-24.9847,153.2259],[-24.9790,153.2332],[-24.9659,153.2382],[-24.9573,153.2357],[-24.9591,153.2321],[-24.9789,153.2275],[-24.9452,153.2335],[-24.9236,153.2313],[-24.8692,153.1983],[-24.8466,153.2066],[-24.8067,153.2022],[-24.8018,153.1934],[-24.8067,153.1765],[-24.8067,153.1934],[-24.8286,153.1934],[-24.8421,153.1785],[-24.8224,153.1555],[-24.8150,153.1367],[-24.8178,153.1214],[-24.8152,153.1187],[-24.8027,153.1235],[-24.7378,153.1831],[-24.7136,153.2165],[-24.6975,153.2504],[-24.6972,153.2644],[-24.8274,153.2594],[-24.8845,153.2671],[-24.9267,153.2849],[-24.9461,153.2996]];
+const ISLANDS=[[[-25.1652,152.5661],[-25.1851,152.5661],[-25.1851,152.5781],[-25.1914,152.5781],[-25.1851,152.5851],[-25.1851,152.6070],[-25.1652,152.6168],[-25.1652,152.5948],[-25.1802,152.5781],[-25.1652,152.5781],[-25.1652,152.5661]]];
+const MAPW=560,MAPH=600,LON0=151.93,LON1=153.14,LAT0=-24.28,LAT1=-25.40;
+const mx=lon=>(lon-LON0)/(LON1-LON0)*MAPW;
+const my=lat=>(lat-LAT0)/(LAT1-LAT0)*MAPH;
+const poly=pts=>pts.map((p,i)=>(i?'L':'M')+mx(p[1]).toFixed(1)+' '+my(p[0]).toFixed(1)).join(' ');
+// one degree of latitude in map units, and the matching squeeze for longitude
+const KM=111.32;
+const ringR=(lat,km)=>({ry:km/KM*(MAPH/(LAT0-LAT1))*-1,
+                        rx:km/(KM*Math.cos(lat*Math.PI/180))*(MAPW/(LON1-LON0))});
+function mapSVG(day,selId){
+  // close the land polygon well outside the frame so the fill can't self-intersect
+  const land=poly(COAST)+' L '+mx(LON0-0.4).toFixed(0)+' '+my(LAT1-0.4).toFixed(0)+
+             ' L '+mx(LON0-0.4).toFixed(0)+' '+my(LAT0+0.4).toFixed(0)+' Z';
+  const sel=day.zones.find(z=>z.z.id===selId)||day.zones[0];
+  const zc=sel.z;
+
+  // range rings from the selected ramp — real distances, drawn under the land
+  const rings=[5,10,15,20].map(km=>{
+    const r=ringR(zc.mlat,km);
+    return `<ellipse cx="${mx(zc.mlon).toFixed(1)}" cy="${my(zc.mlat).toFixed(1)}"
+      rx="${r.rx.toFixed(1)}" ry="${r.ry.toFixed(1)}" fill="none" stroke="#7ad3f5"
+      stroke-opacity="${km===20?.55:.22}" stroke-width="${km===20?1.4:1}"
+      stroke-dasharray="${km===20?'7 5':'3 6'}"/>`;
+  }).join('');
+  const ringLabels=[10,20].map(km=>{
+    const r=ringR(zc.mlat,km);
+    return `<text x="${(mx(zc.mlon)+r.rx*0.99).toFixed(1)}" y="${(my(zc.mlat)-r.ry*0.16).toFixed(1)}"
+      font-size="9.5" fill="#7ad3f5" opacity=".65" font-family="Outfit,sans-serif">${km} km</text>`;
+  }).join('');
+
+  // where the forecast is actually sampled for this ramp
+  const samples=zc.pts.slice(1).map(i=>{
+    const pt=POINTS[i];
+    return `<circle cx="${mx(pt.lon).toFixed(1)}" cy="${my(pt.lat).toFixed(1)}" r="2.6"
+      fill="#7ad3f5" opacity=".8"/>`;
+  }).join('');
+
+  const pins=day.zones.map(z=>{
+    const x=mx(z.z.mlon),y=my(z.z.mlat),c=light(z.score),on=z.z.id===selId;
+    const right=z.z.mlon<152.75;
+    return `<g class="pin" data-act="zone" data-z="${z.z.id}" role="button" tabindex="0"
+      aria-label="${esc(z.z.name)}, score ${z.score}" style="cursor:pointer">
+      <circle cx="${x}" cy="${y}" r="17" fill="${c}" opacity="${on?.3:.12}"/>
+      <circle cx="${x}" cy="${y}" r="${on?9.5:7}" fill="${c}" stroke="#04121c" stroke-width="1.6"/>
+      <text x="${x}" y="${y+3.4}" text-anchor="middle" font-size="8.5" font-weight="700"
+        fill="#04121c" font-family="Space Grotesk,sans-serif">${z.score}</text>
+      <text x="${x+(right?14:-14)}" y="${y+3}" font-size="11.5"
+        text-anchor="${right?'start':'end'}" fill="${on?'#eaf4fb':'#95b8cd'}"
+        font-family="Outfit,sans-serif">${z.z.name.split(' /')[0].split(' (')[0]}</text>
+    </g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${MAPW} ${MAPH}" role="img" aria-label="Go / no-go by launch point">
+    <defs>
+      <linearGradient id="sea" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#0c3b52"/><stop offset="1" stop-color="#051925"/></linearGradient>
+      <linearGradient id="shelf" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#7ad3f5" stop-opacity=".10"/>
+        <stop offset="1" stop-color="#7ad3f5" stop-opacity="0"/></linearGradient>
+      <clipPath id="frame"><rect x="0" y="0" width="${MAPW}" height="${MAPH}" rx="18"/></clipPath>
+    </defs>
+    <rect width="${MAPW}" height="${MAPH}" fill="url(#sea)" rx="18"/>
+    <g clip-path="url(#frame)">
+    ${rings}${ringLabels}
+    <path d="${land}" fill="#22506b" stroke="#9fe2fb" stroke-opacity=".7" stroke-width="1.2"/>
+    <path d="${poly(FRASER)} Z" fill="#22506b" stroke="#9fe2fb" stroke-opacity=".7" stroke-width="1.2"/>
+    ${ISLANDS.map(i=>`<path d="${poly(i)} Z" fill="#22506b" stroke="#7ad3f5" stroke-opacity=".3" stroke-width=".8"/>`).join('')}
+    ${samples}
+    <text x="${mx(153.06).toFixed(1)}" y="${my(-25.05).toFixed(1)}" font-size="10.5" fill="#7ad3f5"
+      opacity=".55" font-family="Outfit,sans-serif"
+      transform="rotate(-82 ${mx(153.06).toFixed(1)} ${my(-25.05).toFixed(1)})">K'gari / Fraser</text>
+    <text x="${mx(152.00).toFixed(1)}" y="${my(-24.46).toFixed(1)}" font-size="10" fill="#95b8cd"
+      opacity=".8" font-family="Outfit,sans-serif">northern limit</text>
+    <text x="${mx(152.16).toFixed(1)}" y="${my(-25.19).toFixed(1)}" font-size="10" fill="#95b8cd"
+      opacity=".8" font-family="Outfit,sans-serif">southern limit</text>
+    ${pins}
+    </g>
+  </svg>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   10 · RENDER
+   ═══════════════════════════════════════════════════════════════ */
+let DAYS=[],SEL=0,ZSEL=null,RAW=null,DEMO=false;
+
+function dial(score){
+  const y=100-score,c=light(score);
+  return `<svg class="dial" viewBox="0 0 100 100" role="img" aria-label="Score ${score} of 100">
+   <defs><clipPath id="cl"><circle cx="50" cy="50" r="44"/></clipPath></defs>
+   <circle cx="50" cy="50" r="44" fill="rgba(0,0,0,.30)" stroke="${c}" stroke-opacity=".5" stroke-width="1.5"/>
+   <g clip-path="url(#cl)">
+     <rect class="fillw" x="0" y="${y}" width="100" height="${score+3}" fill="${c}" opacity=".20"/>
+     <path class="fillw" d="M0 ${y} q12 -5 25 0 t25 0 t25 0 t25 0 V100 H0Z" fill="${c}" opacity=".45"/>
+   </g>
+   <text x="50" y="55" text-anchor="middle" font-size="31" font-weight="700" fill="${c}"
+     font-family="Space Grotesk,sans-serif" style="letter-spacing:-.05em">${score}</text>
+   <text x="50" y="69" text-anchor="middle" font-size="8.5" fill="#65899f" font-family="Outfit,sans-serif">out of 100</text>
+  </svg>`;
+}
+function verdict(s,river){
+  if(s>=75) return ['Go','Inside your limits for a decent stretch of the day.'];
+  if(s>=58) return ['Worth a look','Inside your limits, but the window is not generous. Check the morning obs before you hook up.'];
+  if(s>=42) return ['Marginal','Sitting right on the edge of what you fish. In a 4.5 m boat, treat any doubt as a no.'];
+  return ['River day',river>=55?'Outside is out, but the systems will fish fine in the lee.':'Blowing and lumpy. Tie rigs, service the trailer, go another day.'];
+}
+const pad2=i=>pad(i)+':00';
+
+function condChart(zone){
+  const W=680,H=155,P=28,hrs=zone.hours;
+  if(!hrs.length) return '';
+  const x=i=>P+(W-P*2)*i/Math.max(1,hrs.length-1);
+  const maxS=Math.max(1.2,...hrs.map(h=>h.z.swEff)),maxW=Math.max(18,...hrs.map(h=>h.gust));
+  const sy=v=>H-16-(H-44)*clamp(v/maxS,0,1), wy=v=>H-16-(H-44)*clamp(v/maxW,0,1);
+  const line=(f,k)=>hrs.map((h,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+f(k(h)).toFixed(1)).join(' ');
+  let bands='',start=null;
+  hrs.forEach((h,i)=>{
+    if(h.z.ok&&start===null) start=i;
+    if((!h.z.ok||i===hrs.length-1)&&start!==null){
+      bands+=`<rect x="${x(start)}" y="8" width="${Math.max(2,x(i)-x(start))}" height="${H-24}" fill="var(--go)" opacity=".11"/>`;
+      start=null;
+    }
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Conditions through the day">
+   <rect x="${P}" y="8" width="${W-P*2}" height="${H-24}" fill="rgba(0,0,0,.22)" rx="10"/>
+   ${bands}
+   <line x1="${P}" x2="${W-P}" y1="${sy(CFG.maxSwell)}" y2="${sy(CFG.maxSwell)}" stroke="var(--sky)" stroke-opacity=".45" stroke-dasharray="2 4"/>
+   <line x1="${P}" x2="${W-P}" y1="${wy(CFG.maxWind)}" y2="${wy(CFG.maxWind)}" stroke="var(--no)" stroke-opacity=".35" stroke-dasharray="2 4"/>
+   <path d="${line(wy,h=>h.gust)}" fill="none" stroke="var(--no)" stroke-width="1.4" stroke-dasharray="4 3" opacity=".75"/>
+   <path d="${line(wy,h=>h.wind)}" fill="none" stroke="var(--mid)" stroke-width="2"/>
+   <path d="${line(sy,h=>h.z.swEff)}" fill="none" stroke="var(--sky)" stroke-width="2.4"/>
+   ${[0,6,12,18,23].filter(i=>i<hrs.length).map(i=>
+     `<text x="${x(i)}" y="${H-2}" text-anchor="middle" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">${pad2(i)}</text>`).join('')}
+   <text x="${P+3}" y="${sy(CFG.maxSwell)-5}" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">swell limit ${CFG.maxSwell} m</text>
+   <text x="${W-P-3}" y="${wy(CFG.maxWind)-5}" text-anchor="end" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">wind limit ${CFG.maxWind} kn</text>
+  </svg>`;
+}
+
+function tideSVG(day){
+  const W=680,H=124,P=26,pts=day.ref.filter(h=>h.sea!=null);
+  if(pts.length<4) return '<p class="sub">No modelled tide curve for this day — use the MSQ table.</p>';
+  const vs=pts.map(h=>h.sea),lo=Math.min(...vs),hi=Math.max(...vs);
+  const x=i=>P+(W-P*2)*i/(pts.length-1);
+  const y=v=>H-26-(H-50)*((v-lo)/((hi-lo)||1));
+  const path=pts.map((h,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(h.sea).toFixed(1)).join(' ');
+  const maj=[day.me.over,day.me.under].filter(d=>d&&d>=day.d0&&d<=new Date(+day.d0+dayMs)).map(d=>{
+    const cx=x((d-day.d0)/36e5);
+    return `<rect x="${cx-15}" y="10" width="30" height="${H-38}" fill="var(--go)" opacity=".13" rx="6"/>`;
+  }).join('');
+  const sun=[day.sunrise,day.sunset].map(d=>{
+    const cx=x((d-day.d0)/36e5);
+    return `<line x1="${cx}" x2="${cx}" y1="10" y2="${H-26}" stroke="var(--mid)" stroke-opacity=".4" stroke-dasharray="3 3"/>`;
+  }).join('');
+  const marks=day.tides.map(t=>{
+    const cx=x((t.t-day.d0)/36e5),cy=y(t.v);
+    return `<circle cx="${cx}" cy="${cy}" r="3.6" fill="${t.hi?'var(--sky2)':'var(--sky)'}"/>
+      <text x="${cx}" y="${t.hi?cy-9:cy+16}" text-anchor="middle" font-size="10.5" fill="#e9f4fb"
+        font-family="Space Grotesk,sans-serif">${hhmm(t.t)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tide curve">
+   ${maj}${sun}
+   <path d="${path} L ${x(pts.length-1)} ${H-22} L ${P} ${H-22} Z" fill="var(--sky)" opacity=".13"/>
+   <path d="${path}" fill="none" stroke="var(--sky)" stroke-width="2.2"/>
+   ${marks}
+  </svg>`;
+}
+
+function banner(){
+  if(!DEMO){
+    if(DAYS[SEL]&&DAYS[SEL].noWaves){
+      const w=document.createElement('div');
+      w.className='card';
+      w.style.cssText='border-color:var(--no);background:rgba(255,99,99,.10);margin-bottom:14px';
+      w.innerHTML='<h3 style="color:var(--no)">Swell data unavailable</h3><p class="sub">The wave model did not '+
+        'respond, so every score here is based on wind alone and is capped. Check Windy or the BOM coastal waters '+
+        'forecast for swell before you decide.</p>';
+      const a=document.getElementById('app'); if(a.prepend) a.prepend(w);
+    }
+    return;
+  }
+  const d=document.createElement('div');
+  d.className='card';
+  d.style.cssText='border-color:var(--no);background:rgba(255,99,99,.10);margin-bottom:14px';
+  d.innerHTML='<h3 style="color:var(--no)">Sample data — not a real forecast</h3>'+
+   '<p class="sub">The preview inside the chat app blocks outside requests, so the live feed did not load. '+
+   'Open this file in Chrome on your phone or PC and it pulls the real thing.</p>';
+  const app=document.getElementById('app'); if(app.prepend) app.prepend(d);
+}
+
+let TAB='plan', LOGDRAFT=null;
+
+function tabs(){
+  return `<div class="tabs" role="tablist">
+    ${[['plan','Forecast'],['marks','My marks'],['log','Catch log']].map(([k,l])=>
+      `<button data-act="tab" data-tab="${k}" class="${TAB===k?'on':''}" role="tab"
+        aria-selected="${TAB===k}">${l}</button>`).join('')}
+  </div>`;
+}
+
+function barCard(zone){
+  if(!zone.barWin.length) return '';
+  const worst=Math.max(...zone.barWin.map(w=>w.max));
+  return `<div class="card warn">
+    <h3>${worst>=3?'Bar: stay off it':'Bar: wind against tide'}</h3>
+    <p class="sub">A run-out into an onshore breeze stands the bar up regardless of what the swell number says.
+    ${zone.barWin.map(w=>hhmm(w.a)+'–'+hhmm(w.b)).join(', ')} at ${esc(zone.z.ramp.split(',')[0])}.
+    ${worst>=3?'Cross before it starts or wait for the flood.':'Treat it with respect, and never cross on the last of the run-out into wind.'}</p>
+  </div>`;
+}
+
+function renderPlan(){
+  const day=DAYS[SEL];
+  if(!ZSEL||!day.zones.some(z=>z.z.id===ZSEL)) ZSEL=day.zones[0].z.id;
+  const zone=day.zones.find(z=>z.z.id===ZSEL);
+  const best=day.zones[0];
+  const [word,why]=verdict(day.overall,day.river);
+  const t=techniques(day), ss=sessions(day,zone), ln=launchNotes(day,zone);
+  const phase=p=>['New moon','Waxing crescent','First quarter','Waxing gibbous','Full moon','Waning gibbous','Last quarter','Waning crescent'][Math.round(p*8)%8];
+  const conf={high:['g','Models agree'],fair:['a','Models roughly agree'],low:['r','Models disagree'],unknown:['a','Single model only']}[day.agree.level];
+  const zp=day.probByZone?day.probByZone[zone.z.id]:null;
+
+  return `
+  <div class="hero">
+    <div class="hrow">${dial(day.overall)}
+      <div class="verdict">${word}<small>${why}</small></div></div>
+    ${day.prob!=null?`<div class="prob" title="${day.prob}% of ensemble runs give a usable window">
+      <i style="width:${day.prob}%;background:${light(day.prob)}"></i></div>
+      <p class="sub" style="margin:7px 0 0;font-size:12.5px">${day.prob}% of forecast runs give you a usable window at ${esc(best.z.name.split(' /')[0])}.</p>`:''}
+    <div class="pills">
+      <span class="pill ${lightKey(best.score)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
+      <span class="pill">Sea <b>${best.swell.toFixed(1)}–${best.swellMax.toFixed(1)} m</b> out wide</span>
+      <span class="pill">${best.period?`<b>${Math.round(best.period)} s</b> · ${seaWord(best.period)}`:'period unknown'}</span>
+      <span class="pill">Wind <b>${Math.round(best.wind)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
+      <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
+      <span class="pill ${best.goodHrs?'g':'r'}">${best.goodHrs?`<b>${best.goodHrs} h</b> inside your limits`:'<b>Outside</b> your limits'}</span>
+      ${best.barMax>=2?'<span class="pill r"><b>Bar</b> wind against tide</span>':''}
+      ${day.noWaves?'<span class="pill r"><b>No wave data</b></span>':''}
+      <span class="pill ${conf[0]}">${conf[1]}</span>
+    </div>
+  </div>
+
+  <div class="strip">${DAYS.map((d,i)=>`
+    <button class="day ${i===SEL?'on':''}" data-act="day" data-i="${i}" aria-pressed="${i===SEL}"
+      aria-label="${d.d0.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long'})}, score ${d.overall} of 100">
+      <div class="dow">${d.d0.toLocaleDateString('en-AU',{weekday:'short'})}</div>
+      <div class="dd num">${d.d0.getDate()}/${d.d0.getMonth()+1}</div>
+      <div class="sc num" style="color:${light(d.overall)}">${d.overall}</div>
+      <div class="bar"><i style="width:${d.overall}%;background:${light(d.overall)}"></i></div>
+      <div class="dd num" style="margin-top:4px">${d.prob!=null?d.prob+'%':'&nbsp;'}</div>
+    </button>`).join('')}</div>
+
+  <section>
+    <h2 class="sect">Launch control
+      <span>${day.d0.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long'})}</span></h2>
+    <div class="card mapwrap">
+      ${mapSVG(day,ZSEL)}
+      <div class="legend">
+        <span><i style="background:var(--go)"></i>Go</span>
+        <span><i style="background:var(--mid)"></i>Marginal</span>
+        <span><i style="background:var(--no)"></i>No go</span>
+        <span style="color:var(--dim)">Tap a ramp to plan around it</span>
+      </div>
+    </div>
+    <div class="card">
+      ${day.zones.map(z=>`
+        <button class="zone ${z.z.id===ZSEL?'on':''}" data-act="zone" data-z="${z.z.id}"
+          aria-pressed="${z.z.id===ZSEL}">
+          <span class="led" style="background:${light(z.score)}"></span>
+          <span class="zsc num" style="color:${light(z.score)}">${z.score}</span>
+          <span class="zb">
+            <span class="t">${esc(z.z.name)}</span>
+            <span class="d">${esc(z.z.ramp)}</span><br>
+            <span class="tag ${z.swellMax<=CFG.maxSwell?'ok':'bad'}">sea ${z.swell.toFixed(1)}–${z.swellMax.toFixed(1)} m out wide</span><span class="tag">${z.swellIn.toFixed(1)} m close in</span><span class="tag ${z.wind<=CFG.maxWind?'ok':'mid'}">${Math.round(z.wind)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust<=CFG.maxGust?'ok':'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax>=2?'<span class="tag bad">bar risk</span>':''}${day.probByZone&&day.probByZone[z.z.id]!=null?`<span class="tag">${day.probByZone[z.z.id]}% chance</span>`:''}
+          </span>
+        </button>`).join('')}
+      <div class="rule"></div>
+      <h3>${esc(zone.z.name)}</h3>
+      <p class="sub">${esc(zone.z.grounds)}</p>
+      ${ln.length?`<ul class="tight">${ln.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
+      <p class="sub" style="margin-top:8px">Rivers and creeks today
+        <b style="color:${light(day.river)}">${day.river}/100</b> — ${ESTUARIES.map(e=>e.name).join(', ')}.</p>
+    </div>
+    ${barCard(zone)}
+  </section>
+
+  <section>
+    <h2 class="sect">Conditions <span>10–20 km off ${esc(zone.z.name)}</span></h2>
+    <div class="card chartwrap">${condChart(zone)}
+      <p class="sub" style="margin-top:6px">Light blue is the sea state, amber is sustained wind, dashed red is gusts.
+      Green shading marks every hour that clears all three of your limits. Figures are the worst of the 10, 15 and
+      20 km points on the bearing you run out on, and the sea state is weighted for swell period —
+      ${zone.period?`today is around ${Math.round(zone.period)} seconds, ${seaWord(zone.period)}`:'period data is missing today'}.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sect">Tide and moon</h2>
+    <div class="card chartwrap">${tideSVG(day)}
+      <div class="kv" style="margin-top:10px">
+        <div><div class="k">Range</div><div class="v num">${day.range!=null?day.range.toFixed(1)+' m':'—'}</div></div>
+        <div><div class="k">Moon</div><div class="v" style="font-size:12.5px">${phase(day.moon.phase)}</div></div>
+        <div><div class="k">Moon up</div><div class="v num">${hhmm(day.me.rise)}</div></div>
+        <div><div class="k">Overhead</div><div class="v num">${hhmm(day.me.over)}</div></div>
+        <div><div class="k">Sunrise</div><div class="v num">${hhmm(day.sunrise)}</div></div>
+        <div><div class="k">Sunset</div><div class="v num">${hhmm(day.sunset)}</div></div>
+        <div><div class="k">Water</div><div class="v num">${day.sst!=null?day.sst.toFixed(1)+'°':'—'}</div></div>
+        <div><div class="k">Bite</div><div class="v num" style="color:${light(day.bite)}">${day.bite}</div></div>
+      </div>
+      <p class="sub" style="margin-top:9px">Green bands are the major feeding periods, when the moon is directly
+      overhead or underfoot. Tide times here are modelled rather than official — check MSQ before you plan a bar crossing.</p>
+      ${day.hint?`<p class="sub" style="color:var(--sky)">${esc(day.hint.text)}</p>`:''}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sect">Flight plan <span>when to go, and what to throw</span></h2>
+    <div class="card">${ss.map(s=>`
+      <div class="sess">
+        <div class="when"><b class="num">${hhmm(s.a)}–${hhmm(s.b)}</b><i>${s.hrs} h · ${s.tide}</i></div>
+        <div class="what"><div class="t">${s.title}${s.bar>=2?' <span style="color:var(--no);font-size:12px">· bar risk</span>':''}</div>
+          <div class="d">${s.how}</div>
+          ${s.marks.length?`<div class="bars">${s.marks.map(m=>
+            `<span>${esc(m.name)} · ${m.km} km · ${m.depth} m</span>`).join('')}</div>`:''}
+        </div>
+      </div>`).join('')}
+      <p class="sub" style="margin-top:10px">Spots come from your marks list. Add your own on the My marks tab and
+      they will be picked here by tide and sea state.</p>
+    </div>
+    <div class="card">
+      <h3>${t.m.t} — what's biting</h3>
+      <div class="fish" style="margin:12px 0 4px">${t.m.sp.map(n=>
+        `<div class="fc">${speciesArt(n)}<div class="n">${esc(n)}</div></div>`).join('')}</div>
+      <div class="rule"></div>
+      <p style="font-size:14px;font-weight:500;margin-bottom:2px;color:var(--sky)">Bait</p>
+      <p class="sub">${t.m.bait.join(' · ')}</p>
+      <p style="font-size:14px;font-weight:500;margin-bottom:2px;color:var(--sky)">Lures</p>
+      <p class="sub">${t.m.lure.join(' · ')}</p>
+      <p class="sub">${t.m.note}</p>
+      ${t.mods.length?`<div class="rule"></div><ul class="tight">${t.mods.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sect">Pre-launch checks</h2>
+    <div class="card">
+      ${day.prob!=null?`<p class="sub"><b style="color:${light(day.prob)}">${day.prob}%</b> of the 30-odd ensemble
+        runs give at least two hours inside your limits at ${esc(best.z.name.split(' /')[0])}${zp!=null&&zone.z.id!==best.z.id?`, and ${zp}% at ${esc(zone.z.name.split(' /')[0])}`:''}.
+        ${day.prob>=70?'That is a solid bet this far out.':day.prob>=40?'Genuinely borderline — worth looking again tomorrow.':'Most runs say you get nothing, so plan around it.'}</p>`:''}
+      <p class="sub">${day.agree.models>1
+        ? `Compared across ${day.agree.models} wind models${day.agree.waveModels>1?' and '+day.agree.waveModels+' wave models':''}. Wind spread ${day.agree.wSpread.toFixed(1)} kn${day.agree.sSpread!=null?', sea spread '+day.agree.sSpread.toFixed(2)+' m':''}. ${day.agree.level==='low'?'That is a wide spread, so treat this day as unsettled and look again the morning of.':day.agree.level==='fair'?'Reasonable agreement — worth a second look the day before.':'Tight agreement, which is about as confident as a week-out forecast gets.'}`
+        : 'Only one model responded, so there is no cross-check today. Lean on the links below.'}</p>
+      <div class="links">${SOURCES.map(([n,u])=>`<a href="${u}" target="_blank" rel="noopener">${n}</a>`).join('')}
+        <a href="https://www.windy.com/-Waves-waves?waves,${zone.z.mlat},${zone.z.mlon},9" target="_blank" rel="noopener">Windy at ${esc(zone.z.name.split(' /')[0])}</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions to the ramp</a></div>
+      <details>
+        <summary>Your limits</summary>
+        <label class="f">Maximum sea state (m)<input type="number" step="0.1" id="s1" value="${CFG.maxSwell}"></label>
+        <label class="f">Maximum sustained wind (kn)<input type="number" id="s2" value="${CFG.maxWind}"></label>
+        <label class="f">Maximum gust (kn)<input type="number" id="s3" value="${CFG.maxGust}"></label>
+        <button class="save" data-act="saveLimits">Save limits</button>
+        <p class="sub" style="margin-top:10px">Sea state is height weighted for period, so 0.6 m at 5 seconds counts
+        as roughly 0.8 m and 0.6 m at 11 seconds counts as about 0.5 m.</p>
+      </details>
+    </div>
+    <footer>
+      Wind, gusts, swell, sea level and water temperature from Open-Meteo, drawing on ECMWF, NOAA GFS and DWD ICON,
+      with GFS ensemble members behind the percentages. Each ramp is sampled at 2, 10, 15 and 20 km offshore and
+      scored on the worst of the three outer points; the inshore point supplies tide, rain and pressure only.
+      Sun, moon and feeding periods are computed on the device. Version ${APP_VERSION}. Wave grids do not resolve the top of the bay,
+      so sea state at Walkers Point is scaled down from the open coast rather than modelled directly. Scores are a
+      filter, not a forecast, and the skipper's call is the only one that counts.
+    </footer>
+  </section>`;
+}
+
+function renderMarks(){
+  const byRamp={};
+  MARKS.forEach(m=>(byRamp[m.ramp]=byRamp[m.ramp]||[]).push(m));
+  return `<section style="margin-top:14px">
+    <h2 class="sect">Your marks</h2>
+    <div class="card">
+      <p class="sub">These feed the session planner — it picks the ground that suits the tide, the light and the
+      sea state. Distances are from the ramp, so keep everything inside your 20 km line.</p>
+      <div class="form">
+        <div><label>Name</label><input id="mn" placeholder="Four Mile lump"></div>
+        <div><label>Ramp</label><select id="mr">${ZONES.map(z=>
+          `<option value="${z.id}">${esc(z.name)}</option>`).join('')}</select></div>
+        <div><label>Distance out (km)</label><input id="mk" type="number" step="0.5" value="8"></div>
+        <div><label>Depth (m)</label><input id="md" type="number" value="10"></div>
+        <div class="wide"><label>Ground</label><select id="mt">${MARK_TYPES.map(t=>
+          `<option value="${t}">${t}</option>`).join('')}</select></div>
+        <div class="wide"><button class="save" data-act="addMark">Add mark</button></div>
+      </div>
+    </div>
+    ${ZONES.filter(z=>byRamp[z.id]).map(z=>`
+      <div class="card">
+        <h3>${esc(z.name)}</h3>
+        ${byRamp[z.id].sort((a,b)=>a.km-b.km).map(m=>`
+          <div class="mk">
+            <span class="g"><b style="font-weight:500">${esc(m.name)}</b>
+              <span class="ty">${m.km} km · ${m.depth} m · ${esc(m.type)}</span></span>
+            <button data-act="delMark" data-id="${m.id}" aria-label="Remove ${esc(m.name)}">Remove</button>
+          </div>`).join('')}
+      </div>`).join('')}
+  </section>`;
+}
+
+function renderLog(){
+  const day=DAYS[SEL];
+  const d=LOGDRAFT||{date:day.ds,ramp:day.zones[0].z.id,species:'',rating:2,notes:''};
+  const pat=patterns();
+  const nice=k=>k.charAt(0).toUpperCase()+k.slice(1);
+  return `<section style="margin-top:14px">
+    <h2 class="sect">Log a session</h2>
+    <div class="card">
+      <div class="form">
+        <div><label>Date</label><input id="ld" type="date" value="${d.date}"></div>
+        <div><label>Ramp</label><select id="lr">${ZONES.map(z=>
+          `<option value="${z.id}" ${z.id===d.ramp?'selected':''}>${esc(z.name)}</option>`).join('')}</select></div>
+        <div class="wide"><label>What you caught (comma separated)</label>
+          <input id="ls" value="${esc(d.species)}" placeholder="Grunter, flathead"></div>
+        <div class="wide"><label>How it went</label>
+          <div class="rate">${RATINGS.map((r,i)=>
+            `<button data-act="rate" data-rating="${i}" class="${i===d.rating?'on':''}"
+               aria-pressed="${i===d.rating}">${r}</button>`).join('')}</div></div>
+        <div class="wide"><label>Notes</label><input id="lnotes" value="${esc(d.notes)}" placeholder="Last of the run-out, 3in paddle tail"></div>
+        <div class="wide"><button class="save" data-act="addLog">Save session</button></div>
+      </div>
+      <p class="sub" style="margin-top:10px">Conditions for that day are stored with the entry automatically —
+      tide phase, moon, wind and sea state — so the patterns below build themselves.</p>
+    </div>
+
+    ${pat?`<h2 class="sect" style="margin-top:22px">What your log says</h2>
+    <div class="card">
+      ${[['tide','Tide'],['moon','Moon'],['ramp','Ramp'],['wind','Wind from']].map(([k,lab])=>{
+        const rows=pat[k]; if(!rows||!rows.length) return '';
+        return `<p style="font-size:14px;font-weight:500;margin-bottom:3px;color:var(--sky)">${lab}</p>
+          <div class="bars" style="margin-bottom:10px">${rows.slice(0,4).map(r=>
+            `<span style="color:${light(r.avg/3*100)}">${esc(k==='ramp'?(ZONES.find(z=>z.id===r.k)||{name:r.k}).name.split(' /')[0]:nice(String(r.k)==='between'?'mid-phase':String(r.k)))} · ${r.avg.toFixed(1)}/3 · ${r.n}</span>`).join('')}</div>`;
+      }).join('')}
+      ${pat.species.length?`<p style="font-size:14px;font-weight:500;margin-bottom:3px;color:var(--sky)">Most logged</p>
+        <div class="bars">${pat.species.map(([n,c])=>`<span>${esc(n)} × ${c}</span>`).join('')}</div>`:''}
+      <p class="sub" style="margin-top:12px">Once a pattern has three or more sessions behind it, it nudges the bite
+      score by a few points either way. It never touches the safety side — wind, sea and bar calls stay as they are.</p>
+    </div>`:`<div class="card"><p class="sub">Log four or more sessions and this turns into your own pattern
+      summary — which tide, moon and ramp actually produce for you.</p></div>`}
+
+    ${LOG.length?`<h2 class="sect" style="margin-top:22px">History <span>${LOG.length} sessions</span></h2>
+    <div class="card">${LOG.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,40).map(e=>`
+      <div class="entry">
+        <div class="h"><b>${e.date}</b>
+          <span style="color:${light(e.rating/3*100)}">${RATINGS[e.rating]}</span>
+          <span class="sub">${esc((ZONES.find(z=>z.id===e.ramp)||{name:e.ramp}).name)}</span></div>
+        ${e.species?`<div>${esc(e.species)}</div>`:''}
+        <div class="m">${esc(e.tide)} · ${esc(e.moon)} moon · ${Math.round(e.wind||0)} kn ${esc(e.windDir||'')} · sea ${(e.sea||0).toFixed(1)} m${e.notes?' · '+esc(e.notes):''}</div>
+        <div style="margin-top:5px"><button data-act="delLog" data-id="${e.id}" style="color:var(--no);font-size:11.5px">Delete</button></div>
+      </div>`).join('')}</div>`:''}
+  </section>`;
+}
+
+function render(){
+  const body=TAB==='plan'?renderPlan():TAB==='marks'?renderMarks():renderLog();
+  const app=document.getElementById('app');
+  app.innerHTML=tabs()+body;
+  banner();
+}
+
+/* Events are delegated from a single listener on #app. Re-rendering replaces
+   the whole subtree, so per-node handlers would have to be rebound every time;
+   one listener survives every render and keeps the render path cheap. */
+function onAppClick(ev){
+  const el=ev.target.closest('[data-act]');
+  if(!el) return;
+  const act=el.dataset.act;
+  if(ACTIONS[act]) ACTIONS[act](el,ev);
+}
+function formValues(){
+  const g=id=>{const n=document.getElementById(id); return n?n.value:'';};
+  return {date:g('ld'),ramp:g('lr'),species:g('ls'),notes:g('lnotes')};
+}
+const ACTIONS={
+  tab(el){ TAB=el.dataset.tab; render(); scrollTop(); },
+  day(el){ SEL=+el.dataset.i; ZSEL=null; LOGDRAFT=null; render(); scrollTop(); },
+  zone(el){ ZSEL=el.dataset.z; render(); },
+  async saveLimits(){
+    const g=id=>parseFloat((document.getElementById(id)||{}).value);
+    CFG=validLimits({maxSwell:g('s1'),maxWind:g('s2'),maxGust:g('s3')})||CFG;
+    await saveStore('limits',CFG);
+    rebuild();
+  },
+  async addMark(){
+    const g=id=>(document.getElementById(id)||{}).value;
+    const name=(g('mn')||'').trim();
+    if(!name){ const n=document.getElementById('mn'); if(n) n.focus(); return; }
+    MARKS=MARKS.concat([{id:'m'+Date.now(),name,ramp:g('mr'),
+      km:clamp(+g('mk')||0,0,60),depth:clamp(+g('md')||0,0,200),type:g('mt')}]);
+    await saveStore('marks',MARKS); render();
+  },
+  async delMark(el){
+    MARKS=MARKS.filter(m=>m.id!==el.dataset.id);
+    await saveStore('marks',MARKS); render();
+  },
+  rate(el){ LOGDRAFT={...formValues(),rating:+el.dataset.rating}; render(); },
+  async addLog(){
+    const f=formValues();
+    const d=DAYS.find(x=>x.ds===f.date)||DAYS[SEL];
+    const z=d.zones.find(x=>x.z.id===f.ramp)||d.zones[0];
+    const mid=new Date(+d.d0+7*36e5);
+    LOG=LOG.concat([{id:'e'+Date.now(),date:f.date,ramp:f.ramp,
+      species:f.species.trim(),notes:f.notes.trim(),
+      rating:LOGDRAFT?LOGDRAFT.rating:2,
+      tide:tidePhaseAt(mid,d.tides), moon:moonBucket(d.moon.phase),
+      wind:Math.round(z.wind), windDir:dirOf(z.wdir), sea:+z.swellMax.toFixed(2), range:d.range}]);
+    await saveStore('log',LOG);
+    LOGDRAFT=null; rebuild();
+  },
+  async delLog(el){
+    LOG=LOG.filter(e=>e.id!==el.dataset.id);
+    await saveStore('log',LOG); rebuild();
+  }
+};
+const scrollTop=()=>window.scrollTo({top:0,behavior:'smooth'});
+
+/* Times come back from the API already in Queensland time and are rendered
+   against the device clock. That is correct at home and wrong anywhere that
+   keeps a different offset, so say so rather than quietly lying. */
+function tzWarning(){
+  const off=-new Date().getTimezoneOffset();      // minutes east of UTC
+  if(off===600) return '';
+  return '<div class="card warn" style="margin-bottom:10px"><h3>Clock mismatch</h3>'+
+    '<p class="sub">This device is not on Queensland time (UTC+10). Every time shown here is '+
+    'Queensland local, so they will not match your phone clock while you are away.</p></div>';
+}
+// the catch log feeds the bite score, so a log change means a rebuild not a repaint
+function rebuild(){ DAYS=build(RAW); render(); }
+
+/* ═══════════════════════════════════════════════════════════════
+   11 · SAMPLE DATA (only when the network is unreachable)
+   ═══════════════════════════════════════════════════════════════ */
+function sampleData(){
+  const s=new Date(); s.setHours(0,0,0,0);
+  const N=7*24,times=[];
+  for(let i=0;i<N;i++){const d=new Date(+s+i*36e5);
+    times.push(d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':00');}
+  const days=[...new Set(times.map(t=>t.slice(0,10)))];
+  const fc=POINTS.map((pt,zi)=>{
+    const H={time:times,wind_speed_10m:[],wind_gusts_10m:[],wind_direction_10m:[],
+      temperature_2m:[],precipitation:[],cloud_cover:[],pressure_msl:[]};
+    for(let i=0;i<N;i++){
+      const d=Math.floor(i/24),hr=i%24;
+      const w=Math.max(2,[13,8,5,7,12,17,9][d]+Math.max(0,Math.sin((hr-8)/24*2*Math.PI))*5+pt.km*0.08);
+      H.wind_speed_10m.push(+w.toFixed(1)); H.wind_gusts_10m.push(+(w*1.35+1).toFixed(1));
+      H.wind_direction_10m.push((120+d*14+hr)%360);
+      H.temperature_2m.push(+(19+6*Math.sin((hr-9)/24*2*Math.PI)).toFixed(1));
+      H.precipitation.push(d===5&&hr>12&&hr<18?1.1:0);
+      H.cloud_cover.push(40); H.pressure_msl.push(+(1018-d*0.7).toFixed(1));
+    }
+    return {hourly:H,daily:{time:days,sunrise:days.map(d=>d+'T05:45'),sunset:days.map(d=>d+'T17:35')}};
+  });
+  const mar=POINTS.map(pt=>{
+    const H={time:times,wave_height:[],wave_period:[],swell_wave_height:[],swell_wave_period:[],
+      swell_wave_direction:[],wind_wave_height:[],sea_level_height_msl:[],sea_surface_temperature:[]};
+    for(let i=0;i<N;i++){
+      const d=Math.floor(i/24),sw=+([1.1,0.8,0.42,0.55,0.9,1.4,0.65][d]*(0.72+pt.km*0.018)).toFixed(2);
+      H.swell_wave_height.push(sw); H.wave_height.push(+(sw*1.12).toFixed(2));
+      const per=[9,10,11,8,6,5,7][d];
+      H.swell_wave_period.push(per); H.wave_period.push(per-1); H.swell_wave_direction.push(135);
+      H.wind_wave_height.push(+(sw*0.4).toFixed(2));
+      H.sea_level_height_msl.push(+(1.25*Math.sin(2*Math.PI*i/12.42)+0.35*Math.sin(2*Math.PI*i/25.8+1)).toFixed(3));
+      H.sea_surface_temperature.push(22.4);
+    }
+    return {hourly:H};
+  });
+  return {fc,mar,windAlt:[],waveAlt:[]};
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   12 · GO
+   ═══════════════════════════════════════════════════════════════ */
+async function start(){
+  const app=document.getElementById('app');
+  app.innerHTML='<div class="state">Reading the water…</div>';
+  // fire the network request immediately; the storage read happens alongside it
+  const pending=getData();
+  await loadStore();
+  let note='';
+  try{
+    RAW=await pending; DEMO=false;
+    note='Live · '+new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})+
+         '<br>'+(1+(RAW.windAlt||[]).length)+' wind models';
+  }catch(err){
+    console.warn('[data] falling back to sample data:',err.message);
+    RAW=sampleData(); DEMO=true; note='Sample data';
+  }
+  try{
+    DAYS=build(RAW);
+    if(!DAYS.length) throw new Error('no forecast days returned');
+    SEL=0; ZSEL=null; render();
+    const st=document.getElementById('stamp'); if(st) st.innerHTML=note;
+  }catch(err){ fail(err); }
+}
+
+function fail(err){
+  console.error('[app]',err);
+  const app=document.getElementById('app');
+  if(app) app.innerHTML='<div class="state err">Something went wrong building the forecast.<br>'+
+    '<span style="color:var(--dim)">'+esc(err&&err.message||err)+'</span><br><br>'+
+    '<button class="ghost" data-act="retry">Try again</button></div>';
+}
+ACTIONS.retry=()=>start();
+
+// one listener for the whole app, plus Enter/Space on the SVG map pins
+document.getElementById('app').addEventListener('click',onAppClick);
+document.getElementById('app').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const el=e.target.closest&&e.target.closest('[data-act]');
+  if(el&&el.tagName==='g'){ e.preventDefault(); onAppClick(e); }
+});
+window.addEventListener('error',e=>{ if(!DAYS.length) fail(e.error||new Error(e.message)); });
+window.addEventListener('unhandledrejection',e=>console.warn('[app] unhandled',e.reason));
+
+document.getElementById('reload').onclick=start;
+start();
+console.log('%cFishin\' Control v'+APP_VERSION,'color:#7ad3f5;font-weight:700');
+
+let deferredPrompt=null;
+window.INSTALL_STATE='waiting';
+const installBtn=document.getElementById('install');
+function refreshInstallUI(){
+  if(!installBtn) return;
+  const mm=window.matchMedia&&window.matchMedia('(display-mode: standalone)');
+  const standalone=!!((mm&&mm.matches)||(window.navigator&&window.navigator.standalone));
+  if(standalone){ window.INSTALL_STATE='installed'; installBtn.hidden=true; return; }
+  installBtn.hidden=!deferredPrompt;
+}
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); deferredPrompt=e; window.INSTALL_STATE='ready';
+  console.log('[install] installable'); refreshInstallUI();
+});
+window.addEventListener('appinstalled',()=>{
+  window.INSTALL_STATE='installed'; deferredPrompt=null; refreshInstallUI();
+});
+if(installBtn) installBtn.onclick=async()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const {outcome}=await deferredPrompt.userChoice;
+  console.log('[install]',outcome);
+  if(outcome==='accepted') deferredPrompt=null;
+  refreshInstallUI();
+};
+refreshInstallUI();
+
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js')
+    .then(r=>console.log('[sw] scope',r.scope))
+    .catch(e=>console.warn('[sw] failed',e)));
+}
+
+/* Add ?check to the address for an install self-check. */
+if(location.search.indexOf('check')>-1){
+  window.addEventListener('load',async()=>{
+    const rows=[['HTTPS',location.protocol==='https:'],
+                ['Service worker API','serviceWorker' in navigator]];
+    try{ rows.push(['SW registered', !!(await navigator.serviceWorker.getRegistration())]); }
+    catch(e){ rows.push(['SW registered',false]); }
+    let man=null;
+    try{ man=await (await fetch('manifest.json')).json(); rows.push(['Manifest loads',true]); }
+    catch(e){ rows.push(['Manifest loads',false]); }
+    if(man){
+      rows.push(['display: standalone',man.display==='standalone']);
+      for(const ic of (man.icons||[])){
+        let ok=false; try{ ok=(await fetch(ic.src,{method:'HEAD'})).ok; }catch(e){}
+        rows.push(['Icon '+ic.src,ok]);
+      }
+    }
+    setTimeout(()=>{
+      rows.push(['Browser offered install',['ready','installed'].includes(window.INSTALL_STATE)]);
+      document.getElementById('app').innerHTML='<div class="card"><h3>Install self-check</h3>'+
+        rows.map(([k,v])=>`<div class="mk"><span class="g">${k}</span><b style="color:${v?'var(--go)':'var(--no)'}">${v?'pass':'FAIL'}</b></div>`).join('')+
+        '<p class="sub" style="margin-top:10px">All green but no prompt usually means Chrome wants a few '+
+        'more seconds on the page, or it is already installed. Remove ?check to go back.</p></div>';
+    },2500);
+  });
+}
+</script>
+</body>
+</html>
