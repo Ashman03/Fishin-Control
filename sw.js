@@ -12,26 +12,26 @@
  *
  * Bump VERSION whenever the list of app files changes.
  */
-const VERSION = 'v4.0';
+const VERSION = 'v4.1';
 const SHELL = 'fishin-shell-' + VERSION;
 const DATA = 'fishin-data-' + VERSION;
 
 const APP_FILES = [
   './',
   './index.html',
-  './css/styles.css',
+  './styles.css',
   './manifest.json',
-  './js/app.js',
-  './js/config.js',
-  './js/util.js',
-  './js/astro.js',
-  './js/store.js',
-  './js/data.js',
-  './js/model.js',
-  './js/advice.js',
-  './js/ui.js',
-  './js/map.js',
-  './js/art.js',
+  './app.js',
+  './config.js',
+  './util.js',
+  './astro.js',
+  './store.js',
+  './data.js',
+  './model.js',
+  './advice.js',
+  './ui.js',
+  './map.js',
+  './art.js',
   './icon-64.png',
   './icon-192.png',
   './icon-512.png',

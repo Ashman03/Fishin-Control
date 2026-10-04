@@ -5,12 +5,17 @@ Queensland. Static site, no build step, no runtime dependencies.
 
 ## Deploy (GitHub Pages)
 
-Upload everything in this folder to the repository root, keeping the `js/` and `css/`
-folders as folders. The repo root must show `index.html`, `js/` and `css/` side by side.
+Add file → Upload files → select **every file** in this folder (Ctrl+A in the file
+picker) → Commit. The site files are deliberately all at the top level, because GitHub's
+web uploader cannot upload folders. The `tests/` and `tools/` folders are for development
+only; the site works without them.
+
 Settings → Pages → Deploy from a branch → `main` → `/ (root)`.
 
 The site uses ES modules, so it must be served over http(s). Opening `index.html` by
-double-clicking will not work — use the single-file preview for that (see below).
+double-clicking will not work — use the single-file preview for that (see below). If the
+page ever shows only the logo and a "files are missing" note, a `.js` file or
+`styles.css` did not upload.
 
 ## How it works
 
@@ -22,18 +27,18 @@ build(raw, ctx)    model.js   per-point series → per-ramp worst case → score
 render()           ui.js      state → HTML; clicks → ACTIONS → state → render()
 ```
 
-| File                     | Job                                                                              |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `js/config.js`           | Limits, tuning weights, **every upstream model ID**, ramps, sample points, links |
-| `js/data.js`             | Network requests (all sea grid cells, all in parallel), parsing, sample data     |
-| `js/model.js`            | The go / no-go rule (`passes`), scoring, windows, tides, probability. Pure       |
-| `js/advice.js`           | Sessions, techniques, marks, catch-log patterns. Pure                            |
-| `js/astro.js`            | Sun and moon. Pure                                                               |
-| `js/ui.js`               | Rendering and click handlers                                                     |
-| `js/store.js`            | The single `state` object and localStorage                                       |
-| `js/app.js`              | Entry point: startup, refresh, install, service worker                           |
-| `js/map.js`, `js/art.js` | The chart and the fish                                                           |
-| `sw.js`                  | Offline support; flags saved forecasts so they are never shown as live           |
+| File               | Job                                                                              |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `config.js`        | Limits, tuning weights, **every upstream model ID**, ramps, sample points, links |
+| `data.js`          | Network requests (all sea grid cells, all in parallel), parsing, sample data     |
+| `model.js`         | The go / no-go rule (`passes`), scoring, windows, tides, probability. Pure       |
+| `advice.js`        | Sessions, techniques, marks, catch-log patterns. Pure                            |
+| `astro.js`         | Sun and moon. Pure                                                               |
+| `ui.js`            | Rendering and click handlers                                                     |
+| `store.js`         | The single `state` object and localStorage                                       |
+| `app.js`           | Entry point: startup, refresh, install, service worker                           |
+| `map.js`, `art.js` | The chart and the fish                                                           |
+| `sw.js`            | Offline support; flags saved forecasts so they are never shown as live           |
 
 ### Rules worth knowing before changing anything
 
@@ -56,7 +61,7 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 57 tests, no dependencies, clock pinned to Queensland time
+npm test             # 59 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npx prettier --check .
 ```

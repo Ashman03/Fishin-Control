@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1
+
+- **Site files moved to the top level.** GitHub's web uploader cannot upload folders, so
+  v4.0 deployed `index.html` without its `js/` and `css/` folders and showed only a giant
+  logo. Every file the site needs now sits at the root.
+- If app files are missing, the page now says so instead of failing silently, and the
+  logo keeps its size without the stylesheet.
+- Tests added for both, so a folder can never creep back into the site's file paths.
+
 ## 4.0
 
 ### Forecast accuracy

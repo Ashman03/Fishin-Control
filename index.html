@@ -14,16 +14,16 @@
 <link rel="preconnect" href="https://marine-api.open-meteo.com" crossorigin>
 <link rel="preconnect" href="https://ensemble-api.open-meteo.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="css/styles.css">
-<link rel="modulepreload" href="js/config.js">
-<link rel="modulepreload" href="js/data.js">
-<link rel="modulepreload" href="js/model.js">
-<script type="module" src="js/app.js"></script>
+<link rel="stylesheet" href="styles.css">
+<link rel="modulepreload" href="config.js">
+<link rel="modulepreload" href="data.js">
+<link rel="modulepreload" href="model.js">
+<script type="module" src="app.js"></script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <svg class="logo" viewBox="0 0 240 240" role="img" aria-label="Fishin' Control"><defs>
+    <svg class="logo" width="38" height="38" viewBox="0 0 240 240" role="img" aria-label="Fishin' Control"><defs>
       <clipPath id="lgDisc"><circle cx="120" cy="120" r="101"/></clipPath>
       <clipPath id="lgHull"><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z"/></clipPath>
       <linearGradient id="lgSky" x1="0" y1="0" x2="0" y2="1">
@@ -52,7 +52,7 @@
     <button class="ghost" id="reload">Refresh</button>
     <div class="stamp" id="stamp" aria-live="polite"></div>
   </header>
-  <main id="app"><div class="state">Reading the water…</div></main>
+  <main id="app"><div class="state">Reading the water…<p class="boot-help">Still nothing after a few seconds? Some of the app's files are missing from the site. Every file in the download has to be uploaded to the repository, alongside index.html.</p></div></main>
 </div>
 <noscript><p class="state">Fishin' Control needs JavaScript switched on.</p></noscript>
 </body>
