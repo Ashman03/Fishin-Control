@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061420">
+<meta name="description" content="Go / no-go fishing windows for small boats between Baffle Creek and Walkers Point, Queensland.">
+<!-- Only this site's own scripts may run; data comes only from Open-Meteo; fonts only from Google. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://ensemble-api.open-meteo.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Fishin' Control — go / no-go for the Bundaberg coast</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Ccircle cx='120' cy='120' r='112' fill='%23061c28' stroke='%237ad3f5' stroke-width='12'/%3E%3Cpath d='M120 44c13 17 23 40 25 66 2 21-5 38-11 50H106c-6-12-13-29-11-50 2-26 12-49 25-66Z' fill='%2363bcdf'/%3E%3Cpath d='M97 98c-16 4-28 14-34 30 12-7 23-11 34-12zM143 98c16 4 28 14 34 30-12-7-23-11-34-12z' fill='%234a9cc2'/%3E%3Cpath d='M107 138c1 16 4 28 13 43 9-15 12-27 13-43z' fill='%23ffc247'/%3E%3Ccircle cx='120' cy='88' r='15' fill='%23ddf2fc'/%3E%3Ccircle cx='120' cy='88' r='10' fill='%2334c979'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://marine-api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://ensemble-api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<link rel="modulepreload" href="config.js">
+<link rel="modulepreload" href="data.js">
+<link rel="modulepreload" href="model.js">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <svg class="logo" width="38" height="38" viewBox="0 0 240 240" role="img" aria-label="Fishin' Control"><defs>
+      <clipPath id="lgDisc"><circle cx="120" cy="120" r="101"/></clipPath>
+      <clipPath id="lgHull"><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z"/></clipPath>
+      <linearGradient id="lgSky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#103a4e"/><stop offset="1" stop-color="#061c28"/>
+      </linearGradient>
+      <linearGradient id="lgSea" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#17485f"/><stop offset="1" stop-color="#0a2735"/>
+      </linearGradient>
+      <linearGradient id="lgHullG" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#a9dcf2"/>
+        <stop offset=".38" stop-color="#63bcdf"/>
+        <stop offset="1" stop-color="#35809f"/>
+      </linearGradient>
+      <linearGradient id="lgNoseG" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset=".45" stop-color="#ddf2fc"/>
+        <stop offset="1" stop-color="#63bcdf"/>
+      </linearGradient>
+      <radialGradient id="lgGlow" cx="50%" cy="50%">
+        <stop offset="0" stop-color="#ffc247" stop-opacity=".45"/>
+        <stop offset="1" stop-color="#ffc247" stop-opacity="0"/>
+      </radialGradient>
+    </defs><circle cx="120" cy="120" r="101" fill="url(#lgSky)"/><g clip-path="url(#lgDisc)"><path d="M34 96a92 92 0 0 1 172 0" fill="none" stroke="#7ad3f5" stroke-width="1.6" stroke-dasharray="3 9" opacity=".28"/><circle cx="66" cy="74" r="2.6" fill="#7ad3f5" opacity=".55"/><circle cx="96" cy="54" r="1.7" fill="#7ad3f5" opacity=".55"/><circle cx="176" cy="62" r="2.2" fill="#7ad3f5" opacity=".55"/><circle cx="198" cy="98" r="1.5" fill="#7ad3f5" opacity=".55"/><path d="M-10 172q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0 L250 240 L-10 240Z" fill="url(#lgSea)"/><path d="M-10 172q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0q15 -6 30 0t30 0" fill="none" stroke="#7ad3f5" stroke-width="4.5" stroke-linecap="round" opacity="0.8"/><path d="M-10 187q15 -5 30 0t30 0q15 -5 30 0t30 0q15 -5 30 0t30 0q15 -5 30 0t30 0q15 -5 30 0t30 0" fill="none" stroke="#7ad3f5" stroke-width="3.4" stroke-linecap="round" opacity="0.38"/><path d="M-10 201q15 -4 30 0t30 0q15 -4 30 0t30 0q15 -4 30 0t30 0q15 -4 30 0t30 0q15 -4 30 0t30 0" fill="none" stroke="#7ad3f5" stroke-width="2.8" stroke-linecap="round" opacity="0.18"/><ellipse cx="120" cy="168" rx="34" ry="15" fill="url(#lgGlow)"/><path d="M92 98c-16 4-28 14-34 30 12-7 23-11 34-12z" fill="#4a9cc2"/><path d="M148 98c16 4 28 14 34 30-12-7-23-11-34-12z" fill="#2c6d8c"/><path d="M97 120c-13 10-23 24-27 41 13-11 22-19 31-21c-4-6-5-13-4-20z" fill="#4a9cc2"/><path d="M143 120c13 10 23 24 27 41-13-11-22-19-31-21c4-6 5-13 4-20z" fill="#2c6d8c"/><path d="M111 136l9 26 9-26z" fill="#2c6d8c" opacity=".95"/><path d="M107 138c1 16 4 28 13 43 9-15 12-27 13-43z" fill="#ffc247"/><path d="M113.5 138c1 11 3 19 6.5 28 3.5-9 5.5-17 6.5-28z" fill="#ffe6a6" opacity=".85"/><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z" fill="url(#lgHullG)"/><g clip-path="url(#lgHull)"><path d="M80 42h80v36h-80z" fill="url(#lgNoseG)"/><path d="M103 50c-5 22-7 50-5 78h9c-2-28 0-56 5-78z" fill="#fff" opacity=".18"/></g><path d="M120 44C134 64 146 84 147 96C150 112 148 128 142 142L98 142C92 128 90 112 93 96C94 84 106 64 120 44Z" fill="none" stroke="#06171f" stroke-width="2" opacity=".18"/><circle cx="120" cy="88" r="17" fill="#ddf2fc"/><circle cx="120" cy="88" r="14.4" fill="#06171f"/><circle cx="120" cy="88" r="10" fill="#34c979"/><circle cx="120" cy="88" r="3.4" fill="#06171f"/><circle cx="115.5" cy="83" r="2.1" fill="#fff" opacity=".8"/></g><circle cx="120" cy="120" r="112" fill="none" stroke="#7ad3f5" stroke-width="7"/><circle cx="120" cy="120" r="98" fill="none" stroke="#7ad3f5" stroke-width="1.6" opacity=".32"/></svg>
+    <div class="mark">Fishin'<span> Control</span></div>
+    <button class="ghost" id="install" hidden>Install</button>
+    <button class="ghost" id="reload">Refresh</button>
+    <div class="stamp" id="stamp" aria-live="polite"></div>
+  </header>
+  <main id="app"><div class="state">Reading the water…<p class="boot-help">Still nothing after a few seconds? Some of the app's files are missing from the site. Every file in the download has to be uploaded to the repository, alongside index.html.</p></div></main>
+</div>
+<noscript><p class="state">Fishin' Control needs JavaScript switched on.</p></noscript>
+</body>
+</html>
