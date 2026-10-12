@@ -12,13 +12,24 @@
  * rebuild() = recompute the model + render. Use it after anything that feeds
  * the model (limits, catch log). render() alone is a repaint.
  */
-import { APP_VERSION, ZONES, ESTUARIES, SOURCES, BOM_ZONES, MARK_TYPES, RATINGS, TUNING } from './config.js';
+import {
+  APP_VERSION,
+  ZONES,
+  ESTUARIES,
+  SOURCES,
+  BOM_ZONES,
+  MARK_TYPES,
+  RATINGS,
+  TUNING,
+  SEASON
+} from './config.js';
 import { state, save, validLimits } from './store.js';
 import { build, seaWord, conditionsFor } from './model.js';
 import { sessions, techniques, launchNotes, patterns, tidePhaseAt, moonBucket, moonLabel } from './advice.js';
 import { moonIllum } from './astro.js';
 import { speciesArt } from './art.js';
 import { mapSVG } from './map.js';
+import { parseHWR, parseGPX, toMarks, nearestMark } from './importer.js';
 import {
   activeClosures,
   upcomingClosures,
@@ -27,7 +38,20 @@ import {
   CLOSURES_SOURCE
 } from './closures.js';
 import { SYNC_TAG, SYNC_INTERVAL_MS } from './alerts.js';
-import { esc, hhmm, pad, clamp, light, lightKey, dirOf, isoDay, span, HOUR, DAY } from './util.js';
+import {
+  esc,
+  hhmm,
+  pad,
+  clamp,
+  light,
+  lightKey,
+  dirOf,
+  isoDay,
+  span,
+  fromNewOrFull,
+  HOUR,
+  DAY
+} from './util.js';
 
 const $ = id => document.getElementById(id);
 const short = name => name.split(' /')[0].split(' (')[0];
@@ -35,19 +59,24 @@ const longDate = d => d.toLocaleDateString('en-AU', { weekday: 'long', day: 'num
 
 /* ── Small components ───────────────────────────────────────────────────── */
 
-function dial(score) {
+/**
+ * The score as a gauge that fills with water. The water is kept faint and its
+ * surface drawn as a line, so the figures on top read the same in green, amber
+ * or red.
+ */
+export function dial(score) {
   const y = 100 - score,
     c = light(score);
   return `<svg class="dial" viewBox="0 0 100 100" role="img" aria-label="Score ${score} of 100">
    <defs><clipPath id="dialClip"><circle cx="50" cy="50" r="44"/></clipPath></defs>
    <circle cx="50" cy="50" r="44" fill="rgba(0,0,0,.30)" stroke="${c}" stroke-opacity=".5" stroke-width="1.5"/>
    <g clip-path="url(#dialClip)">
-     <rect class="fillw" x="0" y="${y}" width="100" height="${score + 3}" fill="${c}" opacity=".20"/>
-     <path class="fillw" d="M0 ${y} q12 -5 25 0 t25 0 t25 0 t25 0 V100 H0Z" fill="${c}" opacity=".45"/>
+     <rect class="fillw" x="0" y="${y}" width="100" height="${score + 3}" fill="${c}" opacity=".08"/>
+     <path class="fillw" d="M0 ${y} q12 -5 25 0 t25 0 t25 0 t25 0 V100 H0Z" fill="${c}" opacity=".16"/>
+     <path class="fillw" d="M0 ${y} q12 -5 25 0 t25 0 t25 0 t25 0" fill="none" stroke="${c}" stroke-opacity=".55" stroke-width="1.2"/>
    </g>
-   <text x="50" y="55" text-anchor="middle" font-size="31" font-weight="700" fill="${c}"
-     font-family="Space Grotesk,sans-serif" style="letter-spacing:-.05em">${score}</text>
-   <text x="50" y="69" text-anchor="middle" font-size="8.5" fill="#65899f" font-family="Outfit,sans-serif">out of 100</text>
+   <text x="50" y="55" text-anchor="middle" font-size="31" font-weight="700" fill="${c}" class="dial-num">${score}</text>
+   <text x="50" y="69" text-anchor="middle" font-size="8.5" fill="#bde9fb" class="dial-sub">out of 100</text>
   </svg>`;
 }
 
@@ -86,11 +115,15 @@ function banners(day) {
           '. What you see below is invented, to show how the app works. Tap Refresh to try again.'
       )
     );
+  // only the swell can be a saved copy while the wind is live (the wave service was busy)
+  const swellOnly = state.raw && state.raw.saved && state.raw.saved.join() === 'swell';
   if (state.raw && state.raw.cached)
     out.push(
       notice(
-        'Saved forecast — not live',
-        'Showing the last forecast saved on this phone' +
+        swellOnly ? 'Saved swell forecast — not live' : 'Saved forecast — not live',
+        (swellOnly
+          ? 'The wind is live, but the swell is the last forecast saved on this phone'
+          : 'Showing the last forecast saved on this phone') +
           (state.raw.savedAt
             ? ', from ' +
               new Date(state.raw.savedAt).toLocaleString('en-AU', {
@@ -128,8 +161,8 @@ function condChart(zone, cfg) {
     hrs = zone.hours;
   if (!hrs.length) return '';
   const t0 = +hrs[0].t,
-    span = 23 * HOUR;
-  const x = t => P + ((W - P * 2) * (+t - t0)) / span;
+    width = 23 * HOUR;
+  const x = t => P + ((W - P * 2) * (+t - t0)) / width;
   const maxS = Math.max(1.2, ...hrs.map(h => h.swellEff)),
     maxW = Math.max(18, ...hrs.map(h => h.gust));
   const sy = v => H - 16 - (H - 44) * clamp(v / maxS, 0, 1),
@@ -146,11 +179,19 @@ function condChart(zone, cfg) {
       start = null;
     }
   });
+  // forecast storm hours: an amber tick along the top of the chart
+  const storms = hrs
+    .filter(h => h.stormNow > 0)
+    .map(
+      h =>
+        `<rect x="${x(h.t)}" y="8" width="${Math.max(2, x(+h.t + HOUR) - x(h.t))}" height="4" fill="var(--mid)" opacity="${h.stormNow === 2 ? 0.9 : 0.45}"/>`
+    )
+    .join('');
   const label = (t, txt) =>
     `<text x="${x(t)}" y="${H - 2}" text-anchor="middle" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">${txt}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Swell, wind and gusts through the day">
    <rect x="${P}" y="8" width="${W - P * 2}" height="${H - 24}" fill="rgba(0,0,0,.22)" rx="10"/>
-   ${bands}
+   ${bands}${storms}
    <line x1="${P}" x2="${W - P}" y1="${sy(cfg.maxSwell)}" y2="${sy(cfg.maxSwell)}" stroke="var(--sky)" stroke-opacity=".45" stroke-dasharray="2 4"/>
    <line x1="${P}" x2="${W - P}" y1="${wy(cfg.maxWind)}" y2="${wy(cfg.maxWind)}" stroke="var(--no)" stroke-opacity=".35" stroke-dasharray="2 4"/>
    <path d="${line(wy, h => h.gust)}" fill="none" stroke="var(--no)" stroke-width="1.4" stroke-dasharray="4 3" opacity=".75"/>
@@ -208,7 +249,9 @@ function tideSVG(day) {
 }
 
 function tabs() {
-  return `<div class="tabs" role="tablist">
+  // plain buttons marked aria-current: ARIA tab roles would promise arrow-key
+  // navigation that a three-button switcher does not need
+  return `<nav class="tabs" aria-label="Sections">
     ${[
       ['plan', 'Forecast'],
       ['marks', 'My marks'],
@@ -216,11 +259,10 @@ function tabs() {
     ]
       .map(
         ([k, l]) =>
-          `<button data-act="tab" data-tab="${k}" class="${state.tab === k ? 'on' : ''}" role="tab"
-        aria-selected="${state.tab === k}">${l}</button>`
+          `<button data-act="tab" data-tab="${k}" class="${state.tab === k ? 'on' : ''}"${state.tab === k ? ' aria-current="page"' : ''}>${l}</button>`
       )
       .join('')}
-  </div>`;
+  </nav>`;
 }
 
 function barCard(zone) {
@@ -296,9 +338,22 @@ function launchPoll(day, zone) {
     ],
     ['Models', models, modelsVal],
     ['Bite', day.bite >= 60 ? 'go' : day.bite >= 45 ? 'hold' : 'nogo', String(day.bite)],
+    // storms lower the score but never stop the launch on their own: HOLD at worst
+    [
+      'Storms',
+      zone.stormFrom ? 'hold' : 'go',
+      zone.stormFrom
+        ? (zone.stormMax === 2 ? 'risk from ' : 'unstable from ') + hhmm(zone.stormFrom)
+        : 'none forecast'
+    ],
     ['Rules', closed.length ? 'hold' : 'go', closed.length ? closed.length + ' closed' : 'all open']
   ];
-  return `<div class="poll" role="list" aria-label="Launch poll for ${esc(zone.z.name)}">
+  return pollHTML(rows, 'Launch poll for ' + zone.z.name);
+}
+
+/** A go / no-go poll: rows of [label, 'go' | 'hold' | 'nogo', value]. */
+function pollHTML(rows, label) {
+  return `<div class="poll" role="list" aria-label="${esc(label)}">
     ${rows
       .map(
         ([k, st, v]) => `<div class="poll-row" role="listitem">
@@ -461,36 +516,223 @@ function alertsPanel() {
   </details>`;
 }
 
+/* ── Shared sections (ocean and river views) ──────────────────────────── */
+
+const moonPhase = p =>
+  [
+    'New moon',
+    'Waxing crescent',
+    'First quarter',
+    'Waxing gibbous',
+    'Full moon',
+    'Waning gibbous',
+    'Last quarter',
+    'Waning crescent'
+  ][Math.round(p * 8) % 8];
+
+/** The week as a row of day chips. score(d), what(d) for the spoken label, extra(d) under the score. */
+function dayStrip(score, what, extra) {
+  return `<div class="strip">${state.days
+    .map(
+      (d, i) => `
+    <button class="day ${i === state.sel ? 'on' : ''}" data-act="day" data-i="${i}" aria-pressed="${i === state.sel}"
+      aria-label="${longDate(d.d0)}, score ${score(d)} of 100, ${what(d)}">
+      <div class="dow">${d.d0.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
+      <div class="dd num">${d.d0.getDate()}/${d.d0.getMonth() + 1}</div>
+      <div class="sc num" style="color:${light(score(d))}">${score(d)}</div>
+      ${extra(d)}
+    </button>`
+    )
+    .join('')}</div>`;
+}
+
+function tideSection(day) {
+  return `<section>
+    <h2 class="sect">Tide and moon</h2>
+    <div class="card chartwrap">${tideSVG(day)}
+      <div class="kv" style="margin-top:10px">
+        <div><div class="k">Range</div><div class="v num">${day.range != null ? day.range.toFixed(1) + ' m' : '—'}</div></div>
+        <div><div class="k">Moon</div><div class="v" style="font-size:12.5px">${moonPhase(day.moon.phase)}</div></div>
+        <div><div class="k">Moon up</div><div class="v num">${hhmm(day.me.rise)}</div></div>
+        <div><div class="k">Overhead</div><div class="v num">${hhmm(day.me.over)}</div></div>
+        <div><div class="k">Sunrise</div><div class="v num">${hhmm(day.sunrise)}</div></div>
+        <div><div class="k">Sunset</div><div class="v num">${hhmm(day.sunset)}</div></div>
+        <div><div class="k">Water</div><div class="v num">${day.sst != null ? day.sst.toFixed(1) + '°' : '—'}</div></div>
+        <div><div class="k">Bite</div><div class="v num" style="color:${light(day.bite)}">${day.bite}</div></div>
+      </div>
+      <p class="sub" style="margin-top:9px">Green bands are the major feeding periods, when the moon is directly
+      overhead or underfoot. Tide times are modelled 10 km off Burnett Heads rather than official —
+      check the MSQ table before you plan a bar crossing.</p>
+      ${day.hint ? `<p class="sub" style="color:var(--sky)">${esc(day.hint.text)}</p>` : ''}
+    </div>
+  </section>`;
+}
+
+/** Sessions and what's biting. `river` swaps the marks note for the river one. */
+function flightPlan(day, zone, ss, river = false) {
+  const shut = closedSpecies(day.d0, zone.z);
+  const t = techniques(day);
+  return `<section>
+    <h2 class="sect">Flight plan <span>when to go, and what to throw</span></h2>
+    <div class="card">${ss
+      .map(
+        s => `
+      <div class="sess">
+        <div class="when"><b class="num">${hhmm(s.a)}–${hhmm(s.b)}</b><i>${s.hrs} h · ${s.tide}</i></div>
+        <div class="what"><div class="t">${s.title}${s.bar >= 2 ? ' <span style="color:var(--no);font-size:12px">· bar risk</span>' : ''}</div>
+          <div class="d">${s.how}</div>
+          ${s.marks.length ? `<div class="bars">${s.marks.map(m => `<span>${esc(m.name)} · ${esc(m.km)} km · ${esc(m.depth)} m</span>`).join('')}</div>` : ''}
+        </div>
+      </div>`
+      )
+      .join('')}
+      <p class="sub" style="margin-top:10px">${
+        river
+          ? 'Sessions are built on the tide turns and the moon, inside your fishing hours.'
+          : 'Spots come from your marks list. Add your own on the My marks tab and they will be picked here by tide and swell.'
+      }</p>
+    </div>
+    <div class="card">
+      <h3>${t.m.t} — what's biting</h3>
+      <div class="fish" style="margin:12px 0 4px">${t.m.sp
+        .map(
+          n =>
+            `<div class="fc${shut.has(n) ? ' closed' : ''}">${speciesArt(n)}<div class="n">${esc(n)}${shut.has(n) ? '<span class="shut">Closed</span>' : ''}</div></div>`
+        )
+        .join('')}</div>
+      <div class="rule"></div>
+      <p class="lbl">Bait</p><p class="sub">${t.m.bait.join(' · ')}</p>
+      <p class="lbl">Lures</p><p class="sub">${t.m.lure.join(' · ')}</p>
+      <p class="sub">${t.m.note}</p>
+      ${t.mods.length ? `<div class="rule"></div><ul class="tight">${t.mods.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+    </div>
+  </section>`;
+}
+
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
 
+/** Details of the mark tapped on the map, under it. */
+function markCaption(zone) {
+  const m = state.markInfo && state.marks.find(x => x.id === state.markInfo && x.ramp === zone.z.id);
+  if (!m) return '';
+  return `<p class="sub mark-info"><b>${esc(m.name)}</b> · ${esc(m.km)} km from ${esc(short(zone.z.name))}${
+    m.depth ? ' · ' + esc(m.depth) + ' m' : ''
+  } · ${esc(m.type)}</p>`;
+}
+
+/** Ocean or rivers: one switch at the top of the Forecast tab swaps the whole page. */
 function renderPlan() {
+  const river = state.view === 'river';
+  const btn = (v, label) =>
+    `<button data-act="view" data-view="${v}" class="${state.view === v ? 'on' : ''}" aria-pressed="${state.view === v}">${label}</button>`;
+  return `<div class="switch" role="group" aria-label="Water">${btn('ocean', 'Ocean')}${btn('river', 'Rivers and creeks')}</div>
+  ${river ? renderRiver() : renderOcean()}`;
+}
+
+function riverVerdict(day) {
+  const s = day.river,
+    ri = day.riverInfo;
+  const word = s >= 70 ? 'Good river day' : s >= 55 ? 'Worth a fish' : s >= 40 ? 'Steady' : 'Slow';
+  const why = ri.runoff
+    ? 'Run-off after heavy rain — dirty water. Fish the clean edges and the holes further up.'
+    : ri.windStrong
+      ? 'Blowing hard even close in. Tuck into the bends and lee banks.'
+      : day.range != null && day.range > 2.4
+        ? 'Big tides and plenty of water moving — the turns will do the work.'
+        : day.range != null && day.range < 1.4
+          ? 'Neap tides, so less run. Fish the turns and the deeper structure.'
+          : 'Steady tides. Plan around the turns and the moon.';
+  return [word, why];
+}
+
+/** The rivers and creeks: tide and moon first, weather only when it matters. */
+function renderRiver() {
+  const day = state.days[state.sel];
+  if (!state.zsel || !ZONES.some(z => z.id === state.zsel)) state.zsel = day.zones[0].z.id;
+  const zone = day.zones.find(z => z.z.id === state.zsel);
+  const est = ESTUARIES.find(e => e.z === zone.z.id) || ESTUARIES[0];
+  const ri = day.riverInfo;
+  const { turns, majors } = ri;
+  const nf = fromNewOrFull(day.moon.phase);
+  const closed = activeClosures(day.d0, zone.z);
+  const kind =
+    day.range == null ? 'no curve' : day.range > 2.4 ? 'springs' : day.range < 1.4 ? 'neaps' : 'mid-range';
+  const rows = [
+    [
+      'Tide',
+      day.range == null || day.range < 1.4 ? 'hold' : 'go',
+      day.range != null ? day.range.toFixed(1) + ' m · ' + kind : kind
+    ],
+    [
+      'Turns',
+      turns.length >= 2 ? 'go' : turns.length ? 'hold' : 'nogo',
+      turns.length
+        ? turns.map(t => (t.hi ? 'high ' : 'low ') + hhmm(t.t)).join(' · ')
+        : 'none in fishing hours'
+    ],
+    ['Moon', nf < 0.12 ? 'go' : 'hold', moonPhase(day.moon.phase)],
+    [
+      'Feeding',
+      majors.length ? 'go' : 'hold',
+      majors.length ? majors.map(hhmm).join(' · ') : 'outside fishing hours'
+    ],
+    [
+      'Water',
+      ri.runoff ? 'hold' : 'go',
+      ri.runoff
+        ? 'run-off · ' + Math.round(ri.rain72) + ' mm in 3 days'
+        : ri.rain72 >= 5
+          ? Math.round(ri.rain72) + ' mm in 3 days'
+          : 'clean'
+    ],
+    ['Wind', ri.windStrong ? 'hold' : 'go', Math.round(ri.windIn) + ' kn close in'],
+    ['Rules', closed.length ? 'hold' : 'go', closed.length ? closed.length + ' closed' : 'all open']
+  ];
+  const [word, why] = riverVerdict(day);
+  return `${banners(day)}
+  <div class="hero">
+    <div class="hrow">${dial(day.river)}
+      <div class="verdict">${word}<small>${why}</small></div></div>
+    ${pollHTML(rows, 'River poll for ' + est.name)}
+  </div>
+
+  ${dayStrip(
+    d => d.river,
+    () => 'rivers and creeks',
+    d => `<div class="dd" style="margin-top:4px">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</div>`
+  )}
+
+  <section>
+    <h2 class="sect">Rivers and creeks <span>${longDate(day.d0)}</span></h2>
+    <div class="card">
+      ${ESTUARIES.map(
+        e => `<button class="zone ${e.z === state.zsel ? 'on' : ''}" data-act="zone" data-z="${e.z}" aria-pressed="${e.z === state.zsel}">
+          <span class="zb"><span class="t">${esc(e.name)}</span><span class="d">${esc(e.d)}</span></span>
+        </button>`
+      ).join('')}
+      <div class="links" style="margin-top:10px">
+        <a href="https://www.msq.qld.gov.au/Tides/Tide-tables" target="_blank" rel="noopener">MSQ tide tables</a>
+        <a href="https://www.bom.gov.au/australia/radar/" target="_blank" rel="noopener">BOM radar</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions</a>
+      </div>
+    </div>
+    ${closuresCard(day, zone)}
+  </section>
+
+  ${tideSection(day)}
+
+  ${flightPlan(day, zone, sessions(day, zone, state.marks, est), true)}`;
+}
+
+function renderOcean() {
   const { cfg, days, marks } = state;
   const day = days[state.sel];
   if (!state.zsel || !day.zones.some(z => z.z.id === state.zsel)) state.zsel = day.zones[0].z.id;
   const zone = day.zones.find(z => z.z.id === state.zsel);
   const best = day.zones[0];
   const [word, why] = verdict(day.overall, day.river);
-  const shut = closedSpecies(day.d0, zone.z);
-  const t = techniques(day),
-    ss = sessions(day, zone, marks),
+  const ss = sessions(day, zone, marks),
     ln = launchNotes(zone, cfg);
-  const phase = p =>
-    [
-      'New moon',
-      'Waxing crescent',
-      'First quarter',
-      'Waxing gibbous',
-      'Full moon',
-      'Waning gibbous',
-      'Last quarter',
-      'Waning crescent'
-    ][Math.round(p * 8) % 8];
-  const conf = {
-    high: ['g', 'Models agree'],
-    fair: ['a', 'Models roughly agree'],
-    low: ['r', 'Models disagree'],
-    unknown: ['a', 'Single model only']
-  }[day.agree.level];
   const bom = BOM_ZONES[zone.z.bom];
 
   return `${banners(day)}${freshGoBanner()}
@@ -516,28 +758,24 @@ function renderPlan() {
     </div>
   </div>
 
-  <div class="strip">${days
-    .map(
-      (d, i) => `
-    <button class="day ${i === state.sel ? 'on' : ''}" data-act="day" data-i="${i}" aria-pressed="${i === state.sel}"
-      aria-label="${longDate(d.d0)}, score ${d.overall} of 100, ${d.zones[0].goodHrs} hours inside your limits">
-      <div class="dow">${d.d0.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
-      <div class="dd num">${d.d0.getDate()}/${d.d0.getMonth() + 1}</div>
-      <div class="sc num" style="color:${light(d.overall)}">${d.overall}</div>
-      ${windowTrack(d)}
-      <div class="dd num" style="margin-top:4px">${d.prob != null ? d.prob + '%' : '&nbsp;'}</div>
-    </button>`
-    )
-    .join('')}</div>
+  ${dayStrip(
+    d => d.overall,
+    d => `${d.zones[0].goodHrs} hours inside your limits`,
+    d =>
+      windowTrack(d) +
+      `<div class="dd num" style="margin-top:4px">${d.prob != null ? d.prob + '%' : '&nbsp;'}</div>`
+  )}
 
   <section>
     <h2 class="sect">Launch control <span>${longDate(day.d0)}</span></h2>
     <div class="card mapwrap">
-      ${mapSVG(day, state.zsel)}
+      ${mapSVG(day, state.zsel, state.marks, state.markInfo)}
+      ${markCaption(zone)}
       <div class="legend">
         <span><i style="background:var(--go)"></i>Go</span>
         <span><i style="background:var(--mid)"></i>Marginal</span>
         <span><i style="background:var(--no)"></i>No go</span>
+        <span><i class="range"></i>Your 20 km range</span>
         <span style="color:var(--dim)">Tap a ramp to plan around it</span>
       </div>
     </div>
@@ -561,7 +799,8 @@ function renderPlan() {
       <p class="sub">${esc(zone.z.grounds)}</p>
       ${ln.length ? `<ul class="tight">${ln.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
       <p class="sub" style="margin-top:8px">Rivers and creeks today
-        <b style="color:${light(day.river)}">${day.river}/100</b> — ${ESTUARIES.map(e => e.name).join(', ')}.</p>
+        <b style="color:${light(day.river)}">${day.river}/100</b>.
+        <button class="inline" data-act="view" data-view="river">River view</button></p>
       <div class="links" style="margin-top:10px">
         <a href="${bom[1]}" target="_blank" rel="noopener">${bom[0]}</a>
         <a href="https://www.windy.com/-Waves-waves?waves,${zone.z.mlat},${zone.z.mlon},9" target="_blank" rel="noopener">Windy at ${esc(short(zone.z.name))}</a>
@@ -576,64 +815,16 @@ function renderPlan() {
     <h2 class="sect">Conditions <span>10–20 km off ${esc(zone.z.name)}</span></h2>
     <div class="card chartwrap">${condChart(zone, cfg)}
       <p class="sub" style="margin-top:6px">Light blue is swell, weighted for period. Amber is sustained wind, dashed red is gusts.
-      Green shading marks every hour that clears all three of your limits. Figures are the worst of the 10, 15 and 20 km
+      Green shading marks every hour that clears all three of your limits; an amber tick along the top marks storm risk.
+      Figures are the worst of the 10, 15 and 20 km
       points on the bearing you run out on —
       ${zone.period ? `period today is around ${Math.round(zone.period)} seconds, ${seaWord(zone.period)}` : 'period data is missing today'}.</p>
     </div>
   </section>
 
-  <section>
-    <h2 class="sect">Tide and moon</h2>
-    <div class="card chartwrap">${tideSVG(day)}
-      <div class="kv" style="margin-top:10px">
-        <div><div class="k">Range</div><div class="v num">${day.range != null ? day.range.toFixed(1) + ' m' : '—'}</div></div>
-        <div><div class="k">Moon</div><div class="v" style="font-size:12.5px">${phase(day.moon.phase)}</div></div>
-        <div><div class="k">Moon up</div><div class="v num">${hhmm(day.me.rise)}</div></div>
-        <div><div class="k">Overhead</div><div class="v num">${hhmm(day.me.over)}</div></div>
-        <div><div class="k">Sunrise</div><div class="v num">${hhmm(day.sunrise)}</div></div>
-        <div><div class="k">Sunset</div><div class="v num">${hhmm(day.sunset)}</div></div>
-        <div><div class="k">Water</div><div class="v num">${day.sst != null ? day.sst.toFixed(1) + '°' : '—'}</div></div>
-        <div><div class="k">Bite</div><div class="v num" style="color:${light(day.bite)}">${day.bite}</div></div>
-      </div>
-      <p class="sub" style="margin-top:9px">Green bands are the major feeding periods, when the moon is directly
-      overhead or underfoot. Tide times are modelled 10 km off Burnett Heads rather than official —
-      check the MSQ table before you plan a bar crossing.</p>
-      ${day.hint ? `<p class="sub" style="color:var(--sky)">${esc(day.hint.text)}</p>` : ''}
-    </div>
-  </section>
+  ${tideSection(day)}
 
-  <section>
-    <h2 class="sect">Flight plan <span>when to go, and what to throw</span></h2>
-    <div class="card">${ss
-      .map(
-        s => `
-      <div class="sess">
-        <div class="when"><b class="num">${hhmm(s.a)}–${hhmm(s.b)}</b><i>${s.hrs} h · ${s.tide}</i></div>
-        <div class="what"><div class="t">${s.title}${s.bar >= 2 ? ' <span style="color:var(--no);font-size:12px">· bar risk</span>' : ''}</div>
-          <div class="d">${s.how}</div>
-          ${s.marks.length ? `<div class="bars">${s.marks.map(m => `<span>${esc(m.name)} · ${m.km} km · ${m.depth} m</span>`).join('')}</div>` : ''}
-        </div>
-      </div>`
-      )
-      .join('')}
-      <p class="sub" style="margin-top:10px">Spots come from your marks list. Add your own on the My marks tab and
-      they will be picked here by tide and swell.</p>
-    </div>
-    <div class="card">
-      <h3>${t.m.t} — what's biting</h3>
-      <div class="fish" style="margin:12px 0 4px">${t.m.sp
-        .map(
-          n =>
-            `<div class="fc${shut.has(n) ? ' closed' : ''}">${speciesArt(n)}<div class="n">${esc(n)}${shut.has(n) ? '<span class="shut">Closed</span>' : ''}</div></div>`
-        )
-        .join('')}</div>
-      <div class="rule"></div>
-      <p class="lbl">Bait</p><p class="sub">${t.m.bait.join(' · ')}</p>
-      <p class="lbl">Lures</p><p class="sub">${t.m.lure.join(' · ')}</p>
-      <p class="sub">${t.m.note}</p>
-      ${t.mods.length ? `<div class="rule"></div><ul class="tight">${t.mods.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
-    </div>
-  </section>
+  ${flightPlan(day, zone, ss)}
 
   <section>
     <h2 class="sect">Pre-launch checks</h2>
@@ -670,6 +861,8 @@ function renderPlan() {
       cross-checks; probability from the ECMWF and NOAA ensembles. Each ramp is sampled at 2, 10, 15 and 20 km
       offshore along its run-out bearing and scored on the worst of the outer three. Sun and moon are computed
       on the device. Version ${APP_VERSION}. Scores are a filter, not a forecast — the skipper's call is the only one that counts.
+      <br><a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a> (CC BY 4.0).
+      Coastline from <a href="https://www.soest.hawaii.edu/pwessel/gshhg/" target="_blank" rel="noopener">GSHHG</a> (Wessel and Smith, LGPL).
     </footer>
   </section>`;
 }
@@ -677,9 +870,27 @@ function renderPlan() {
 function renderMarks() {
   const byRamp = {};
   state.marks.forEach(m => (byRamp[m.ramp] = byRamp[m.ramp] || []).push(m));
+  const imported = state.marks.filter(m => m.imported).length;
+  const row = m => `
+          <div class="mk">
+            <span class="g"><b style="font-weight:500">${esc(m.name)}</b>
+              <span class="ty">${esc(m.km)} km · ${esc(m.depth)} m · ${esc(m.type)}</span></span>
+            <button data-act="delMark" data-id="${esc(m.id)}" aria-label="Remove ${esc(m.name)}">Remove</button>
+          </div>`;
   return `<section style="margin-top:14px">
     <h2 class="sect">Your marks</h2>
     <div class="card">
+      <h3>Import from your Helix</h3>
+      <p class="sub">On the Helix: Menu twice → Nav → Waypoints, Routes, Tracks → Options → Select All → Export
+      (older software: Nav → Export All Nav Data). Put the SD card in your phone with the adapter and choose
+      <b>DATA.HWR</b> from the <b>matrix</b> folder. A GPX file works too. Each mark is matched to its nearest
+      ramp with its real distance, and they stay on this phone only.</p>
+      <label class="save filebtn">Choose file<input type="file" id="importFile" class="vh"></label>
+      ${state.importMsg ? `<p class="sub" style="margin-top:10px;color:var(--sky)">${esc(state.importMsg)}</p>` : ''}
+      ${imported ? `<button class="ghost" style="margin-top:12px" data-act="clearImported">Remove all ${imported} imported marks</button>` : ''}
+    </div>
+    <div class="card">
+      <h3>Add a mark by hand</h3>
       <p class="sub">These feed the session planner — it picks the ground that suits the tide, the light and the
       swell. Distances are from the ramp, so keep everything inside your 20 km line.</p>
       <div class="form">
@@ -692,23 +903,13 @@ function renderMarks() {
       </div>
     </div>
     ${ZONES.filter(z => byRamp[z.id])
-      .map(
-        z => `
-      <div class="card">
-        <h3>${esc(z.name)}</h3>
-        ${byRamp[z.id]
-          .sort((a, b) => a.km - b.km)
-          .map(
-            m => `
-          <div class="mk">
-            <span class="g"><b style="font-weight:500">${esc(m.name)}</b>
-              <span class="ty">${m.km} km · ${m.depth} m · ${esc(m.type)}</span></span>
-            <button data-act="delMark" data-id="${esc(m.id)}" aria-label="Remove ${esc(m.name)}">Remove</button>
-          </div>`
-          )
-          .join('')}
-      </div>`
-      )
+      .map(z => {
+        const list = byRamp[z.id].sort((a, b) => a.km - b.km);
+        // a long imported list folds away so the page stays usable
+        return list.length > 8
+          ? `<div class="card"><details data-key="marks-${z.id}"><summary><b>${esc(z.name)}</b> · ${list.length} marks</summary>${list.map(row).join('')}</details></div>`
+          : `<div class="card"><h3>${esc(z.name)}</h3>${list.map(row).join('')}</div>`;
+      })
       .join('')}
   </section>`;
 }
@@ -718,10 +919,13 @@ function renderLog() {
   const d = state.logDraft || {
     date: today,
     ramp: state.zsel || ZONES[0].id,
-    species: '',
+    picked: [],
     rating: 2,
     notes: ''
   };
+  // this month's species first, then the rest of the year's
+  const month = SEASON[new Date().getMonth()].sp;
+  const allSpecies = [...new Set([...month, ...Object.values(SEASON).flatMap(m => m.sp)])];
   const pat = patterns(state.log);
   const cap = k => k.charAt(0).toUpperCase() + k.slice(1);
   const rampName = id => (ZONES.find(z => z.id === id) || { name: id }).name;
@@ -733,8 +937,13 @@ function renderLog() {
         <div><label for="lr">Ramp</label><select id="lr">${ZONES.map(
           z => `<option value="${z.id}" ${z.id === d.ramp ? 'selected' : ''}>${esc(z.name)}</option>`
         ).join('')}</select></div>
-        <div class="wide"><label for="ls">What you caught (comma separated)</label>
-          <input id="ls" value="${esc(d.species)}" placeholder="Grunter, flathead"></div>
+        <div class="wide"><label>What you caught</label>
+          <div class="chips">${allSpecies
+            .map(
+              n =>
+                `<button data-act="logSp" data-name="${esc(n)}" class="${d.picked.includes(n) ? 'on' : ''}" aria-pressed="${d.picked.includes(n)}">${esc(n)}</button>`
+            )
+            .join('')}</div></div>
         <div class="wide"><label>How it went</label>
           <div class="rate">${RATINGS.map(
             (r, i) =>
@@ -744,7 +953,8 @@ function renderLog() {
         <div class="wide"><button class="save" data-act="addLog">Save session</button></div>
       </div>
       <p class="sub" style="margin-top:10px">Conditions are stamped on the entry automatically for today and the
-      two days before — tide phase, moon, wind and swell. Older sessions get the moon only.</p>
+      two days before — tide phase, moon, wind and swell. Older sessions get the moon only. Save while you're
+      out and the nearest of your marks is added from the phone's location (it asks once).</p>
     </div>
 
     ${
@@ -805,6 +1015,7 @@ function renderLog() {
             : e.sea != null
               ? 'sea ' + (+e.sea).toFixed(1) + ' m'
               : null,
+          e.mark ? 'at ' + esc(e.mark) : null,
           e.notes ? esc(e.notes) : null
         ]
           .filter(Boolean)
@@ -820,18 +1031,58 @@ function renderLog() {
 
 /* ── Render and actions ─────────────────────────────────────────────────── */
 
+/**
+ * A selector that finds the same control again after a re-render, built from
+ * its data-* attributes (data-act plus whichever of i, z, tab, rating, id it
+ * carries). Null for anything that is not one of our controls.
+ */
+function controlKey(el) {
+  if (!el || !el.dataset || !el.dataset.act) return null;
+  const q = v => '"' + String(v).replace(/["\\]/g, '\\$&') + '"';
+  return ['act', 'i', 'z', 'tab', 'view', 'rating', 'id']
+    .filter(k => el.dataset[k] != null)
+    .map(k => `[data-${k}=${q(el.dataset[k])}]`)
+    .join('');
+}
+
 export function render() {
   const app = $('app');
-  // re-rendering replaces the DOM, so remember which panels were open
+  // re-rendering replaces the DOM, so remember which panels were open and
+  // which control had keyboard focus, and put both back
   const open = app.querySelectorAll
     ? [...app.querySelectorAll('details[open][data-key]')].map(d => d.dataset.key)
     : [];
+  const active = typeof document.activeElement === 'object' ? document.activeElement : null;
+  // only for keyboard users: a tap should not leave a focus ring behind
+  const focusKey =
+    active && app.contains && app.contains(active) && active.matches && active.matches(':focus-visible')
+      ? controlKey(active)
+      : null;
   const body = state.tab === 'plan' ? renderPlan() : state.tab === 'marks' ? renderMarks() : renderLog();
   app.innerHTML = tabs() + body;
   open.forEach(k => {
     const d = app.querySelector(`details[data-key="${k}"]`);
     if (d) d.open = true;
   });
+  if (focusKey) {
+    const el = app.querySelector(focusKey);
+    if (el) el.focus({ preventScroll: true });
+  }
+}
+
+/**
+ * Show the day with this date (YYYY-MM-DD). False if it is not in the forecast.
+ * `ocean` switches to the ocean page too: go-day alerts are about the ocean.
+ */
+export function selectDay(ds, ocean = false) {
+  const i = state.days.findIndex(d => d.ds === ds);
+  if (i < 0) return false;
+  state.sel = i;
+  state.zsel = null;
+  state.tab = 'plan';
+  if (ocean) state.view = 'ocean';
+  render();
+  return true;
 }
 
 export function rebuild() {
@@ -842,25 +1093,49 @@ export function rebuild() {
   render();
 }
 
-const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+const scrollTop = () =>
+  window.scrollTo({
+    top: 0,
+    behavior:
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+  });
 
 function formValues() {
   const g = id => {
     const n = $(id);
     return n ? n.value : '';
   };
-  return { date: g('ld'), ramp: g('lr'), species: g('ls'), notes: g('lnotes') };
+  return { date: g('ld'), ramp: g('lr'), notes: g('lnotes') };
+}
+
+/** The log form as it stands: typed fields from the page, taps from the draft. */
+function draftNow() {
+  const prev = state.logDraft || { picked: [], rating: 2 };
+  return { ...formValues(), picked: prev.picked || [], rating: prev.rating };
+}
+
+/** The phone's position, or null if it can't or won't say within a few seconds. */
+function whereAmI() {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise(res =>
+    navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      () => res(null),
+      { timeout: 8000, maximumAge: 10 * 60e3, enableHighAccuracy: true }
+    )
+  );
 }
 
 /** Build a catch-log entry, stamped with that day's conditions when we have them. */
-export function logEntry(f, rating, built) {
+export function logEntry(f, rating, built, mark = null) {
   const c = conditionsFor(built, f.date, f.ramp);
   const noon = new Date(f.date + 'T12:00');
   const entry = {
     id: 'e' + Date.now(),
     date: f.date,
     ramp: f.ramp,
-    species: f.species.trim(),
+    species: Array.isArray(f.picked) ? f.picked.join(', ') : (f.species || '').trim(),
+    mark,
     notes: f.notes.trim(),
     rating,
     moon: moonBucket(moonIllum(isNaN(noon) ? new Date() : noon).phase),
@@ -933,6 +1208,13 @@ export const ACTIONS = {
     render();
     scrollTop();
   },
+  view(el) {
+    state.view = el.dataset.view === 'river' ? 'river' : 'ocean';
+    state.tab = 'plan';
+    save('view', state.view);
+    render();
+    scrollTop();
+  },
   day(el) {
     state.sel = +el.dataset.i;
     state.zsel = null;
@@ -971,26 +1253,59 @@ export const ACTIONS = {
     save('marks', state.marks);
     render();
   },
+  markInfo(el) {
+    state.markInfo = state.markInfo === el.dataset.id ? null : el.dataset.id;
+    render();
+  },
+  clearImported() {
+    const n = state.marks.filter(m => m.imported).length;
+    if (typeof confirm === 'function' && !confirm('Remove all ' + n + ' imported marks from this phone?'))
+      return;
+    state.marks = state.marks.filter(m => !m.imported);
+    state.importMsg = 'Removed ' + n + ' imported marks.';
+    save('marks', state.marks);
+    render();
+  },
   delMark(el) {
     state.marks = state.marks.filter(m => m.id !== el.dataset.id);
     save('marks', state.marks);
     render();
   },
   rate(el) {
-    state.logDraft = { ...formValues(), rating: +el.dataset.rating };
+    state.logDraft = { ...draftNow(), rating: +el.dataset.rating };
     render();
   },
-  addLog() {
-    const f = formValues();
+  logSp(el) {
+    const d = draftNow(),
+      n = el.dataset.name;
+    d.picked = d.picked.includes(n) ? d.picked.filter(x => x !== n) : d.picked.concat(n);
+    state.logDraft = d;
+    render();
+  },
+  async addLog() {
+    // the location lookup can take a few seconds: a second tap must not save twice
+    if (state.savingLog) return;
+    const f = draftNow();
     if (!f.date) {
       const n = $('ld');
       if (n) n.focus();
       return;
     }
-    const rating = state.logDraft ? state.logDraft.rating : 2;
-    state.log = state.log.concat([logEntry(f, rating, { days: state.days, past: state.past })]);
-    save('log', state.log);
-    state.logDraft = null;
+    state.savingLog = true;
+    try {
+      // logging on the day, probably from the boat: tag the nearest of your marks
+      let mark = null;
+      if (f.date === isoDay(new Date()) && state.marks.some(m => m.lat != null)) {
+        const here = await whereAmI();
+        const m = here && nearestMark(here.lat, here.lon, state.marks);
+        mark = m ? m.name : null;
+      }
+      state.log = state.log.concat([logEntry(f, f.rating, { days: state.days, past: state.past }, mark)]);
+      save('log', state.log);
+      state.logDraft = null;
+    } finally {
+      state.savingLog = false;
+    }
     rebuild();
   },
   delLog(el) {
@@ -999,6 +1314,45 @@ export const ACTIONS = {
     rebuild();
   }
 };
+
+/**
+ * Read a sounder export or GPX file into marks. Tries the format the name
+ * suggests first, then the other, so a renamed file still works.
+ */
+export async function importMarks(file) {
+  const asGPX = async () => parseGPX(await file.text());
+  const asHWR = async () => parseHWR(await file.arrayBuffer());
+  const gpxFirst = /\.gpx$/i.test(file.name);
+  let points;
+  try {
+    points = await (gpxFirst ? asGPX() : asHWR());
+  } catch (first) {
+    try {
+      points = await (gpxFirst ? asHWR() : asGPX());
+    } catch (e) {
+      state.importMsg = "Couldn't read " + file.name + ': ' + first.message;
+      return render();
+    }
+  }
+  const { marks, outside, repeats } = toMarks(points, state.marks);
+  state.marks = state.marks.concat(marks);
+  save('marks', state.marks);
+  state.importMsg =
+    'Imported ' +
+    marks.length +
+    ' mark' +
+    (marks.length === 1 ? '' : 's') +
+    '.' +
+    (outside ? ' ' + outside + ' more than 25 km from your ramps left out.' : '') +
+    (repeats ? ' ' + repeats + ' already here.' : '');
+  render();
+}
+
+/** Form controls that act on change rather than click (the file picker). */
+export function onAppChange(ev) {
+  const t = ev.target;
+  if (t && t.id === 'importFile' && t.files && t.files[0]) importMarks(t.files[0]);
+}
 
 export function onAppClick(ev) {
   const el = ev.target.closest && ev.target.closest('[data-act]');

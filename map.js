@@ -1,402 +1,216 @@
 /**
  * map.js — the go / no-go chart of the coast.
  *
- * Coastline: OpenStreetMap-derived land polygons (open licence), clipped to
- * Baffle Creek – Walkers Point and simplified to ~1 km. Range rings are true
- * distances from the selected ramp, with longitude squeezed for latitude.
- * Depth contours are deliberately absent: no open inshore bathymetry exists
- * at a usable resolution, and wrong depth lines are worse than none.
+ * Coastline: GSHHG full resolution (Wessel & Smith, GNU LGPL), clipped to
+ * this stretch of coast and simplified to about 50 m, so river mouths and
+ * headlands read properly. Stored as whole 1/10 000ths of a degree, each
+ * point as the step from the one before, which keeps it to ~5 KB.
+ *
+ * Projection: plain latitude / longitude with longitude squeezed for the
+ * latitude, so a kilometre is the same length across and down the chart and
+ * range rings are true circles of true size.
+ *
+ * Depth contours are deliberately absent: no open inshore bathymetry exists at
+ * a usable resolution, and wrong depth lines are worse than none. The pale band
+ * along the shore is styling, not a depth claim.
  */
-import { POINTS } from './config.js';
+import { POINTS, ZONES } from './config.js';
 import { light, esc } from './util.js';
 
-export const COAST = [
-  [-24.1307, 151.76],
-  [-24.1267, 151.7741],
-  [-24.1294, 151.7807],
-  [-24.1241, 151.7836],
-  [-24.1231, 151.7899],
-  [-24.1522, 151.811],
-  [-24.167, 151.8311],
-  [-24.1774, 151.8311],
-  [-24.1717, 151.8374],
-  [-24.174, 151.8405],
-  [-24.1719, 151.8742],
-  [-24.1868, 151.8587],
-  [-24.2015, 151.875],
-  [-24.1899, 151.875],
-  [-24.1868, 151.8784],
-  [-24.1868, 151.875],
-  [-24.1795, 151.875],
-  [-24.1668, 151.889],
-  [-24.1668, 151.8815],
-  [-24.1643, 151.8844],
-  [-24.1594, 151.8825],
-  [-24.1483, 151.8863],
-  [-24.2033, 151.9026],
-  [-24.2091, 151.9077],
-  [-24.2109, 151.9201],
-  [-24.229, 151.9285],
-  [-24.2346, 151.9341],
-  [-24.2329, 151.9378],
-  [-24.2407, 151.9435],
-  [-24.3085, 151.9608],
-  [-24.3942, 151.9918],
-  [-24.4018, 151.9849],
-  [-24.4071, 151.983],
-  [-24.4125, 151.9849],
-  [-24.4166, 151.9999],
-  [-24.4271, 152.0037],
-  [-24.4271, 151.9982],
-  [-24.4346, 152.0064],
-  [-24.4486, 152.0068],
-  [-24.4473, 152.0134],
-  [-24.5108, 152.0508],
-  [-24.522, 152.0508],
-  [-24.522, 152.0288],
-  [-24.5071, 152.0288],
-  [-24.5071, 152.0192],
-  [-24.5271, 152.0224],
-  [-24.5318, 152.0288],
-  [-24.5307, 152.0508],
-  [-24.5342, 152.0508],
-  [-24.5271, 152.0585],
-  [-24.5271, 152.0551],
-  [-24.5182, 152.063],
-  [-24.5551, 152.0843],
-  [-24.5838, 152.1082],
-  [-24.5871, 152.1045],
-  [-24.5981, 152.1167],
-  [-24.5956, 152.1181],
-  [-24.6396, 152.1638],
-  [-24.6505, 152.1826],
-  [-24.6523, 152.1921],
-  [-24.667, 152.1921],
-  [-24.667, 152.2155],
-  [-24.6639, 152.2155],
-  [-24.6733, 152.2284],
-  [-24.6971, 152.2519],
-  [-24.718, 152.2838],
-  [-24.7205, 152.2909],
-  [-24.7269, 152.2874],
-  [-24.7302, 152.2925],
-  [-24.7247, 152.3024],
-  [-24.7371, 152.3367],
-  [-24.7436, 152.3337],
-  [-24.7395, 152.3386],
-  [-24.7382, 152.3786],
-  [-24.7555, 152.3725],
-  [-24.7656, 152.3741],
-  [-24.7548, 152.3733],
-  [-24.7506, 152.3761],
-  [-24.7584, 152.3796],
-  [-24.7365, 152.3825],
-  [-24.7318, 152.3696],
-  [-24.7337, 152.3624],
-  [-24.7314, 152.3697],
-  [-24.7335, 152.3792],
-  [-24.7447, 152.3925],
-  [-24.7539, 152.3978],
-  [-24.753, 152.4073],
-  [-24.7538, 152.3998],
-  [-24.7599, 152.4012],
-  [-24.759, 152.3914],
-  [-24.7626, 152.3804],
-  [-24.7668, 152.3777],
-  [-24.7867, 152.3804],
-  [-24.7867, 152.3584],
-  [-24.7896, 152.3584],
-  [-24.794, 152.3804],
-  [-24.7867, 152.3883],
-  [-24.7668, 152.3807],
-  [-24.7668, 152.4023],
-  [-24.7603, 152.4023],
-  [-24.7588, 152.4123],
-  [-24.7574, 152.4025],
-  [-24.7579, 152.4129],
-  [-24.7753, 152.4212],
-  [-24.7843, 152.4345],
-  [-24.7995, 152.4445],
-  [-24.8025, 152.4557],
-  [-24.8152, 152.4678],
-  [-24.826, 152.4666],
-  [-24.8416, 152.4795],
-  [-24.8472, 152.4777],
-  [-24.8575, 152.4837],
-  [-24.8844, 152.4886],
-  [-24.8864, 152.4863],
-  [-24.8864, 152.489],
-  [-24.9164, 152.4946],
-  [-24.9195, 152.4929],
-  [-24.9172, 152.4902],
-  [-24.9244, 152.4902],
-  [-24.9316, 152.4864],
-  [-24.9661, 152.4877],
-  [-24.9661, 152.4829],
-  [-24.9706, 152.4879],
-  [-25.018, 152.5109],
-  [-25.068, 152.5459],
-  [-25.0798, 152.5317],
-  [-25.074, 152.5298],
-  [-25.0687, 152.5235],
-  [-25.0726, 152.5203],
-  [-25.0738, 152.5153],
-  [-25.072, 152.5154],
-  [-25.0721, 152.513],
-  [-25.0758, 152.5116],
-  [-25.0743, 152.5085],
-  [-25.0775, 152.5075],
-  [-25.0744, 152.5085],
-  [-25.0758, 152.512],
-  [-25.0722, 152.5131],
-  [-25.0741, 152.5153],
-  [-25.0731, 152.5204],
-  [-25.0695, 152.5234],
-  [-25.0808, 152.531],
-  [-25.0808, 152.536],
-  [-25.0861, 152.5345],
-  [-25.074, 152.545],
-  [-25.1013, 152.5599],
-  [-25.1179, 152.5755],
-  [-25.1512, 152.6321],
-  [-25.1706, 152.6236],
-  [-25.1738, 152.6151],
-  [-25.1833, 152.615],
-  [-25.2298, 152.6495],
-  [-25.2399, 152.6616],
-  [-25.2447, 152.6564],
-  [-25.2537, 152.666],
-  [-25.2467, 152.6676],
-  [-25.246, 152.6763],
-  [-25.2584, 152.699],
-  [-25.2669, 152.7258],
-  [-25.2697, 152.7227],
-  [-25.2669, 152.7297],
-  [-25.2694, 152.7719],
-  [-25.264, 152.8069],
-  [-25.2529, 152.8088],
-  [-25.2476, 152.8046],
-  [-25.2434, 152.8137],
-  [-25.2479, 152.8277],
-  [-25.2606, 152.8261],
-  [-25.2761, 152.8343],
-  [-25.2839, 152.8597],
-  [-25.2809, 152.8996],
-  [-25.2926, 152.9129],
-  [-25.2976, 152.9069],
-  [-25.2934, 152.9128],
-  [-25.2984, 152.9123],
-  [-25.2976, 152.9062],
-  [-25.3077, 152.9],
-  [-25.343, 152.9074],
-  [-25.3633, 152.918],
-  [-25.3782, 152.9096],
-  [-25.3953, 152.9164],
-  [-25.4071, 152.9149],
-  [-25.4275, 152.9232],
-  [-25.4158, 152.9077],
-  [-25.4234, 152.8898],
-  [-25.4234, 152.9077],
-  [-25.4324, 152.9077],
-  [-25.4324, 152.8857],
-  [-25.4433, 152.8857],
-  [-25.4433, 152.8792],
-  [-25.4631, 152.8619],
-  [-25.483, 152.8533],
-  [-25.483, 152.8418],
-  [-25.4769, 152.8418],
-  [-25.483, 152.8351],
-  [-25.483, 152.8418],
-  [-25.4956, 152.8418],
-  [-25.4879, 152.8638],
-  [-25.483, 152.8692],
-  [-25.4631, 152.8796],
-  [-25.4631, 152.8857],
-  [-25.4612, 152.8857],
-  [-25.4519, 152.9077],
-  [-25.4519, 152.9297],
-  [-25.4341, 152.9298],
-  [-25.4354, 152.9318],
-  [-25.4305, 152.94],
-  [-25.4351, 152.943],
-  [-25.4323, 152.9516],
-  [-25.4346, 152.9565],
-  [-25.4352, 152.953],
-  [-25.4428, 152.9547],
-  [-25.4476, 152.951],
-  [-25.4466, 152.9452],
-  [-25.4518, 152.9484],
-  [-25.4519, 152.9417],
-  [-25.4612, 152.9466],
-  [-25.4697, 152.9267],
-  [-25.4989, 152.8966],
-  [-25.505, 152.8979],
-  [-25.501, 152.9032],
-  [-25.5294, 152.91],
-  [-25.5341, 152.9084],
-  [-25.5365, 152.8974],
-  [-25.5386, 152.9039],
-  [-25.5416, 152.9026],
-  [-25.5561, 152.876],
-  [-25.5516, 152.8708],
-  [-25.5534, 152.8619],
-  [-25.5543, 152.8701],
-  [-25.5594, 152.8734],
-  [-25.5615, 152.8702],
-  [-25.5613, 152.8779],
-  [-25.5692, 152.8736]
+const LAND_ENC = [
+  '-243001,1519588,-24,0,-67,33,-17,-1,-41,34,-17,0,-25,25,-34,0,-8,9,-58,8,-58,25,-25,0,-59,25,-24,0,-34,17,-16,17,-68,7,-58,25,-24,0,-42,26,-83,8,-34,25,-50,7,-25,17,-41,9,-34,17,-17,0,-41,25,-142,41,-166,84,-13,-4,0,-17,12,-13,58,-25,38,-62,21,-21,29,-12,-12,-13,-54,37,-17,43,-12,12,-17,0,-16,-17,-5,30,-55,37,-15,0,-26,-17,-24,34,-92,16,-13,13,0,25,-50,41,13,4,16,-16,34,-9,41,-33,34,0,50,-34,29,5,0,16,-13,13,-50,17,-41,33,-42,8,-92,42,-67,50,-33,8,-99,59,-34,8,-59,42,-16,0,-50,25,-25,24,-8,0,-71,71,0,9,-63,54,-17,-16,-29,-5,-4,-54,-16,25,-21,-4,-9,-51,-25,-7,1,-42,8,-8,-31,-11,-36,11,-8,8,0,41,8,9,9,41,24,26,0,16,-25,17,0,75,21,21,17,0,8,8,38,-38,4,-29,21,13,4,13,16,-9,5,21,-71,63,-17,8,-33,0,-50,24,-17,0,-33,25,-17,1,-16,16,-17,0,-25,17,-42,42,-158,108,-59,59,-8,0,-46,46,-21,45,-33,-8,-4,-13,12,-12,9,8,13,-4,24,-50,42,-41,4,-30,-16,0,-5,30,-37,37,-17,0,-13,12,1,17,-55,37,-41,50,-17,1,-42,-34,-58,9,-33,-26,-41,0,-9,9,-25,0,-25,25,-34,0,0,8,50,0,42,-16,25,32,84,-7,25,33,33,17,24,-9,59,-58,25,-8,12,11,-103,105,-34,8,-33,34,-25,8,-42,42,-83,58,-146,146,0,9,-59,66,-24,50,0,17,-17,25,-8,50,-34,58,-54,46,-17,8,-12,-12,13,-13,24,-8,30,-38,-13,-4,-8,9,-4,-13,41,-51,0,-24,-12,-5,-12,38,-26,17,0,17,-16,25,-58,58,-9,41,-34,17,-8,34,-33,25,-8,41,-30,29,-66,-17,-38,-28,-8,-50,-33,-42,-26,-83,-41,-58,0,-34,-25,-58,-38,-30,-74,9,-13,-13,-21,-46,-8,1,-25,-26,-50,-25,-17,0,-4,5,13,12,33,8,63,71,0,17,24,25,9,67,16,33,0,17,17,24,0,17,-29,29,-25,9,-37,29,45,4,80,-71,-9,-8,0,-25,-17,-17,0,-17,-16,-24,0,-42,-9,-8,13,-21,41,-8,29,37,9,75,17,33,-1,25,9,8,0,34,8,9,0,99,50,108,13,13,12,-4,-16,-24,0,-34,-9,-9,5,-21,16,0,58,42,59,17,21,20,0,42,-42,51,0,32,-33,50,3,5,22,-4,25,-42,0,-33,50,-42,8,-33,34,-34,8,-24,25,-25,12,-30,21,13,0,25,-84,125,0,17,-16,15,-8,26,-42,50,-8,25,-25,25,0,8,-63,63,-83,50,-21,29,-34,25,0,9,-66,74,-25,50,-12,4,-17,25,-9,0,-4,14,-25,23,-8,26,-42,50,-16,34,0,24,-17,17,-17,33,-8,42,-34,50,-8,41,-16,34,0,25,-8,8,-1,34,-12,3,-4,-37,8,-8,0,-34,9,-8,24,-91,25,-42,-4,-13,-21,21,0,17,-25,25,0,50,-33,33,8,42,-16,25,0,34,-9,7,17,9,0,17,-8,8,-8,50,-17,17,-9,41,-8,9,0,133,-9,9,9,50,-8,8,0,25,-13,12,-12,-4,-9,-50,-8,-9,0,-66,-21,-29,-12,4,16,25,9,125,8,8,0,17,25,25,-17,25,0,17,26,33,0,133,-22,21,-41,8,-21,-21,9,-16,-5,-4,-16,-9,-34,1,-58,-34,-67,0,-50,25,-33,42,-17,8,-42,0,-16,17,-17,0,-8,8,-159,0,-12,-13,0,-50,16,-33,1,-75,-17,-8,0,-8,-29,-30,-33,-16,-92,0,-17,17,-25,8,-21,20,-8,26,-71,54,-91,0,-13,13,21,13,49,-1,9,8,17,-8,33,0,25,-17,33,-9,92,-82,67,-9,21,21,-8,175,29,30,24,7,92,0,9,8,24,0,9,9,58,0,50,-24,75,0,13,12,-9,25,30,12,20,29,0,16,-17,9,0,8,26,26,0,25,-25,41,0,42,33,50,-45,37,-34,0,-42,33,-33,1,-46,45,-8,34,-9,8,1,17,-22,20,-41,17,-25,34,-50,17,-71,70,-25,84,-21,21,-25,8,-21,20,0,17,-29,12,-50,59,-58,0,-25,-8,-8,8,-26,0,-41,42,-33,8,-42,51,-17,7,-17,-7,-41,0,-101,49,-49,-8,-8,-9,-34,17,-34,0,-24,-25,-13,4,0,-25,-12,-13,-4,13,-21,13,-13,-13,0,-16,-12,-4,-4,12,16,33,30,4,37,30,0,8,-63,4,-41,42,-50,-25,-67,0,-41,25,-67,0,-17,17,-58,0,-17,17,-41,7,-43,-16,-11,-13,0,-17,20,-3,4,-13,-33,-42,0,-16,17,-9,-9,-33,34,-25,0,-17,-4,-4,-26,17,-42,8,-20,-21,-8,-24,-30,-30,-25,-17,-25,0,-25,-24,-41,-9,-17,-41,-4,29,-21,4,-12,13,3,20,51,-8,50,58,67,8,21,21,16,42,0,25,-17,17,0,25,17,32,-4,14,-84,-9,-16,-16,-142,0,-9,-9,-41,8,-33,17,-42,-1,-25,-32,-4,21,-29,21,-25,0,-92,41,-17,0,-124,67,-17,-8,-100,66,-25,25,-17,0,-42,25,-16,0,-26,33,-28,12,-13,22,-17,0,-58,66,-33,8,-50,34,-75,33,-4,21,-13,13,-67,33,-50,50,-8,0,-42,50,-16,8,-17,0,-12,-12,3,-12,22,-5,-1,-58,-45,-38,-25,-8,-21,-29,0,-17,13,-12,41,-9,21,-20,8,-17,-4,-30,-33,42,-17,0,-25,25,-20,4,-1,26,17,24,-4,14,-13,3,17,25,-8,42,53,21,5,20,-29,13,-42,34,-84,16,-83,41,-195,180,0,8,-84,100,-8,25,-33,33,0,18,-50,74,0,17,-42,75,0,26,-25,49,-58,75,-17,50,-30,29,-41,-9,-67,-32,-24,-26,-42,-8,-29,-29,-9,-50,-8,-9,0,-65,25,-59,0,-42,8,-8,1,-84,-9,-8,0,-50,17,-25,8,-42,8,-9,0,-49,-49,-117,0,-42,16,-33,-25,-16,16,-34,1,-66,-17,-34,8,-33,-4,-4,-12,12,0,75,8,25,-17,42,0,25,-12,13,-21,-13,-33,-50,-55,-55,-16,-7,-50,-1,-76,50,-49,-33,-4,5,37,45,50,0,16,-17,26,0,58,25,54,63,17,67,-8,8,0,58,-17,42,0,25,-25,33,0,142,-8,9,0,41,17,16,8,42,8,9,0,50,17,24,0,34,-71,71,-13,4,0,9,-29,28,-25,9,-42,33,-25,0,-12,13,-4,20,-17,9,-33,0,-42,33,-41,8,-9,17,-29,12,-9,34,-16,8,-17,42,-21,21,-20,4,8,-42,-21,-12,-25,-33,-4,20,33,26,-16,74,-13,4,-38,38,0,8,-37,29,-25,1,-4,-13,25,-33,0,-33,9,-18,49,-7,-20,-14,-17,0,-25,18,-42,8,-12,20,0,18,-33,24,29,4,24,-33,13,5,0,16,-25,33,0,17,-8,8,42,59,-1,58,-16,33,-100,117,-8,33,-26,34,1,16,-51,100,0,50,-8,8,-8,75,-21,13,-13,-13,0,-16,-16,0,0,16,20,22,9,0,12,21,-8,107,-8,9,0,66,-9,9,0,25,9,8,0,33,-9,9,0,76,8,8,1,41,-9,8,9,175,-9,8,0,34,9,8,8,75,8,9,0,25,9,8,0,33,8,17,17,0,-9,-16,4,-21,33,41,34,8,25,-8,50,-50,8,0,13,13,0,50,8,16,17,8,0,75,-8,9,-30,104,-58,-33,-84,-1,-32,26,-67,17,-46,37,-16,50,-1,25,-49,84,-1,41,-8,8,8,58,9,9,0,17,-9,8,0,117,9,8,16,108,9,9,0,108,-17,34,-63,54,-83,8,-33,-34,0,-10062,10000,0',
+  '-247288,1523741,-17,25,1,25,-100,92,0,9,-71,71,-17,0,-12,-13,-17,-59,-17,-33,-20,-21,-34,0,-79,-54,20,-12,59,33,9,-8,41,0,8,-9,50,-8,5,21,-17,17,12,20,13,-4,-8,-16,20,-13,76,9,37,-38,0,-50,12,-13,9,26,13,-5,-9,-8,0,-58,-17,-26,5,-12,29,21,0,58,16,17',
+  '-252888,1529500,17,-8,29,-54,25,0,17,-9,24,17,9,-8,25,0,8,-17,4,4,-8,50,-25,25'
 ];
-const FRASER = [
-  [-25.5612, 152.9499],
-  [-25.5608, 152.9596],
-  [-25.5585, 152.9538],
-  [-25.552, 152.9512],
-  [-25.5445, 152.9624],
-  [-25.5226, 152.9726],
-  [-25.5106, 152.9857],
-  [-25.5122, 152.9889],
-  [-25.4824, 152.9892],
-  [-25.4843, 152.9935],
-  [-25.4801, 152.9938],
-  [-25.4815, 152.9892],
-  [-25.4688, 152.9839],
-  [-25.4483, 152.9868],
-  [-25.4463, 152.993],
-  [-25.4453, 152.9888],
-  [-25.4115, 153.0078],
-  [-25.3845, 153.0343],
-  [-25.3453, 153.0513],
-  [-25.3194, 153.0506],
-  [-25.2977, 153.0424],
-  [-25.2916, 153.0461],
-  [-25.2767, 153.04],
-  [-25.263, 153.0452],
-  [-25.2639, 153.0509],
-  [-25.2592, 153.0525],
-  [-25.2571, 153.0475],
-  [-25.2474, 153.0458],
-  [-25.2448, 153.0513],
-  [-25.2396, 153.049],
-  [-25.2362, 153.0429],
-  [-25.2232, 153.0387],
-  [-25.2259, 153.0339],
-  [-25.2227, 153.0327],
-  [-25.2228, 153.0262],
-  [-25.2298, 153.0179],
-  [-25.2308, 153.0101],
-  [-25.2269, 152.9977],
-  [-25.221, 152.9933],
-  [-25.2085, 152.9995],
-  [-25.1771, 153.0305],
-  [-25.1523, 153.0784],
-  [-25.1145, 153.1277],
-  [-25.0836, 153.1603],
-  [-25.0327, 153.1998],
-  [-24.9847, 153.2259],
-  [-24.979, 153.2332],
-  [-24.9659, 153.2382],
-  [-24.9573, 153.2357],
-  [-24.9591, 153.2321],
-  [-24.9789, 153.2275],
-  [-24.9452, 153.2335],
-  [-24.9236, 153.2313],
-  [-24.8692, 153.1983],
-  [-24.8466, 153.2066],
-  [-24.8067, 153.2022],
-  [-24.8018, 153.1934],
-  [-24.8067, 153.1765],
-  [-24.8067, 153.1934],
-  [-24.8286, 153.1934],
-  [-24.8421, 153.1785],
-  [-24.8224, 153.1555],
-  [-24.815, 153.1367],
-  [-24.8178, 153.1214],
-  [-24.8152, 153.1187],
-  [-24.8027, 153.1235],
-  [-24.7378, 153.1831],
-  [-24.7136, 153.2165],
-  [-24.6975, 153.2504],
-  [-24.6972, 153.2644],
-  [-24.8274, 153.2594],
-  [-24.8845, 153.2671],
-  [-24.9267, 153.2849],
-  [-24.9461, 153.2996]
-];
-const ISLANDS = [
-  [
-    [-25.1652, 152.5661],
-    [-25.1851, 152.5661],
-    [-25.1851, 152.5781],
-    [-25.1914, 152.5781],
-    [-25.1851, 152.5851],
-    [-25.1851, 152.607],
-    [-25.1652, 152.6168],
-    [-25.1652, 152.5948],
-    [-25.1802, 152.5781],
-    [-25.1652, 152.5781],
-    [-25.1652, 152.5661]
-  ]
-];
-const MAPW = 560,
-  MAPH = 600,
-  LON0 = 151.93,
-  LON1 = 153.14,
-  LAT0 = -24.28,
-  LAT1 = -25.4;
+
+/** Land polygons as [[lat, lon], ...], decoded once. */
+export const LAND = LAND_ENC.map(s => {
+  const n = s.split(',').map(Number),
+    out = [];
+  let lat = 0,
+    lon = 0;
+  for (let i = 0; i < n.length; i += 2) {
+    lat += n[i];
+    lon += n[i + 1];
+    out.push([lat / 1e4, lon / 1e4]);
+  }
+  return out;
+});
+
+/* ── Frame and projection ──────────────────────────────────────────────── */
+
+const LON0 = 151.97,
+  LON1 = 152.87,
+  LAT0 = -24.37,
+  LAT1 = -25.24;
+const KM_DEG = 111.32;
+const SQUEEZE = Math.cos(((LAT0 + LAT1) / 2) * (Math.PI / 180));
+export const MAPW = 600;
+export const MAPH = Math.round((MAPW * (LAT0 - LAT1)) / ((LON1 - LON0) * SQUEEZE));
+const PX_KM = MAPW / ((LON1 - LON0) * SQUEEZE * KM_DEG); // pixels per kilometre, both ways
 const mx = lon => ((lon - LON0) / (LON1 - LON0)) * MAPW;
 const my = lat => ((lat - LAT0) / (LAT1 - LAT0)) * MAPH;
-const poly = pts =>
-  pts.map((p, i) => (i ? 'L' : 'M') + mx(p[1]).toFixed(1) + ' ' + my(p[0]).toFixed(1)).join(' ');
-// one degree of latitude in map units, and the matching squeeze for longitude
-const KM = 111.32;
-// Radii of a true-distance ring, in map units. Latitude runs downward on
-// screen, so take the magnitude: a negative ry is invalid SVG and browsers
-// silently drop the ellipse.
-const ringR = (lat, km) => ({
-  ry: Math.abs((km / KM) * (MAPH / (LAT0 - LAT1))),
-  rx: Math.abs((km / (KM * Math.cos((lat * Math.PI) / 180))) * (MAPW / (LON1 - LON0)))
-});
-export function mapSVG(day, selId) {
-  // close the land polygon well outside the frame so the fill can't self-intersect
-  const land =
-    poly(COAST) +
-    ' L ' +
-    mx(LON0 - 0.4).toFixed(0) +
-    ' ' +
-    my(LAT1 - 0.4).toFixed(0) +
-    ' L ' +
-    mx(LON0 - 0.4).toFixed(0) +
-    ' ' +
-    my(LAT0 + 0.4).toFixed(0) +
-    ' Z';
+const f1 = n => n.toFixed(1);
+
+/* ── Static layers, built once ─────────────────────────────────────────── */
+
+// the coastline in chart coordinates, projected once: drawn as a path, and
+// used to keep labels off the land
+const LAND_XY = LAND.map(poly => poly.map(([lat, lon]) => [mx(lon), my(lat)]));
+const LAND_D = LAND_XY.map(
+  pts => pts.map(([x, y], i) => (i ? 'L' : 'M') + f1(x) + ' ' + f1(y)).join('') + 'Z'
+).join('');
+
+/** Whether a chart point is on land (even-odd ray casting). */
+export function onLand(x, y) {
+  let inside = false;
+  for (const poly of LAND_XY)
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i],
+        [xj, yj] = poly[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  return inside;
+}
+
+/** Whether a label's box, with a margin, touches land anywhere (checked on a grid). */
+const touchesLand = (x, y, w) => {
+  for (let i = 0; i <= 6; i++)
+    for (const dy of [-16, -8, 0, 6]) if (onLand(x - 6 + ((w + 12) * i) / 6, y + dy)) return true;
+  return false;
+};
+
+// faint chart grid every 10 minutes of latitude and longitude
+const LATS = [],
+  LONS = [];
+for (let m = Math.ceil(-LAT0 * 6); m <= -LAT1 * 6; m++) LATS.push(-m / 6);
+for (let m = Math.ceil(LON0 * 6); m <= LON1 * 6; m++) LONS.push(m / 6);
+const GRID =
+  LATS.map(v => `<path d="M0 ${f1(my(v))}H${MAPW}"/>`).join('') +
+  LONS.map(v => `<path d="M${f1(mx(v))} 0V${MAPH}"/>`).join('');
+
+// the water you fish: every ramp's 20 km reach (the limits stay in the model, not on the chart)
+const RANGE = ZONES.map(
+  z => `<circle cx="${f1(mx(z.mlon))}" cy="${f1(my(z.mlat))}" r="${f1(20 * PX_KM)}"/>`
+).join('');
+
+/* ── Labels ─────────────────────────────────────────────────────────────
+ * No outlined text: labels follow the app's own type — ramp names in Outfit
+ * on a pill like the app's tags, small spaced capitals for distances.
+ * SVG text can't size its own background, so the pills are sized from
+ * Outfit's real advance widths (weight 500, thousandths of an em, for the
+ * printable ASCII characters).
+ */
+const OUTFIT = [
+  200, 262, 426, 641, 584, 658, 669, 242, 299, 299, 491, 547, 276, 461, 290, 401, 655, 355, 541, 540, 599,
+  545, 562, 522, 548, 562, 271, 269, 547, 547, 547, 506, 737, 702, 622, 683, 740, 590, 566, 772, 712, 267,
+  494, 672, 550, 842, 717, 794, 604, 820, 628, 556, 619, 690, 696, 982, 698, 672, 589, 341, 401, 341, 451,
+  481, 293, 580, 580, 487, 580, 534, 403, 575, 551, 234, 242, 511, 232, 861, 551, 563, 580, 580, 425, 430,
+  378, 517, 510, 754, 509, 518, 451, 326, 282, 326, 547
+];
+/** Width of `text` set in Outfit at `size`, plus any letter-spacing. */
+export const textWidth = (text, size, spacing = 0) =>
+  [...String(text)].reduce(
+    (w, ch) => w + (OUTFIT[ch.charCodeAt(0) - 32] || 560) * (size / 1000) + spacing,
+    0
+  ) - (text ? spacing : 0);
+
+/** Small spaced capitals, like the app's section labels. */
+const caps = (x, y, text, fill, anchor = 'start', size = 13) =>
+  `<text x="${f1(x)}" y="${f1(y)}" text-anchor="${anchor}" class="caps" fill="${fill}" font-size="${size}">${esc(text.toUpperCase())}</text>`;
+
+const TOWNS = [
+  ['Bundaberg', -24.866, 152.348],
+  ['Bargara', -24.817, 152.462]
+]
+  .map(
+    ([n, lat, lon]) => `<circle cx="${f1(mx(lon))}" cy="${f1(my(lat))}" r="2.4" fill="#95b8cd"/>
+    <text x="${f1(mx(lon) - 7)}" y="${f1(my(lat) + 4.5)}" text-anchor="end" fill="#95b8cd" font-size="12" font-weight="500">${n}</text>`
+  )
+  .join('');
+
+// compass and 10 km scale, top right over open water
+const CX = MAPW - 48,
+  CY = 58;
+const COMPASS = `<g opacity=".8">
+    <circle cx="${CX}" cy="${CY}" r="17" fill="none" stroke="#7ad3f5" stroke-opacity=".35"/>
+    <path d="M${CX} ${CY - 15}l5 15h-10z" fill="#7ad3f5"/><path d="M${CX} ${CY + 15}l5 -15h-10z" fill="#7ad3f5" opacity=".3"/>
+    ${caps(CX, CY - 23, 'N', '#7ad3f5', 'middle', 12)}
+    <path d="M${f1(MAPW - 28 - 10 * PX_KM)} ${CY + 46}h${f1(10 * PX_KM)}" stroke="#7ad3f5" stroke-width="2"/>
+    <path d="M${f1(MAPW - 28 - 10 * PX_KM)} ${CY + 41}v10M${MAPW - 28} ${CY + 41}v10" stroke="#7ad3f5" stroke-width="1.4"/>
+    ${caps(MAPW - 28 - 5 * PX_KM, CY + 66, '10 km', '#7ad3f5', 'middle', 12)}
+  </g>`;
+
+// HUD corner brackets, in keeping with the launch-control look
+const B = 22,
+  I = 9;
+const CORNERS = `<path d="M${I} ${I + B}V${I}H${I + B}M${MAPW - I - B} ${I}H${MAPW - I}V${I + B}M${MAPW - I} ${MAPH - I - B}V${MAPH - I}H${MAPW - I - B}M${I + B} ${MAPH - I}H${I}V${MAPH - I - B}"
+    fill="none" stroke="#7ad3f5" stroke-width="2" stroke-opacity=".55"/>`;
+
+const DEFS = `<defs>
+      <linearGradient id="mSea" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#0d4560"/><stop offset=".55" stop-color="#082c40"/><stop offset="1" stop-color="#041824"/></linearGradient>
+      <linearGradient id="mLand" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#1f4d66"/><stop offset="1" stop-color="#173c51"/></linearGradient>
+      <pattern id="mDots" width="9" height="9" patternUnits="userSpaceOnUse">
+        <circle cx="2" cy="2" r=".9" fill="#7ad3f5" opacity=".16"/></pattern>
+      <filter id="mGlow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="6"/></filter>
+      <clipPath id="mFrame"><rect width="${MAPW}" height="${MAPH}" rx="18"/></clipPath>
+    </defs>`;
+
+/* ── The chart ─────────────────────────────────────────────────────────── */
+
+/**
+ * @param day     a built day
+ * @param selId   the selected ramp
+ * @param marks   the user's marks; those with a position for the selected
+ *                ramp are drawn as ringed dots, unlike the plain forecast
+ *                sample points (they never leave the phone)
+ * @param infoId  the mark whose details are showing, drawn larger
+ */
+export function mapSVG(day, selId, marks = [], infoId = null) {
   const sel = day.zones.find(z => z.z.id === selId) || day.zones[0];
   const zc = sel.z;
+  const cx = mx(zc.mlon),
+    cy = my(zc.mlat);
 
-  // range rings from the selected ramp — real distances, drawn under the land
+  // range rings from the selected ramp — true distances, drawn under the land
   const rings = [5, 10, 15, 20]
-    .map(km => {
-      const r = ringR(zc.mlat, km);
-      return `<ellipse cx="${mx(zc.mlon).toFixed(1)}" cy="${my(zc.mlat).toFixed(1)}"
-      rx="${r.rx.toFixed(1)}" ry="${r.ry.toFixed(1)}" fill="none" stroke="#7ad3f5"
-      stroke-opacity="${km === 20 ? 0.55 : 0.22}" stroke-width="${km === 20 ? 1.4 : 1}"
-      stroke-dasharray="${km === 20 ? '7 5' : '3 6'}"/>`;
-    })
+    .map(
+      km => `<circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(km * PX_KM)}" fill="none" stroke="#7ad3f5"
+      stroke-opacity="${km === 20 ? 0.6 : 0.25}" stroke-width="${km === 20 ? 1.5 : 1}" stroke-dasharray="${km === 20 ? '7 5' : '3 6'}"/>`
+    )
     .join('');
+  // distances just outside each ring: east-south-east, clear of the run-out
+  // line and samples, unless that lands on the coast — then east-north-east
   const ringLabels = [10, 20]
     .map(km => {
-      const r = ringR(zc.mlat, km);
-      return `<text x="${(mx(zc.mlon) + r.rx * 0.99).toFixed(1)}" y="${(my(zc.mlat) - r.ry * 0.16).toFixed(1)}"
-      font-size="9.5" fill="#7ad3f5" opacity=".65" font-family="Outfit,sans-serif">${km} km</text>`;
+      const text = km + ' km',
+        w = textWidth(text.toUpperCase(), 12, 1.92);
+      const spot = [0.42, -0.34]
+        .map(s => [cx + km * PX_KM * Math.sqrt(1 - s * s) + 6, cy + km * PX_KM * s + 4])
+        .find(([x, y]) => !touchesLand(x, y, w));
+      return spot ? caps(spot[0], spot[1], text, '#7ad3f5', 'start', 12) : '';
     })
     .join('');
 
   // where the forecast is actually sampled for this ramp
   const samples = zc.pts
     .slice(1)
-    .map(i => {
-      const pt = POINTS[i];
-      return `<circle cx="${mx(pt.lon).toFixed(1)}" cy="${my(pt.lat).toFixed(1)}" r="2.6"
-      fill="#7ad3f5" opacity=".8"/>`;
+    .map(i => `<circle cx="${f1(mx(POINTS[i].lon))}" cy="${f1(my(POINTS[i].lat))}" r="3" fill="#bde9fb"/>`)
+    .join('');
+
+  const dots = marks
+    .filter(m => m.ramp === zc.id && m.lat != null && m.lon != null)
+    .map(m => {
+      const x = f1(mx(m.lon)),
+        y = f1(my(m.lat)),
+        on = m.id === infoId;
+      return `<g class="mk-dot" data-act="markInfo" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc(m.name)}">
+      <circle cx="${x}" cy="${y}" r="11" fill="transparent"/>
+      <circle cx="${x}" cy="${y}" r="${on ? 6 : 4.6}" fill="${on ? '#eaf4fb' : '#061420'}" stroke="#eaf4fb" stroke-width="2"/>
+      <circle cx="${x}" cy="${y}" r="1.6" fill="${on ? '#061420' : '#eaf4fb'}"/>
+    </g>`;
     })
     .join('');
 
@@ -405,45 +219,47 @@ export function mapSVG(day, selId) {
       const x = mx(z.z.mlon),
         y = my(z.z.mlat),
         c = light(z.score),
-        on = z.z.id === selId;
-      const right = z.z.mlon < 152.75;
+        on = z.z.id === selId,
+        r = on ? 15 : 13,
+        name = z.z.name.split(' /')[0].split(' (')[0],
+        size = on ? 16 : 15,
+        w = textWidth(name, size) * (on ? 1.02 : 1) + 18,
+        lx = x + r + 5;
+      // the name on a pill edged in the ramp's colour, like the app's score pills
       return `<g class="pin" data-act="zone" data-z="${z.z.id}" role="button" tabindex="0"
       aria-label="${esc(z.z.name)}, score ${z.score}" style="cursor:pointer">
-      <circle cx="${x}" cy="${y}" r="17" fill="${c}" opacity="${on ? 0.3 : 0.12}"/>
-      <circle cx="${x}" cy="${y}" r="${on ? 9.5 : 7}" fill="${c}" stroke="#04121c" stroke-width="1.6"/>
-      <text x="${x}" y="${y + 3.4}" text-anchor="middle" font-size="8.5" font-weight="700"
-        fill="#04121c" font-family="Space Grotesk,sans-serif">${z.score}</text>
-      <text x="${x + (right ? 14 : -14)}" y="${y + 3}" font-size="11.5"
-        text-anchor="${right ? 'start' : 'end'}" fill="${on ? '#eaf4fb' : '#95b8cd'}"
-        font-family="Outfit,sans-serif">${z.z.name.split(' /')[0].split(' (')[0]}</text>
+      <circle cx="${f1(x)}" cy="${f1(y)}" r="${r + 11}" fill="${c}" opacity="${on ? 0.28 : 0.12}"/>
+      <rect x="${f1(lx)}" y="${f1(y - 12)}" width="${f1(w)}" height="24" rx="12" fill="#061420" fill-opacity=".82"
+        stroke="${c}" stroke-opacity="${on ? 0.9 : 0.45}" stroke-width="1.3"/>
+      <text x="${f1(lx + 9)}" y="${f1(y + 5.2)}" font-size="${size}" font-weight="${on ? 600 : 500}"
+        fill="${on ? '#e9f4fb' : '#bde9fb'}">${esc(name)}</text>
+      <circle cx="${f1(x)}" cy="${f1(y)}" r="${r}" fill="${c}" stroke="${on ? '#e9f4fb' : '#04121c'}" stroke-width="${on ? 2.2 : 1.8}"/>
+      <text x="${f1(x)}" y="${f1(y + 5)}" class="score" text-anchor="middle" font-size="${on ? 15 : 14}" font-weight="700"
+        fill="#04121c">${z.score}</text>
     </g>`;
     })
     .join('');
 
-  return `<svg viewBox="0 0 ${MAPW} ${MAPH}" role="img" aria-label="Go / no-go by launch point">
-    <defs>
-      <linearGradient id="sea" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#0c3b52"/><stop offset="1" stop-color="#051925"/></linearGradient>
-      <linearGradient id="shelf" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#7ad3f5" stop-opacity=".10"/>
-        <stop offset="1" stop-color="#7ad3f5" stop-opacity="0"/></linearGradient>
-      <clipPath id="frame"><rect x="0" y="0" width="${MAPW}" height="${MAPH}" rx="18"/></clipPath>
-    </defs>
-    <rect width="${MAPW}" height="${MAPH}" fill="url(#sea)" rx="18"/>
-    <g clip-path="url(#frame)">
-    ${rings}${ringLabels}
-    <path d="${land}" fill="#22506b" stroke="#9fe2fb" stroke-opacity=".7" stroke-width="1.2"/>
-    <path d="${poly(FRASER)} Z" fill="#22506b" stroke="#9fe2fb" stroke-opacity=".7" stroke-width="1.2"/>
-    ${ISLANDS.map(i => `<path d="${poly(i)} Z" fill="#22506b" stroke="#7ad3f5" stroke-opacity=".3" stroke-width=".8"/>`).join('')}
-    ${samples}
-    <text x="${mx(153.06).toFixed(1)}" y="${my(-25.05).toFixed(1)}" font-size="10.5" fill="#7ad3f5"
-      opacity=".55" font-family="Outfit,sans-serif"
-      transform="rotate(-82 ${mx(153.06).toFixed(1)} ${my(-25.05).toFixed(1)})">K'gari / Fraser</text>
-    <text x="${mx(152.0).toFixed(1)}" y="${my(-24.46).toFixed(1)}" font-size="10" fill="#95b8cd"
-      opacity=".8" font-family="Outfit,sans-serif">northern limit</text>
-    <text x="${mx(152.16).toFixed(1)}" y="${my(-25.19).toFixed(1)}" font-size="10" fill="#95b8cd"
-      opacity=".8" font-family="Outfit,sans-serif">southern limit</text>
-    ${pins}
+  // role="group", not "img": an image hides its contents from screen readers,
+  // and the ramp markers and marks inside are buttons
+  return `<svg class="chart-map" viewBox="0 0 ${MAPW} ${MAPH}" role="group" aria-label="Go / no-go by launch point">
+    ${DEFS}
+    <g clip-path="url(#mFrame)">
+      <rect width="${MAPW}" height="${MAPH}" fill="url(#mSea)"/>
+      <g stroke="#7ad3f5" stroke-opacity=".07" stroke-width="1">${GRID}</g>
+      <g fill="#7ad3f5" opacity=".07">${RANGE}</g>
+      ${rings}
+      <path d="${LAND_D}" fill="none" stroke="#2c93bd" stroke-width="20" stroke-opacity=".45" filter="url(#mGlow)"/>
+      <path d="${LAND_D}" fill="none" stroke="#7ad3f5" stroke-width="5" stroke-opacity=".18"/>
+      <path d="${LAND_D}" fill="url(#mLand)"/>
+      <path d="${LAND_D}" fill="url(#mDots)"/>
+      <path d="${LAND_D}" fill="none" stroke="#9fe2fb" stroke-width="1.3" stroke-opacity=".85" stroke-linejoin="round"/>
+      ${TOWNS}
+      ${samples}${ringLabels}
+      ${COMPASS}
+      ${dots}
+      ${pins}
     </g>
+    ${CORNERS}
   </svg>`;
 }

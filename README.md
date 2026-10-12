@@ -1,7 +1,8 @@
 # Fishin' Control
 
 Go / no-go fishing windows for a small boat between Baffle Creek and Walkers Point,
-Queensland. Static site, no build step, no runtime dependencies.
+Queensland. Static site: no build step, no runtime dependencies, no third-party requests
+besides the forecast itself.
 
 ## Deploy (GitHub Pages)
 
@@ -27,21 +28,27 @@ build(raw, ctx)    model.js   per-point series → per-ramp worst case → score
 render()           ui.js      state → HTML; clicks → ACTIONS → state → render()
 ```
 
-| File          | Job                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------ |
-| `config.js`   | Limits, tuning weights, **every upstream model ID**, ramps, sample points, links                 |
-| `data.js`     | Network requests (all sea grid cells, all in parallel), parsing, sample data                     |
-| `model.js`    | The go / no-go rule (`passes`), scoring, windows, tides, probability. Pure                       |
-| `advice.js`   | Sessions, techniques, marks, catch-log patterns. Pure                                            |
-| `astro.js`    | Sun and moon. Pure                                                                               |
-| `ui.js`       | Rendering and click handlers                                                                     |
-| `store.js`    | The single `state` object and localStorage                                                       |
-| `app.js`      | Entry point: startup, refresh, install, service worker                                           |
-| `closures.js` | Queensland closed seasons for this coast, from DPI's published dates                             |
-| `alerts.js`   | Go-day detection and the state shared with the background worker                                 |
-| `map.js`      | The chart                                                                                        |
-| `art.js`      | Species illustrations: a flat-style drawing kit and each species' proportions, fins and markings |
-| `sw.js`       | Offline support; flags saved forecasts so they are never shown as live                           |
+| File          | Job                                                                              |
+| ------------- | -------------------------------------------------------------------------------- |
+| `config.js`   | Limits, tuning weights, **every upstream model ID**, ramps, sample points, links |
+| `data.js`     | Network requests (all sea grid cells, all in parallel), parsing, sample data     |
+| `model.js`    | The go / no-go rule (`passes`), scoring, windows, tides, probability. Pure       |
+| `advice.js`   | Sessions, techniques, marks, catch-log patterns. Pure                            |
+| `astro.js`    | Sun and moon. Pure                                                               |
+| `ui.js`       | Rendering and click handlers                                                     |
+| `store.js`    | The single `state` object and localStorage                                       |
+| `app.js`      | Entry point: startup, refresh, install, service worker                           |
+| `closures.js` | Queensland closed seasons for this coast, from DPI's published dates             |
+| `alerts.js`   | Go-day detection and the state shared with the background worker                 |
+| `map.js`      | The chart: coastline, your 20 km range, ramps, rings                             |
+| `art.js`      | Species pictures: maps each species to its `species-*.webp`                      |
+| `importer.js` | Reads Humminbird DATA.HWR and GPX waypoints into marks, on the phone             |
+| `sw.js`       | Offline support; flags saved forecasts so they are never shown as live           |
+
+Assets, all at the top level: `species-*.webp` (21 pictures), `logo-128.webp` (header), `logo-448.webp` (loading screen),
+`icon-*.png` (favicon, notifications, install), `font-*.woff2` (Outfit and Space Grotesk,
+self-hosted under the SIL Open Font License — see `fonts-OFL.txt`). The chart's coastline
+is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded in `map.js`.
 
 ### Rules worth knowing before changing anything
 
@@ -65,26 +72,49 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 - **The service worker is a module** (`register('sw.js', { type: 'module' })`) so it can
   import `data.js` and `model.js` for background go-day checks. Anything it imports must
   not touch the DOM or localStorage.
-- **`rebuild()`** recomputes the model and repaints; **`render()`** only repaints.
+- **Soft adjustments never move the line.** Northerlies, wind against the tidal current
+  and storm risk (`softPenalties()` in `model.js`) lower the ranking score by a few points;
+  only `passes()` decides GO / NO GO. Storms show as a HOLD on the launch poll at most.
+- **Fishing hours** run from an hour before sunrise to an hour after sunset
+  (`fishBeforeSunrise` / `fishAfterSunset` in `TUNING`).
+- **Rivers are scored separately** (`riverScore()`): tide, moon and rain first; wind only
+  when it is strong close in. The Forecast tab switches between Ocean and Rivers.
+- **Marks with a position never leave the phone.** Imported marks live in localStorage
+  only; never put real marks in the code, because the site is public.
+- **`rebuild()`** recomputes the model and repaints; **`render()`** only repaints, and
+  keeps open panels and keyboard focus where they were.
+- **Releasing:** bump `APP_VERSION` in `config.js`, `VERSION` in `sw.js` and `version` in
+  `package.json` together (the tests check they match). The version bump is what makes
+  phones replace cached images and fonts, which are served cache-first.
+- **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
+  damaged entry can't break a render.
 
 ## Develop
 
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 87 tests, no dependencies, clock pinned to Queensland time
+npm test             # 150 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
-npx prettier --check .
+npm run lint         # Prettier formatting check (npm run format to fix)
 ```
+
+### Species illustrations
+
+The 21 `species-*.webp` files are made from the supplied PNG artwork by
+`python3 tools/prepare-species.py ORIGINALS_FOLDER [REDRAWN_FOLDER ...]` (needs Pillow,
+numpy and scipy). It removes the background haze and stray bits of neighbouring animals,
+centres each one on the same 600 × 320 canvas and writes WebP. Later folders override
+earlier ones. To replace one picture, run it again, then bump the version so phones fetch
+the new image.
 
 The tests pin `TZ=Australia/Brisbane`. The app shows Queensland local time against the
 device clock, so a test machine on UTC sees "midnight" ten hours late.
 
 ## Data
 
-Open-Meteo (CC BY 4.0): best-match forecast and wave models, with ECMWF IFS 9 km, NOAA GFS
+Coastline: GSHHG (Wessel and Smith), LGPL. Open-Meteo (CC BY 4.0): best-match forecast and wave models, with ECMWF IFS 9 km, NOAA GFS
 and DWD ICON as wind cross-checks; ECMWF WAM, NOAA GFS-Wave and Météo-France as swell
-cross-checks; ECMWF and NOAA ensembles for the probability. Coastline from
-OpenStreetMap-derived land polygons. Marks and catch log stay on the device.
+cross-checks; ECMWF and NOAA ensembles for the probability. Marks and catch log stay on the device.
 
 Scores are a filter, not a forecast. Check BOM before launching.

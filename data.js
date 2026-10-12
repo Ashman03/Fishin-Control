@@ -25,11 +25,18 @@ import { pad, localDate, pickVar, hasData } from './util.js';
 
 const REF_POINT = POINTS[ZONES.find(z => z.id === REFERENCE_ZONE).ptMid];
 
+// Open-Meteo counts more than ten variables as extra calls, so each list stays at ten or fewer.
+// weather_code (95–99 = thunderstorm) and cape (atmospheric instability) feed the storm risk.
 const FORECAST_VARS =
-  'wind_speed_10m,wind_gusts_10m,wind_direction_10m,temperature_2m,precipitation,cloud_cover,pressure_msl';
+  'wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,pressure_msl,weather_code,cape';
+// The fallback wave model is asked only for what it is the fallback FOR, so a
+// model without currents or sea temperature can't turn a swell rescue into an error.
+const WAVE_VARS =
+  'wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_level_height_msl';
+// ocean_current_* include the tidal stream (direction is where the water is going)
 const MARINE_VARS =
   'wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,' +
-  'wind_wave_height,sea_level_height_msl,sea_surface_temperature';
+  'wind_wave_height,sea_level_height_msl,sea_surface_temperature,ocean_current_velocity,ocean_current_direction';
 
 function query(params) {
   return Object.entries(params)
@@ -150,6 +157,9 @@ export async function attempt(url, timeoutMs = TUNING.fetchTimeoutMs) {
   }
 }
 
+/** "saved copy (reason)" when the service worker answered from the phone's store, else ''. */
+const savedNote = r => (r.cached ? 'saved copy (' + (r.reason || 'offline') + ')' : '');
+
 const hasWind = sets => Array.isArray(sets) && sets.some(o => hasData(pickVar(o.hourly, 'wind_speed_10m')));
 const hasWaves = sets =>
   Array.isArray(sets) &&
@@ -178,16 +188,28 @@ export function parseEnsemble(hourly, label = '') {
   return [...members.values()].filter(m => m.wind);
 }
 
-export async function getData() {
+/**
+ * Every forecast the app uses, fetched in parallel. `onProgress(done, total)`
+ * is called as each of the parallel requests comes back (the loading bar).
+ */
+export async function getData(onProgress = () => {}) {
   const status = [];
   const record = (label, role, ok, detail) => status.push({ label, role, ok, detail });
 
+  const total = 2 + MODELS.ensemble.length + MODELS.windCheck.length + MODELS.waveCheck.length;
+  let done = 0;
+  const fetchOne = url =>
+    attempt(url).then(r => {
+      onProgress(++done, total);
+      return r;
+    });
+  onProgress(0, total);
   const [first, mar, ensSets, windSets, waveSets] = await Promise.all([
-    attempt(forecastUrl()),
-    attempt(marineUrl()),
-    Promise.all(MODELS.ensemble.map(m => attempt(ensembleUrl(m)))),
-    Promise.all(MODELS.windCheck.map(m => attempt(windCheckUrl(m)))),
-    Promise.all(MODELS.waveCheck.map(m => attempt(waveCheckUrl(m))))
+    fetchOne(forecastUrl()),
+    fetchOne(marineUrl()),
+    Promise.all(MODELS.ensemble.map(m => fetchOne(ensembleUrl(m)))),
+    Promise.all(MODELS.windCheck.map(m => fetchOne(windCheckUrl(m)))),
+    Promise.all(MODELS.waveCheck.map(m => fetchOne(waveCheckUrl(m))))
   ]);
 
   // The wind forecast is the one thing we cannot do without. If the service
@@ -208,26 +230,29 @@ export async function getData() {
     err.status = status;
     throw err;
   }
-  record(
-    'Wind forecast',
-    'primary',
-    true,
-    fc.cached ? 'saved copy (' + (fc.reason || 'offline') + ')' : reduced ? 'reduced request' : 'best match'
-  );
+  record('Wind forecast', 'primary', true, savedNote(fc) || (reduced ? 'reduced request' : 'best match'));
 
   // waves: best match, then a named fallback, then carry on capped
-  let marine = mar.ok && hasWaves(mar.json) ? mar.json : null;
-  if (!marine) {
-    const alt = await attempt(marineUrl(MODELS.waveFallback));
-    if (alt.ok && hasWaves(alt.json)) marine = alt.json;
+  let wave = mar.ok && hasWaves(mar.json) ? mar : null,
+    backup = false;
+  if (!wave) {
+    const alt = await attempt(marineUrl(MODELS.waveFallback, { vars: WAVE_VARS }));
+    if (alt.ok && hasWaves(alt.json)) [wave, backup] = [alt, true];
   }
-  record('Swell forecast', 'primary', !!marine, marine ? 'best match' : mar.error || 'no wave values');
+  record(
+    'Swell forecast',
+    'primary',
+    !!wave,
+    wave
+      ? savedNote(wave) || (backup ? MODELS.waveFallback + ' (backup model)' : 'best match')
+      : mar.error || 'no wave values'
+  );
 
   const windAlt = [];
   MODELS.windCheck.forEach((model, i) => {
     const r = windSets[i],
       ok = r.ok && hasWind(r.json);
-    record(model, 'wind check', ok, ok ? '' : r.error || 'no data for this location');
+    record(model, 'wind check', ok, ok ? savedNote(r) : r.error || 'no data for this location');
     if (ok) windAlt.push({ model, sets: r.json });
   });
 
@@ -235,7 +260,7 @@ export async function getData() {
   MODELS.waveCheck.forEach((model, i) => {
     const r = waveSets[i],
       ok = r.ok && hasWaves(r.json);
-    record(model, 'swell check', ok, ok ? '' : r.error || 'no data for this location');
+    record(model, 'swell check', ok, ok ? savedNote(r) : r.error || 'no data for this location');
     if (ok) waveAlt.push({ model, sets: r.json });
   });
 
@@ -251,22 +276,30 @@ export async function getData() {
       model,
       'ensemble',
       found.length > 0,
-      found.length ? found.length + ' members' : r.error || 'no members'
+      found.length
+        ? [found.length + ' members', savedNote(r)].filter(Boolean).join(' · ')
+        : r.error || 'no members'
     );
   });
   const ensemble = members.length ? { members } : null;
 
+  // Either primary forecast coming from the phone's saved copy makes the whole
+  // result "not live": the app says so, and never sends an alert from it.
+  const saved = [fc.cached && 'wind', wave && wave.cached && 'swell'].filter(Boolean);
+  const savedFrom = [fc, wave].filter(r => r && r.cached);
+  const savedAts = savedFrom.map(r => r.savedAt).filter(Boolean);
   return {
     fc: fc.json,
-    mar: marine || [],
-    noWaves: !marine,
+    mar: wave ? wave.json : [],
+    noWaves: !wave,
     windAlt,
     waveAlt,
     ensemble,
     status,
-    cached: !!fc.cached,
-    savedAt: fc.savedAt,
-    savedReason: fc.reason,
+    cached: saved.length > 0,
+    saved, // which primaries are saved copies: 'wind', 'swell'
+    savedAt: savedAts.length ? Math.min(...savedAts) : null, // the older of the two
+    savedReason: savedFrom.length ? savedFrom[0].reason : null,
     fetchedAt: Date.now()
   };
 }
@@ -298,10 +331,10 @@ export function sampleData() {
       wind_speed_10m: [],
       wind_gusts_10m: [],
       wind_direction_10m: [],
-      temperature_2m: [],
       precipitation: [],
-      cloud_cover: [],
-      pressure_msl: []
+      pressure_msl: [],
+      weather_code: [],
+      cape: []
     };
     for (let i = 0; i < N; i++) {
       const d = Math.floor(i / 24),
@@ -313,10 +346,11 @@ export function sampleData() {
       H.wind_speed_10m.push(+w.toFixed(1));
       H.wind_gusts_10m.push(+(w * 1.35 + 1).toFixed(1));
       H.wind_direction_10m.push((120 + d * 14 + hr) % 360);
-      H.temperature_2m.push(+(19 + 6 * Math.sin(((hr - 9) / 24) * 2 * Math.PI)).toFixed(1));
-      H.precipitation.push(d === 7 && hr > 12 && hr < 18 ? 1.1 : 0);
-      H.cloud_cover.push(40);
+      const storm = d === 5 && hr >= 14 && hr <= 16; // one afternoon thunderstorm in the sample week
+      H.precipitation.push(d === 7 && hr > 12 && hr < 18 ? 1.1 : storm ? 4 : 0);
       H.pressure_msl.push(+(1018 - d * 0.7).toFixed(1));
+      H.weather_code.push(storm ? 95 : 1);
+      H.cape.push(storm ? 1800 : 200);
     }
     return {
       hourly: H,
@@ -334,7 +368,9 @@ export function sampleData() {
       swell_wave_direction: [],
       wind_wave_height: [],
       sea_level_height_msl: [],
-      sea_surface_temperature: []
+      sea_surface_temperature: [],
+      ocean_current_velocity: [],
+      ocean_current_direction: []
     };
     for (let i = 0; i < N; i++) {
       const d = Math.floor(i / 24);
@@ -352,6 +388,10 @@ export function sampleData() {
         )
       );
       H.sea_surface_temperature.push(22.4);
+      // a tidal stream that turns with the tide: km/h, heading south-east then north-west
+      const flow = Math.sin((2 * Math.PI * i) / 12.42 + Math.PI / 2);
+      H.ocean_current_velocity.push(+(Math.abs(flow) * 1.3).toFixed(2));
+      H.ocean_current_direction.push(flow >= 0 ? 150 : 330);
     }
     return { hourly: H };
   });

@@ -9,22 +9,59 @@
  *   astro.js   sun and moon (pure)
  *   ui.js      rendering and click handlers
  *   store.js   state and localStorage
- *   map.js / art.js   the chart and the fish
+ *   map.js / art.js   the chart and the species pictures
  */
 import { APP_VERSION } from './config.js';
 import { state, loadStored, shareContext } from './store.js';
 import { getData, sampleData } from './data.js';
-import { render, rebuild, onAppClick, ACTIONS, countdown, tickCountdown } from './ui.js';
+import {
+  render,
+  rebuild,
+  onAppClick,
+  onAppChange,
+  ACTIONS,
+  countdown,
+  tickCountdown,
+  selectDay
+} from './ui.js';
 import { goDays, newlyGo, readShared, writeShared } from './alerts.js';
 import { esc, isoDay } from './util.js';
 
 const app = document.getElementById('app');
-
-// Web fonts load after first paint; the system font stack shows until they arrive.
-const FONTS =
-  'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap';
-document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: FONTS }));
 const stamp = document.getElementById('stamp');
+
+// A go-day notification opens the app on its day: ./?day=YYYY-MM-DD
+let wantDay = new URLSearchParams(location.search).get('day');
+
+/* ── Loading screen ─────────────────────────────────────────────────────── */
+
+const splash = document.getElementById('splash');
+const splashFill = document.getElementById('splashFill');
+let splashUp = !!(splash && splashFill);
+if (splashUp) splash.classList.add('live'); // the app has started: no boot help, and the bar is ours
+
+/** Move the loading bar: a sliver at the start, full when the forecast is in. */
+function splashProgress(done, total) {
+  if (!splashUp) return;
+  const pct = Math.round(6 + (88 * done) / total);
+  splashFill.style.width = pct + '%';
+  splashFill.parentElement.setAttribute('aria-valuenow', pct);
+}
+
+/** Fill the bar, hold it long enough to be seen, then fade the screen away. */
+function hideSplash() {
+  if (!splashUp) return;
+  splashUp = false;
+  splashFill.style.width = '100%';
+  splashFill.parentElement.setAttribute('aria-valuenow', 100);
+  setTimeout(
+    () => {
+      splash.classList.add('out');
+      setTimeout(() => splash.remove(), 500);
+    },
+    Math.max(250, 900 - performance.now())
+  );
+}
 
 /**
  * Load sequence. Each call takes a ticket; if Refresh is pressed again before
@@ -33,7 +70,9 @@ const stamp = document.getElementById('stamp');
  */
 async function start() {
   const ticket = ++state.loadSeq;
-  const keepDay = state.days[state.sel] && state.days[state.sel].ds;
+  const fromAlert = !!wantDay;
+  const keepDay = wantDay || (state.days[state.sel] && state.days[state.sel].ds);
+  wantDay = null;
   if (!state.days.length) app.innerHTML = '<div class="state">Reading the water…</div>';
   stamp.textContent = 'Updating…';
 
@@ -41,7 +80,7 @@ async function start() {
     demo = false,
     loadError = null;
   try {
-    raw = await getData();
+    raw = await getData(splashProgress);
   } catch (err) {
     console.warn('[data] using sample data:', err.message, err.status || '');
     raw = sampleData();
@@ -57,19 +96,15 @@ async function start() {
     state.loadError = loadError;
     rebuild();
     if (!state.days.length) throw new Error('no forecast days returned');
-    if (keepDay) {
-      const i = state.days.findIndex(d => d.ds === keepDay);
-      if (i >= 0 && i !== state.sel) {
-        state.sel = i;
-        render();
-      }
-    }
-    stamp.innerHTML = demo
+    if (fromAlert) selectDay(keepDay, true);
+    else if (keepDay && keepDay !== state.days[state.sel].ds) selectDay(keepDay);
+    stamp.textContent = demo
       ? 'Sample data'
       : raw.cached
         ? 'Saved copy'
         : 'Live · ' +
           new Date(raw.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    hideSplash();
     if (!demo && !raw.cached) await checkGoDays();
   } catch (err) {
     fail(err);
@@ -95,6 +130,7 @@ async function checkGoDays() {
 
 function fail(err) {
   console.error('[app]', err);
+  hideSplash();
   stamp.textContent = '';
   app.innerHTML =
     '<div class="state err">Something went wrong building the forecast.<br>' +
@@ -108,6 +144,7 @@ ACTIONS.retry = () => start();
 /* ── Wiring ─────────────────────────────────────────────────────────────── */
 
 app.addEventListener('click', onAppClick);
+app.addEventListener('change', onAppChange);
 app.addEventListener('keydown', e => {
   // the map pins are SVG <g> elements, so give them Enter / Space like a button
   if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -174,14 +211,22 @@ installBtn.addEventListener('click', async () => {
 });
 refreshInstallUI();
 
-// browsers treat localhost as secure, which lets the offline path be tested locally
-// browsers treat localhost as secure, which lets the offline path be tested locally
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  // a module worker, so it can run the same forecast model for background alerts
+// Service workers need a secure context: https, or localhost while testing.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  // A module worker, so it can run the same forecast model for background
+  // alerts. updateViaCache 'none' checks sw.js and the modules it imports
+  // against the server, not the ten-minute HTTP cache, so updates land promptly.
   navigator.serviceWorker
-    .register('sw.js', { type: 'module' })
+    .register('sw.js', { type: 'module', updateViaCache: 'none' })
     .then(r => console.log('[sw] scope', r.scope))
     .catch(e => console.warn('[sw] registration failed', e));
+  // a tapped notification asks an already-open app to show its day
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data && e.data.type === 'show-day' && !selectDay(e.data.ds, true)) {
+      wantDay = e.data.ds;
+      start();
+    }
+  });
 }
 
 // the launch clock ticks every second while the app is in view; when its

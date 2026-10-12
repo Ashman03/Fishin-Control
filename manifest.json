@@ -1,18 +1,16 @@
 {
+  "id": "./index.html",
   "name": "Fishin' Control — fishing window planner",
   "short_name": "Fishin' Control",
   "description": "Go / no-go fishing windows, launch control, tides and techniques for the coast between Baffle Creek and Walkers Point.",
+  "lang": "en-AU",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#061420",
   "theme_color": "#061420",
-  "categories": [
-    "weather",
-    "sports",
-    "utilities"
-  ],
+  "categories": ["weather", "sports", "utilities"],
   "icons": [
     {
       "src": "icon-64.png",
@@ -38,6 +36,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "id": "./"
+  ]
 }

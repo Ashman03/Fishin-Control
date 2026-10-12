@@ -25,6 +25,7 @@ import {
   localDate,
   pickVar,
   hasData,
+  fromNewOrFull,
   HOUR,
   DAY
 } from './util.js';
@@ -65,6 +66,24 @@ export function seaWord(T) {
 export const passes = (swellEff, wind, gust, cfg) =>
   swellEff <= cfg.maxSwell && wind <= cfg.maxWind && gust <= cfg.maxGust;
 
+/**
+ * Soft score deductions for things that make the water worse than its
+ * numbers, from the user's own experience. Points, never a gate:
+ *   north    a northerly, scaled by strength against the limit; fades to
+ *            nothing by east and west
+ *   current  wind blowing against the tidal stream (h.against, 0–1)
+ *   storm    a forecast thunderstorm hour, or the hour before one; less for
+ *            a hot, unstable, showery hour
+ */
+export function softPenalties(h, cfg) {
+  const T = TUNING;
+  const fromNorth = Math.max(0, Math.cos((angDiff(h.wdir, 0) * Math.PI) / 180));
+  const north = T.northerly * fromNorth * clamp(h.wind / cfg.maxWind, 0, 1);
+  const current = T.windCurrent * (h.against || 0);
+  const storm = h.storm === 2 ? T.storm : h.storm === 1 ? T.stormUnstable : 0;
+  return { north, current, storm, total: north + current + storm };
+}
+
 /** Soft 0–100 score for ranking hours and ramps. Never overrides `passes`. */
 export function hourScore(h, z, cfg) {
   const T = TUNING;
@@ -74,25 +93,69 @@ export function hourScore(h, z, cfg) {
     T.weightGust * (100 * (1 - lerp(h.gust, T.gustGood, T.gustBad)));
   const onshore = inArc(h.wdir, z.exposed);
   if (!onshore) s = Math.min(100, s * (1 + T.leeRankBonus)); // ranking only
+  s = Math.max(0, s - softPenalties(h, cfg).total);
   const ok = passes(h.swellEff, h.wind, h.gust, cfg);
   return { s: Math.round(ok ? s : Math.min(s, T.breachCap)), ok, onshore };
 }
 
-export const riverScore = h =>
-  Math.round(
-    0.5 * (100 * (1 - lerp(h.wind, 8, 28))) +
-      0.3 * (100 * (1 - lerp(h.gust, 12, 34))) +
-      0.2 * (100 * (1 - lerp(h.rain, 0, 6)))
-  );
+/** Storm signal for one hour: 2 thunderstorm forecast, 1 unstable and showery, 0 none. */
+export const stormLevel = (code, cape, rain) =>
+  code >= 95 ? 2 : cape != null && cape >= TUNING.unstableCape && rain > 0.2 ? 1 : 0;
 
-/** Unbroken runs of passing hours between `from` and `to`, at least minWindowHours long. */
+/**
+ * How squarely the wind opposes the current, 0–1, scaled by both strengths.
+ * The wind direction is where it comes FROM; the current's is where it is
+ * GOING — so they oppose when the two bearings are the same.
+ */
+export function windAgainstCurrent(wind, wdir, curKn, curDir) {
+  if (curKn == null || curDir == null) return 0;
+  const T = TUNING;
+  const head = Math.max(0, Math.cos((angDiff(wdir, curDir) * Math.PI) / 180));
+  return head * lerp(wind, 5, 15) * lerp(curKn, T.currentWeak, T.currentStrong);
+}
+
+/**
+ * River and creek score, 0–100. Rivers fish on the tide and the moon, so
+ * those lead; wind only counts once it is genuinely strong close in, and a
+ * big three-day rain total marks the water as run-off dirty.
+ *   c = { range, turns, nf, major, presTrend, rain, rain72, windIn }
+ *   (nf: distance of the moon phase from new or full, 0–0.25)
+ */
+export function riverScore(c) {
+  const T = TUNING;
+  let s = T.riverBase;
+  if (c.range != null) {
+    if (c.range > 2.4) s += T.riverSprings;
+    else if (c.range >= 1.6) s += T.riverMidTide;
+    else if (c.range < 1.4) s += T.riverNeaps;
+  }
+  s += T.riverTurn * Math.min(2, c.turns);
+  if (c.nf < 0.06) s += T.riverMoon;
+  else if (c.nf < 0.12) s += T.riverMoonNear;
+  else if (Math.abs(c.nf - 0.25) < 0.05) s += T.riverMoonQuarter;
+  if (c.major) s += T.riverMajor;
+  if (c.presTrend < -1.5) s += T.riverFalling;
+  else if (c.presTrend > 2.5) s += T.riverRising;
+  const runoff = c.rain72 >= T.riverRunoffMm;
+  if (runoff) s += T.riverRunoff;
+  else if (c.rain > 0.5 && c.rain < 12) s += T.riverShower;
+  const windStrong = c.windIn >= T.riverWindStrong;
+  if (windStrong) s += T.riverWindPenalty;
+  return { score: clamp(Math.round(s), 5, 95), runoff, windStrong };
+}
+
+/**
+ * Unbroken runs of passing hours inside the fishing hours [from, to], at
+ * least minWindowHours long. Each hour covers t to t + 1 h; a window never
+ * runs past `to`, so the hour that starts at the cut-off adds nothing.
+ */
 export function windows(hours, from, to) {
   const out = [];
   let run = null;
   for (const h of hours) {
-    if (h.z.ok && h.t >= from && h.t <= to) {
+    if (h.z.ok && h.t >= from && h.t < to) {
       if (!run) run = { a: h.t, b: h.t, ss: [] };
-      run.b = new Date(+h.t + HOUR);
+      run.b = new Date(Math.min(+h.t + HOUR, +to));
       run.ss.push(h.z.s);
     } else if (run) {
       out.push(run);
@@ -149,6 +212,19 @@ export function nearestWithWaves(i, marine) {
   return best;
 }
 
+/**
+ * Where each forecast hour sits in another block's time axis (-1 if absent).
+ * The wave forecast normally starts at the same hour as the wind, but a saved
+ * copy from an earlier day does not, so values are matched by timestamp and
+ * never by position: matched by position, yesterday's copy would put every
+ * swell figure a day out.
+ */
+export function alignTo(times, block) {
+  if (!block || !Array.isArray(block.time)) return times.map((_, k) => k);
+  const at = new Map(block.time.map((t, k) => [t, k]));
+  return times.map(t => at.get(t) ?? -1);
+}
+
 /** One hourly series per sample point, every value read by name (suffix-tolerant). */
 export function pointSeries(raw) {
   const { fc, mar } = raw;
@@ -168,9 +244,10 @@ export function pointSeries(raw) {
       wind: v(F, 'wind_speed_10m'),
       gust: v(F, 'wind_gusts_10m'),
       dir: v(F, 'wind_direction_10m'),
-      temp: v(F, 'temperature_2m'),
       rain: v(F, 'precipitation'),
-      pres: v(F, 'pressure_msl')
+      pres: v(F, 'pressure_msl'),
+      code: v(F, 'weather_code'),
+      cape: v(F, 'cape')
     };
     const w = {
       swell: v(W, 'swell_wave_height'),
@@ -178,27 +255,36 @@ export function pointSeries(raw) {
       sp: v(W, 'swell_wave_period'),
       wp: v(W, 'wave_period'),
       chop: v(W, 'wind_wave_height'),
-      sst: v(W, 'sea_surface_temperature')
+      sst: v(W, 'sea_surface_temperature'),
+      cur: v(W, 'ocean_current_velocity'), // km/h
+      curDir: v(W, 'ocean_current_direction')
     };
-    const lvl = hasData(pickVar(own, 'sea_level_height_msl'))
-      ? v(own, 'sea_level_height_msl')
-      : v(W, 'sea_level_height_msl');
+    const lvlBlock = hasData(pickVar(own, 'sea_level_height_msl')) ? own : W;
+    const lvl = v(lvlBlock, 'sea_level_height_msl');
+    const wAt = alignTo(times, W),
+      lAt = alignTo(times, lvlBlock);
     return times.map((t, k) => {
-      const swell = w.swell[k] ?? w.wave[k] ?? 0;
+      const m = wAt[k];
+      const swell = w.swell[m] ?? w.wave[m] ?? 0;
+      const wind = f.wind[k] ?? 0,
+        wdir = f.dir[k] ?? 0,
+        rain = f.rain[k] ?? 0;
+      const cur = w.cur[m] != null ? w.cur[m] / 1.852 : null; // knots
       return {
         t: localDate(t),
-        wind: f.wind[k] ?? 0,
+        wind,
         gust: f.gust[k] ?? 0,
-        wdir: f.dir[k] ?? 0,
-        temp: f.temp[k] ?? null,
-        rain: f.rain[k] ?? 0,
+        wdir,
+        rain,
+        storm: stormLevel(f.code[k] ?? 0, f.cape[k] ?? null, rain),
+        against: windAgainstCurrent(wind, wdir, cur, w.curDir[m] ?? null),
         pres: f.pres[k] ?? null,
         swell,
-        period: w.sp[k] ?? w.wp[k] ?? null,
-        chop: w.chop[k] ?? 0,
-        sea: Math.max(w.wave[k] ?? 0, swell),
-        sst: w.sst[k] ?? null,
-        lvl: lvl[k] ?? null,
+        period: w.sp[m] ?? w.wp[m] ?? null,
+        chop: w.chop[m] ?? 0,
+        sea: Math.max(w.wave[m] ?? 0, swell),
+        sst: w.sst[m] ?? null,
+        lvl: lvl[lAt[k]] ?? null,
         borrowed
       };
     });
@@ -207,9 +293,14 @@ export function pointSeries(raw) {
 
 /** Per ramp, per hour: the worst conditions across its 10, 15 and 20 km points. */
 export function zoneSeries(points, tideDir) {
+  const buffer = TUNING.stormBufferHours;
   return ZONES.map(z =>
     points[0].map((_, k) => {
       const out = z.ptOut.map(i => points[i][k]);
+      // storms anywhere on the ramp's line, including close in, and the hour(s) before one
+      const stormAt = j => max(z.pts.map(i => (points[i][j] ? points[i][j].storm : 0)));
+      let storm = stormAt(k);
+      for (let b = 1; b <= buffer; b++) storm = Math.max(storm, stormAt(k + b));
       const mid = points[z.ptMid][k],
         inn = points[z.ptInshore][k];
       const shelter = out.some(h => h.borrowed) ? z.shelterF : 1;
@@ -248,7 +339,9 @@ export function zoneSeries(points, tideDir) {
         tideRate: td.rate,
         bar,
         onshoreBar,
-        temp: mid.temp,
+        storm,
+        stormNow: stormAt(k), // without the buffer: when the storm itself is forecast
+        against: max(out.map(h => h.against)),
         rain: inn.rain,
         pres: inn.pres
       };
@@ -311,6 +404,7 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
   today.setHours(0, 0, 0, 0);
   const allDates = [...new Set(times.map(t => t.slice(0, 10)))];
   const ref = points[refZ.ptMid];
+  const refAt = new Map(ref.map(h => [+h.t, h]));
 
   /**
    * How closely the independent models agree, over daylight only.
@@ -333,7 +427,8 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
     const swells = waveAlt
       .map(({ sets }) => {
         const h = sets[0] && sets[0].hourly;
-        const m = byTime(h, 'wave_height').size ? byTime(h, 'wave_height') : byTime(h, 'swell_wave_height');
+        const total = byTime(h, 'wave_height');
+        const m = total.size ? total : byTime(h, 'swell_wave_height');
         const v = [...m].filter(([t]) => inDay(t)).map(([, x]) => x);
         return v.length ? mean(v) : null;
       })
@@ -366,7 +461,6 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
   function probability(zi, from, to) {
     if (!ens) return null;
     const zh = zones[zi].filter(h => h.t >= from && h.t <= to);
-    const refAt = new Map(ref.map(h => [+h.t, h]));
     let pass = 0,
       counted = 0;
     for (const member of ens.at) {
@@ -403,8 +497,9 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
     const di = fc[0].daily && fc[0].daily.time ? fc[0].daily.time.indexOf(ds) : -1;
     const sunrise = di >= 0 ? localDate(fc[0].daily.sunrise[di]) : new Date(+d0 + 5.6 * HOUR);
     const sunset = di >= 0 ? localDate(fc[0].daily.sunset[di]) : new Date(+d0 + 17.6 * HOUR);
-    const from = new Date(+sunrise - 15 * 6e4),
-      to = new Date(+sunset + 15 * 6e4);
+    // fishing hours: never earlier or later than this around first and last light
+    const from = new Date(+sunrise - TUNING.fishBeforeSunrise * 6e4),
+      to = new Date(+sunset + TUNING.fishAfterSunset * 6e4);
 
     const zs = ZONES.map((z, zi) => {
       const hours = zones[zi]
@@ -431,6 +526,7 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
       }
       if (rb) barWin.push(rb);
       const periods = day.map(h => h.period).filter(v => v != null);
+      const stormy = day.filter(h => h.stormNow > 0);
       return {
         z,
         hours,
@@ -453,7 +549,9 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
         ),
         swellIn: max(day.map(h => h.swellIn)),
         swell20: max(day.map(h => h.swell20)),
-        barMax: max(day.map(h => h.bar))
+        barMax: max(day.map(h => h.bar)),
+        stormFrom: stormy.length ? stormy[0].t : null, // first fishing hour with storm risk
+        stormMax: max(stormy.map(h => h.stormNow)) // 2 thunderstorm, 1 unstable
       };
     }).sort((a, b) => b.score - b.z.drive - (a.score - a.z.drive));
 
@@ -473,11 +571,36 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
       .map(h => h.sst)
       .filter(v => v != null);
     const agree = agreement(from, to);
+
+    // rivers and creeks: tide, moon and rain; wind only when strong
+    const inHours = t => t && t >= from && t <= to;
+    const nf = fromNewOrFull(moon.phase);
+    const turns = tides.filter(t => inHours(t.t));
+    const majors = [me.over, me.under].filter(inHours).sort((a, b) => a - b);
+    const rain72 = points[refZ.ptInshore]
+      .filter(h => h.t >= new Date(+d0 - 2 * DAY) && h.t < d1)
+      .reduce((a, h) => a + (h.rain || 0), 0);
+    const windIn = mean(daylight.map(h => h.wind));
+    const riverInfo = {
+      ...riverScore({
+        range,
+        turns: turns.length,
+        nf,
+        major: majors.length > 0,
+        presTrend,
+        rain,
+        rain72,
+        windIn
+      }),
+      rain72,
+      windIn,
+      turns, // tide turns inside the fishing hours
+      majors // moon overhead / underfoot inside the fishing hours
+    };
     const best = zs[0];
 
     const T = TUNING;
     let bite = T.biteBase;
-    const nf = Math.min(Math.abs(moon.phase), Math.abs(moon.phase - 0.5), Math.abs(moon.phase - 1));
     if (nf < 0.06) bite += T.biteMoon;
     else if (nf < 0.12) bite += T.biteMoonNear;
     else if (Math.abs(nf - 0.25) < 0.05) bite += T.biteQuarter;
@@ -521,7 +644,8 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
       to,
       zones: zs,
       past: d0 < today,
-      river: Math.round(mean(daylight.map(riverScore))),
+      river: riverInfo.score,
+      riverInfo,
       tides,
       range,
       moon,

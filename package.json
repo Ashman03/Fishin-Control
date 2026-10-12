@@ -1,11 +1,13 @@
 {
   "name": "fishin-control",
-  "version": "4.0.0",
+  "version": "5.1.1",
   "private": true,
   "description": "Go / no-go fishing window planner for the Bundaberg coast",
   "type": "module",
   "scripts": {
     "test": "node tests/run.js",
-    "bundle": "node tools/bundle.js"
+    "bundle": "node tools/bundle.js",
+    "format": "prettier --write .",
+    "lint": "prettier --check ."
   }
 }

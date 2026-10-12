@@ -11,7 +11,7 @@
  * moving a sample point changes the forecast as surely as changing a weight.
  */
 
-export const APP_VERSION = '4.7';
+export const APP_VERSION = '5.1.1';
 export const TZ = 'Australia/Brisbane';
 
 /** The user's go / no-go limits. Swell is swell height, as BOM reports it. */
@@ -38,6 +38,21 @@ export const TUNING = Object.freeze({
   // ramp in the lee ranks a little higher. Never applied to the hard gate.
   leeRankBonus: 0.12,
   onshoreArc: 70, // degrees either side of the run-out bearing
+
+  // Soft adjustments to the ranking score. None of these ever turns a NO GO
+  // into a GO or the reverse; only the user's limits do that.
+  northerly: 4, // points off at the wind limit, straight from the north (fades to 0 at E and W)
+  windCurrent: 6, // points off when wind opposes a strong current head-on
+  currentWeak: 0.2, // knots: below this, no effect
+  currentStrong: 1.0, // knots: full effect
+  storm: 20, // points off in a forecast thunderstorm hour and the hour before it
+  stormUnstable: 8, // points off in a hot, unstable, showery hour
+  unstableCape: 1000, // J/kg of convective energy, with showers, counts as unstable
+  stormBufferHours: 1,
+
+  // fishing hours: from this long before sunrise to this long after sunset
+  fishBeforeSunrise: 60, // minutes
+  fishAfterSunset: 60,
 
   // day score
   topHours: 5,
@@ -70,6 +85,24 @@ export const TUNING = Object.freeze({
   biteShower: 4,
   biteWet: -4,
   logNudgeMax: 6,
+
+  // river score (rivers and creeks run on tide and moon, not swell)
+  riverBase: 50,
+  riverSprings: 12, // range above 2.4 m
+  riverMidTide: 6, // range 1.6–2.4 m
+  riverNeaps: -4, // range under 1.4 m
+  riverTurn: 5, // per tide turn inside fishing hours, up to two
+  riverMoon: 10, // new or full
+  riverMoonNear: 5,
+  riverMoonQuarter: -4,
+  riverMajor: 5, // moon overhead or underfoot inside fishing hours
+  riverFalling: 6,
+  riverRising: -4,
+  riverShower: 4,
+  riverRunoffMm: 25, // rain over the last three days that dirties the water
+  riverRunoff: -15,
+  riverWindStrong: 20, // knots sustained, close in: only then does wind matter
+  riverWindPenalty: -10,
 
   // bar risk: tide run in metres per hour
   barRunning: 0.1,

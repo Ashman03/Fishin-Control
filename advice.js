@@ -4,7 +4,7 @@
  * says. Pure: everything comes in as arguments.
  */
 import { SEASON, MARK_PREF, TUNING } from './config.js';
-import { mean, clamp, dirOf, HOUR } from './util.js';
+import { mean, clamp, dirOf, fromNewOrFull, HOUR } from './util.js';
 
 /** Up to two marks for this ramp that suit this part of the tide and light. */
 export function marksFor(marks, zoneId, kind, swell) {
@@ -130,20 +130,48 @@ const COPY = {
   ]
 };
 
+/** The same sessions, told for the rivers and creeks. */
+const RIVER_COPY = {
+  dawn: [
+    'First light',
+    'Fish are still up on the flats and along the snag edges. Topwater and small plastics before the sun is on the water.'
+  ],
+  high: [
+    'Top of the tide',
+    'Fish push up into the mangroves and over the flats. Poppers and small plastics along the edges, and set the pots.'
+  ],
+  low: [
+    'Bottom of the tide',
+    'Everything drops back into the deeper holes, rock bars and drain mouths. Vibes and paddle tails worked slowly, or a live bait on the bottom.'
+  ],
+  dusk: [
+    'Last of the light',
+    'Second bite of the day. Work the snags and rock bars that held fish this morning.'
+  ],
+  run: [
+    'Run of the tide',
+    'Water is pushing bait past the bends, drain mouths and rock bars. Fish the eddies on the edge of the flow.'
+  ]
+};
+
 /**
  * Up to three non-overlapping sessions inside the day's passing windows,
  * anchored on first light, tide turns and dusk, ranked by light and moon.
- * With no passing window it falls back to a river day.
+ * With no passing window it falls back to a river day. `river` (an estuary
+ * from config) asks for river sessions outright: the whole of the fishing
+ * hours, weather aside.
  */
-export function sessions(day, zone, marks) {
+export function sessions(day, zone, marks, river = null) {
   const maj = [day.me.over, day.me.under].filter(Boolean);
   let wins = zone.win.slice(),
     where = zone.z.name,
-    riverDay = false;
-  if (!wins.length) {
-    wins = [{ a: new Date(+day.sunrise - 0.5 * HOUR), b: new Date(+day.sunset), avg: day.river }];
-    where = 'Burnett River, or Baffle Creek for the best shelter';
+    riverDay = false,
+    outsideIsOut = false;
+  if (river || !wins.length) {
+    wins = [{ a: day.from, b: day.to, avg: day.river }];
+    where = river ? river.name : 'Burnett River, or Baffle Creek for the best shelter';
     riverDay = true;
+    outsideIsOut = !river;
   }
   const clip = (a, b, w) => ({ a: new Date(Math.max(+a, +w.a)), b: new Date(Math.min(+b, +w.b)) });
   const cand = [];
@@ -187,8 +215,8 @@ export function sessions(day, zone, marks) {
   picked.sort((a, b) => a.a - b.a);
 
   return picked.map(c => {
-    const [title, base] = COPY[c.kind];
-    let how = riverDay ? 'Outside is out today, so fish the system instead. ' + base : base;
+    const [title, base] = (riverDay ? RIVER_COPY : COPY)[c.kind];
+    let how = outsideIsOut ? 'Outside is out today, so fish the system instead. ' + base : base;
     if (c.solunar)
       how +=
         ' The moon is overhead or underfoot inside this window — if you only get one session, take this one.';
@@ -243,7 +271,7 @@ export function techniques(day) {
         day.sst.toFixed(1) +
         '°C and warm. Jacks and pelagics are on, and the light changes do the damage.'
     );
-  const nf = Math.min(Math.abs(day.moon.phase), Math.abs(day.moon.phase - 0.5), Math.abs(day.moon.phase - 1));
+  const nf = fromNewOrFull(day.moon.phase);
   if (nf < 0.06)
     mods.push(
       'Right on the ' +
@@ -274,6 +302,5 @@ export function launchNotes(zone, cfg) {
     );
   if (['elliott', 'baffle'].includes(zone.z.id))
     n.push('Shallow bar here. Cross on a making tide, never on a big run-out into the wind.');
-  if (zone.z.drive >= 11) n.push('That is a fair tow from Bundaberg, so it wants to be worth the drive.');
   return n;
 }

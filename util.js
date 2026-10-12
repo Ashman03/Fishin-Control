@@ -112,5 +112,8 @@ export function span(lo, hi, dp = 1) {
   return a === b ? a : a + '–' + b;
 }
 
+/** How far a moon phase (0–1) is from the nearest new or full moon, 0–0.25. */
+export const fromNewOrFull = phase => Math.min(Math.abs(phase), Math.abs(phase - 0.5), Math.abs(phase - 1));
+
 /** True if an array holds at least one real number. */
 export const hasData = a => Array.isArray(a) && a.some(v => v != null);

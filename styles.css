@@ -1,16 +1,32 @@
 /* Fishin' Control — styles.
    Colour has one job each: light blue is the interface, green / amber / red
    are reserved for go / marginal / no-go and nothing else. */
+
+/* Self-hosted variable fonts (SIL OFL, see fonts-OFL.txt): no third-party
+   request, cached for offline, one file per family covers every weight. */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('font-outfit.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('font-space-grotesk.woff2') format('woff2');
+}
+
 :root {
+  color-scheme: dark; /* native controls (date picker, selects, scrollbars) match the theme */
   --ink: #061420;
-  --ink2: #0a2233;
   --card: rgba(122, 211, 245, 0.045);
-  --card2: rgba(122, 211, 245, 0.08);
   --line: rgba(122, 211, 245, 0.18);
   --line2: rgba(122, 211, 245, 0.38);
   --sky: #7ad3f5;
   --sky2: #bde9fb;
-  --deepsky: #2c93bd;
   --paper: #e9f4fb;
   --mute: #95b8cd;
   --dim: #65899f;
@@ -38,17 +54,16 @@ body {
   line-height: 1.45;
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
-  padding-bottom: 70px;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom));
 }
 .wrap {
   max-width: 780px;
   margin: 0 auto;
-  padding: 0 15px;
+  padding: env(safe-area-inset-top) max(15px, env(safe-area-inset-right)) 0
+    max(15px, env(safe-area-inset-left));
 }
-h1,
 h2,
-h3,
-.disp {
+h3 {
   font-family: var(--disp);
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -229,17 +244,6 @@ header.top {
   line-height: 1.1;
   margin-top: 6px;
 }
-.day .bar {
-  height: 3px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
-  margin-top: 7px;
-}
-.day .bar i {
-  display: block;
-  height: 3px;
-  border-radius: 3px;
-}
 
 section {
   margin-top: 24px;
@@ -418,10 +422,19 @@ p {
   padding: 10px 10px 9px;
   background: rgba(255, 255, 255, 0.02);
 }
-.fc svg {
+/* Species picture: every card the same 15:8 box, the art scaled whole
+   (contain) so nothing is stretched or cropped. */
+.fc .sp {
   width: 100%;
   height: auto;
+  aspect-ratio: 15 / 8;
+  object-fit: contain;
   display: block;
+}
+/* a species with no picture yet keeps the card's shape */
+.fc .sp-none {
+  border-radius: 10px;
+  background: rgba(122, 211, 245, 0.06);
 }
 .fc .n {
   font-size: 12px;
@@ -484,13 +497,20 @@ svg {
 .mapwrap svg,
 .chartwrap svg {
   display: block;
-  max-width: 100%;
-}
-.mapwrap svg,
-.chartwrap svg {
   width: 100%;
   height: auto;
-  display: block;
+}
+/* chart text in the app's faces; no outlines — names sit on pills instead */
+.chart-map text {
+  font-family: var(--body);
+}
+.chart-map .score {
+  font-family: var(--disp);
+  letter-spacing: -0.03em;
+}
+.chart-map .caps {
+  font-weight: 500;
+  letter-spacing: 0.16em;
 }
 .legend {
   display: flex;
@@ -506,6 +526,9 @@ svg {
   height: 9px;
   border-radius: 50%;
   margin-right: 5px;
+}
+.legend i.range {
+  background: rgba(122, 211, 245, 0.25);
 }
 .state {
   padding: 44px 6px;
@@ -581,6 +604,35 @@ footer {
   border-radius: 999px;
   color: var(--mute);
 }
+/* Ocean / Rivers switch at the top of the Forecast tab */
+.switch {
+  display: flex;
+  gap: 4px;
+  margin: 10px auto 14px;
+  max-width: 340px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+}
+.switch button {
+  flex: 1;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: var(--mute);
+}
+.switch button.on {
+  background: var(--sky);
+  color: var(--ink);
+  font-weight: 600;
+}
+button.inline {
+  color: var(--sky);
+  font-size: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .tabs button.on {
   background: rgba(122, 211, 245, 0.16);
   color: var(--paper);
@@ -630,6 +682,33 @@ footer {
   border-radius: 8px;
   padding: 3px 9px;
 }
+label.filebtn {
+  display: inline-block;
+  cursor: pointer;
+}
+/* visually hidden but still focusable, so the file picker works from a keyboard */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+label.filebtn {
+  position: relative;
+}
+label.filebtn:focus-within {
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+}
+.mark-info {
+  margin: 10px 0 0;
+}
+details > .mk:first-of-type {
+  margin-top: 8px;
+}
 .form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -640,8 +719,7 @@ footer {
   grid-column: 1/-1;
 }
 .form input,
-.form select,
-.form textarea {
+.form select {
   width: 100%;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--line);
@@ -669,6 +747,19 @@ footer {
   font-size: 12.5px;
   color: var(--mute);
 }
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 12.5px;
+  color: var(--mute);
+}
+.chips button.on,
 .rate button.on {
   border-color: var(--sky);
   background: rgba(122, 211, 245, 0.16);
@@ -715,6 +806,15 @@ footer {
       height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
+/* score dial: faint water, so the figures read in every colour */
+.dial .dial-num {
+  font-family: var(--disp);
+  letter-spacing: -0.05em;
+}
+.dial .dial-sub {
+  font-family: var(--body);
+  font-weight: 500;
+}
 
 /* labels and small controls used by ui.js */
 .zb .t,
@@ -735,13 +835,16 @@ main {
   display: block;
 }
 
-/* boot fallback: only visible if app.js has not replaced it within 6 seconds.
+/* boot fallback: only visible if app.js has not started within 6 seconds.
    With no stylesheet at all it shows immediately, which is exactly when it is needed. */
 .boot-help {
   margin-top: 12px;
   font-size: 13px;
   opacity: 0;
   animation: boot-show 0.3s 6s forwards;
+}
+.splash.live .boot-help {
+  display: none;
 }
 @keyframes boot-show {
   to {
@@ -919,7 +1022,7 @@ main {
 .card.closure h3 {
   color: var(--mid);
 }
-.fc.closed svg {
+.fc.closed .sp {
   opacity: 0.5;
   filter: grayscale(1);
 }
@@ -942,4 +1045,191 @@ main {
 }
 .card.gonew h3 {
   color: var(--go);
+}
+
+/* ── Loading screen ─────────────────────────────────────────────────────
+   The logo on a radar scope, the wordmark, and a bar that follows the
+   forecast requests as they come back. Before app.js runs the bar creeps
+   on its own; app.js then drives it and fades the screen out. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+  text-align: center;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 480px at 82% -10%, #14526e 0%, transparent 60%),
+    radial-gradient(700px 420px at 0% 100%, #0d3b52 0%, transparent 58%), var(--ink);
+  transition:
+    opacity 0.45s ease,
+    visibility 0.45s;
+}
+.splash.out {
+  opacity: 0;
+  visibility: hidden;
+}
+.splash-radar {
+  position: relative;
+  width: 236px;
+  height: 236px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      transparent 0 95px,
+      rgba(122, 211, 245, 0.16) 95px 96px,
+      transparent 96px 106px,
+      rgba(122, 211, 245, 0.1) 106px 107px,
+      transparent 107px 117px,
+      rgba(122, 211, 245, 0.22) 117px 118px,
+      transparent 118px
+    ),
+    linear-gradient(rgba(122, 211, 245, 0.12), rgba(122, 211, 245, 0.12)) center / 1px 100% no-repeat,
+    linear-gradient(rgba(122, 211, 245, 0.12), rgba(122, 211, 245, 0.12)) center / 100% 1px no-repeat;
+}
+/* the sweep: a soft wedge trailing behind a bright leading edge */
+.splash-radar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 290deg, rgba(122, 211, 245, 0.24) 360deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 74px, #000 75px 118px, transparent 118px);
+  mask: radial-gradient(circle, transparent 0 74px, #000 75px 118px, transparent 118px);
+}
+.splash-logo {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  box-shadow: 0 0 44px rgba(44, 147, 189, 0.4);
+}
+.splash-mark {
+  margin-top: 26px;
+  font-family: var(--disp);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.splash-mark span {
+  display: block;
+  margin-top: 8px;
+  padding-left: 0.32em; /* balances the spacing after the last letter */
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--sky);
+}
+.splash-tag {
+  margin-top: 18px;
+  padding: 14px 6px 0;
+  border-top: 1px solid var(--line);
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.splash-load {
+  margin-top: 46px;
+  width: min(260px, 72vw);
+}
+.splash-msg {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.splash-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(122, 211, 245, 0.12);
+  overflow: hidden;
+}
+.splash-bar i {
+  position: relative;
+  display: block;
+  width: 6%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2c93bd, var(--sky));
+  box-shadow: 0 0 10px rgba(122, 211, 245, 0.55);
+  overflow: hidden;
+  transition: width 0.35s ease;
+}
+.splash:not(.live) .splash-bar i {
+  animation: splash-creep 5s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.splash .boot-help {
+  max-width: 300px;
+  color: var(--mute);
+}
+.splash-swell {
+  position: absolute;
+  left: 0;
+  bottom: env(safe-area-inset-bottom);
+  width: 100%;
+  height: 72px;
+  fill: none;
+  stroke: var(--sky);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.splash-swell path:nth-child(1) {
+  opacity: 0.1;
+}
+.splash-swell path:nth-child(2) {
+  opacity: 0.16;
+}
+.splash-swell path:nth-child(3) {
+  opacity: 0.24;
+}
+@keyframes splash-creep {
+  to {
+    width: 35%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .splash-radar::before {
+    animation: splash-sweep 3.2s linear infinite;
+  }
+  /* a glint running along the filled part of the bar */
+  .splash-bar i::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    transform: translateX(-100%);
+    animation: splash-glint 1.4s ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash,
+  .splash-bar i {
+    transition: none;
+  }
+}
+@keyframes splash-sweep {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes splash-glint {
+  to {
+    transform: translateX(100%);
+  }
 }
