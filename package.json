@@ -1,6 +1,6 @@
 {
   "name": "fishin-control",
-  "version": "6.0.3",
+  "version": "6.0.4",
   "private": true,
   "description": "Go / no-go fishing window planner for the Bundaberg coast",
   "type": "module",

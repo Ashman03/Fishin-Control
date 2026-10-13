@@ -54,7 +54,7 @@ import {
   DAY
 } from './util.js';
 
-/** A lamp's colour, for a figure that is coloured by its poll lamp. */
+/** A lamp's colour, for a figure that is coloured by its lamp on the caution and advisory panel. */
 const LAMP_COLOUR = { go: 'var(--go)', hold: 'var(--mid)', nogo: 'var(--no)' };
 
 /**
@@ -84,8 +84,8 @@ const shortDate = d =>
 /* ── Small components ───────────────────────────────────────────────────── */
 
 /**
- * The score as a tank that fills with water, with ticks at its green and amber
- * lines (the verdict's lines: LINES.ocean, or LINES.river for the river tank).
+ * The daily score as a gauge that fills with water, with ticks at its green and
+ * amber lines (the verdict's lines: LINES.ocean, or LINES.river for the river score).
  * The water is kept faint and its surface drawn as a line, so the figures on
  * top read the same in green, amber or red.
  */
@@ -110,9 +110,9 @@ export function dial(score, lines = LINES.ocean) {
   </svg>`;
 }
 
-/** The tank with its caption, as it sits at the left of the hero. */
-const tank = (score, caption, lines) =>
-  `<div class="tank">${dial(score, lines)}<span class="cap">${caption}</span></div>`;
+/** The daily score with its caption, as it sits at the left of the hero. */
+const dailyScore = (score, caption, lines) =>
+  `<div class="dscore">${dial(score, lines)}<span class="cap">${caption}</span></div>`;
 
 export function verdict(score, river) {
   if (score >= 75) return ['Go', 'Inside your limits for a decent stretch of the day.'];
@@ -370,16 +370,16 @@ function sourceStatus() {
   </details>`;
 }
 
-/* ── Launch theme: poll, countdown, window tracks ──────────────────────── */
+/* ── Launch theme: caution and advisory panel, countdown, window tracks ── */
 
 const STATUS = { go: 'GO', hold: 'HOLD', nogo: 'NO GO' };
 
 /**
- * The go / no-go poll for one ramp on one day. Each station reads GO when its
+ * The caution and advisory panel for one ramp on one day. Each station reads GO when its
  * own limit holds for at least a full window of daylight, HOLD when it holds
  * for some of it, NO GO when it never does.
  */
-function launchPoll(day, zone) {
+function cautionPanel(day, zone) {
   const cfg = state.cfg;
   const daylight = zone.hours.filter(h => h.t >= day.from && h.t <= day.to);
   const hours = test => daylight.filter(test).length;
@@ -422,27 +422,27 @@ function launchPoll(day, zone) {
     ],
     ['Rules', closed.length ? 'hold' : 'go', closed.length ? closed.length + ' closed' : 'all open']
   ];
-  return pollHTML(rows, 'Launch poll for ' + zone.z.name, 'Launch poll');
+  return advisoryHTML(rows, 'Caution and advisory panel for ' + zone.z.name);
 }
 
 /**
- * A go / no-go poll: rows of [label, 'go' | 'hold' | 'nogo', value], under a
- * heading that totals the calls. Each station is a tile with its own lamp;
+ * A caution and advisory panel: rows of [label, 'go' | 'hold' | 'nogo', value],
+ * under a heading that totals the calls. Each station is a tile with its own lamp;
  * `layout` 'rows' lists them one per line instead.
  */
-function pollHTML(rows, label, title, layout = 'tiles') {
+function advisoryHTML(rows, label, layout = 'tiles') {
   const count = st => rows.filter(r => r[1] === st).length;
   const tally = ['go', 'hold', 'nogo']
     .filter(count)
     .map(st => count(st) + ' ' + STATUS[st])
     .join(' · ');
-  return `${sect(title, tally)}
-  <div class="poll ${layout}" role="list" aria-label="${esc(label)}">
+  return `${sect('Caution and advisory panel', tally)}
+  <div class="adv ${layout}" role="list" aria-label="${esc(label)}">
     ${rows
       .map(
-        ([k, st, v]) => `<div class="poll-row" role="listitem" data-st="${st}">
-      <span class="poll-k">${k}</span><span class="poll-v num">${esc(v)}</span>
-      <span class="poll-s ${st}">${STATUS[st]}</span></div>`
+        ([k, st, v]) => `<div class="adv-row" role="listitem" data-st="${st}">
+      <span class="adv-k">${k}</span><span class="adv-v num">${esc(v)}</span>
+      <span class="adv-s ${st}">${STATUS[st]}</span></div>`
       )
       .join('')}
   </div>`;
@@ -618,11 +618,11 @@ const moonPhase = p =>
 
 /**
  * The week as a bar chart, one bar per day at the height of its score, with
- * dashed lines at its green and amber lines (as the tank). Each day is a button.
+ * dashed lines at its green and amber lines (as the daily score). Each day is a button.
  * score(d), what(d) for the spoken label, extra(d) under the date.
  */
 function dayStrip(title, score, what, extra, lines) {
-  return `<section class="panel telem">${sect(title, 'Tap a day')}
+  return `<section class="panel week">${sect(title, 'Tap a day')}
     <div class="strip" style="--n:${state.days.length};--line-go:${lines[0]};--line-amber:${lines[1]}">${state.days
       .map(
         (d, i) => `
@@ -725,7 +725,7 @@ function renderPlan() {
 
 /**
  * The colour of each verdict word. The score colours use the same lines
- * (LINES in util.js), so the tank and the word always agree; amber covers
+ * (LINES in util.js), so the daily score and the word always agree; amber covers
  * both middle words, as a red "Marginal" would read as a no-go.
  */
 export const VERDICT_COLOUR = {
@@ -814,19 +814,19 @@ function renderRiver() {
   return `${banners(day)}
   <div class="deck">
     <div class="col col-a">
-      <section class="panel hero">${tank(day.river, 'River tank', LINES.river)}
+      <section class="panel hero">${dailyScore(day.river, 'Daily score', LINES.river)}
         ${call(esc(shortDate(day.d0) + ' · ' + est.name), word, why)}
       </section>
-      <section class="pollsec">${pollHTML(rows, 'River poll for ' + est.name, 'River poll', 'rows')}</section>
+      ${dayStrip(
+        '7-day forecast',
+        d => d.river,
+        () => 'rivers and creeks',
+        d =>
+          `<span class="odds${d.riverInfo.runoff ? ' runoff' : ''}">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</span>`,
+        LINES.river
+      )}
     </div>
-    ${dayStrip(
-      '7-day river telemetry',
-      d => d.river,
-      () => 'rivers and creeks',
-      d =>
-        `<span class="odds${d.riverInfo.runoff ? ' runoff' : ''}">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</span>`,
-      LINES.river
-    )}
+    <section class="advsec">${advisoryHTML(rows, 'River caution and advisory panel for ' + est.name, 'rows')}</section>
     <div class="col col-c">
       <section>
         ${sect('Rivers and creeks', esc(longDate(day.d0)))}
@@ -875,7 +875,7 @@ function renderOcean() {
   <div class="deck">
     <div class="col col-a">
       ${countdown()}
-      <section class="panel hero">${tank(day.overall, 'Score tank', LINES.ocean)}
+      <section class="panel hero">${dailyScore(day.overall, 'Daily score', LINES.ocean)}
         ${call(
           "Flight director's call · " + esc(shortDate(day.d0)),
           word,
@@ -883,29 +883,29 @@ function renderOcean() {
           ensemble
         )}
       </section>
-      <section class="pollsec">
-        ${launchPoll(day, best)}
-        <div class="pills">
-          <span class="pill ${lightKey(best.score, LINES.ocean)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
-          <span class="pill">Swell <b>${span(best.swell, best.swellMax)} m</b>${best.period ? ` · ${Math.round(best.period)} s, ${seaWord(best.period)}` : ''}</span>
-          <span class="pill">Wind <b>${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
-          <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
-          ${best.chop >= 0.3 ? `<span class="pill">Chop <b>${best.chop.toFixed(1)} m</b></span>` : ''}
-          ${best.barMax >= 2 ? '<span class="pill r"><b>Bar</b> wind against tide</span>' : ''}
-        </div>
-      </section>
+      ${dayStrip(
+        '7-day forecast',
+        d => d.overall,
+        d => `${d.zones[0].goodHrs} hours inside your limits`,
+        d => windowTrack(d) + `<span class="odds num">${d.prob != null ? d.prob + '%' : '&nbsp;'}</span>`,
+        LINES.ocean
+      )}
     </div>
 
-    ${dayStrip(
-      '7-day telemetry',
-      d => d.overall,
-      d => `${d.zones[0].goodHrs} hours inside your limits`,
-      d => windowTrack(d) + `<span class="odds num">${d.prob != null ? d.prob + '%' : '&nbsp;'}</span>`,
-      LINES.ocean
-    )}
+    <section class="advsec">
+      ${cautionPanel(day, best)}
+      <div class="pills">
+        <span class="pill ${lightKey(best.score, LINES.ocean)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
+        <span class="pill">Swell <b>${span(best.swell, best.swellMax)} m</b>${best.period ? ` · ${Math.round(best.period)} s, ${seaWord(best.period)}` : ''}</span>
+        <span class="pill">Wind <b>${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
+        <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
+        ${best.chop >= 0.3 ? `<span class="pill">Chop <b>${best.chop.toFixed(1)} m</b></span>` : ''}
+        ${best.barMax >= 2 ? '<span class="pill r"><b>Bar</b> wind against tide</span>' : ''}
+      </div>
+    </section>
 
     <section class="col col-b mapsec">
-      ${sect('Launch control · chart', esc(shortDate(day.d0)))}
+      ${sect('Launch control', esc(shortDate(day.d0)))}
       <div class="mapwrap">${mapSVG(day, state.zsel, state.marks, state.markInfo)}</div>
       ${markCaption(zone)}
       <div class="legend">

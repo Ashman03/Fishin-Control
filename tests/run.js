@@ -884,7 +884,7 @@ await describe('model', async () => {
     assert(at(15).z.s < at(12).z.s, 'but scored lower');
     assert(z.stormFrom.getHours() === 15 && z.stormMax === 2, 'day summary');
   });
-  await it('the sample week has a storm afternoon and the poll shows it as HOLD', () => {
+  await it('the sample week has a storm afternoon and the caution and advisory panel shows it as HOLD', () => {
     const days = model.build(data.sampleData(), { cfg: CFG }).days;
     assert(
       days.some(d => d.zones.some(z => z.stormFrom)),
@@ -1338,7 +1338,7 @@ await describe('ui', async () => {
     const range = svg.match(/<g fill="#7ad3f5" opacity="\.07">([\s\S]*?)<\/g>/)[1];
     assert((range.match(/<circle /g) || []).length === ZONES.length, 'one 20 km reach per ramp');
   });
-  await it('the score tank reads in every colour: faint water, figures on top, no outlines', () => {
+  await it('the daily score reads in every colour: faint water, figures on top, no outlines', () => {
     for (const score of [92, 62, 45, 18]) {
       const svg = ui.dial(score);
       const water = [...svg.matchAll(/class="fillw"[^>]*\sopacity="([\d.]+)"/g)].map(m => +m[1]);
@@ -1431,13 +1431,13 @@ await describe('ui', async () => {
     ui.render();
     assert(!nodes.app.innerHTML.includes('<img') && nodes.app.innerHTML.includes('&lt;img'));
   });
-  await it('the hero carries an eight-station launch poll', () => {
+  await it('the caution and advisory panel has eight stations', () => {
     state.tab = 'plan';
     state.sel = 0;
     state.zsel = null;
     ui.render();
-    assert((nodes.app.innerHTML.match(/class="poll-row"/g) || []).length === 8);
-    assert(/poll-s (go|hold|nogo)/.test(nodes.app.innerHTML));
+    assert((nodes.app.innerHTML.match(/class="adv-row"/g) || []).length === 8);
+    assert(/adv-s (go|hold|nogo)/.test(nodes.app.innerHTML));
   });
   await it('Models station follows the ensemble: 100% of runs is never NO GO', () => {
     const d = state.days[0];
@@ -1448,7 +1448,7 @@ await describe('ui', async () => {
     state.sel = 0;
     state.zsel = null;
     ui.render();
-    const row = nodes.app.innerHTML.match(/poll-k">Models<\/span>[\s\S]*?poll-s (\w+)/)[1];
+    const row = nodes.app.innerHTML.match(/adv-k">Models<\/span>[\s\S]*?adv-s (\w+)/)[1];
     assert(row !== 'nogo', 'got ' + row);
     d.prob = saved.prob;
     d.agree.level = saved.level;
@@ -1463,7 +1463,7 @@ await describe('ui', async () => {
     const want = Math.round(Math.max(...inWin.map(h => h.gust)));
     state.zsel = z.z.id;
     ui.render();
-    const val = nodes.app.innerHTML.match(/poll-k">Gusts<\/span>\s*<span class="poll-v num">([^<]*)/)[1];
+    const val = nodes.app.innerHTML.match(/adv-k">Gusts<\/span>\s*<span class="adv-v num">([^<]*)/)[1];
     assert(val === 'to ' + want + ' kn', 'got ' + val + ', want to ' + want + ' kn');
     z.win = saved.win;
   });
@@ -1471,10 +1471,10 @@ await describe('ui', async () => {
     ui.render();
     assert((nodes.app.innerHTML.match(/class="track"/g) || []).length === state.days.length);
   });
-  await it("the score tank fills to the score, with ticks at the verdict's green and amber lines", () => {
+  await it("the daily score fills to the score, with ticks at the verdict's green and amber lines", () => {
     for (const [lines, go, amber] of [
-      [undefined, 75, 42], // the ocean tank
-      [[70, 40], 70, 40] // the river tank
+      [undefined, 75, 42], // the ocean score
+      [[70, 40], 70, 40] // the river score
     ])
       for (const score of [92, 62, 45, 18]) {
         const svg = ui.dial(score, lines);
@@ -1505,9 +1505,9 @@ await describe('ui', async () => {
     ui.render();
     const heads = [...nodes.app.innerHTML.matchAll(/<h2 class="sect">([^<]+)/g)].map(m => m[1].trim());
     const want = [
-      'Launch poll',
-      '7-day telemetry',
-      'Launch control · chart',
+      '7-day forecast',
+      'Caution and advisory panel',
+      'Launch control',
       'Launch sites',
       'Conditions',
       'Tide and moon',
@@ -1520,13 +1520,92 @@ await describe('ui', async () => {
       k => assert(nodes.app.innerHTML.includes(k), k + ' missing')
     );
   });
-  await it('the poll heading totals the calls', () => {
+  await it('the rivers page reads score, week, then the caution and advisory panel', () => {
+    state.tab = 'plan';
+    state.view = 'river';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const heads = [...html.matchAll(/<h2 class="sect">([^<]+)/g)].map(m => m[1].trim());
+    const want = ['7-day forecast', 'Caution and advisory panel', 'Rivers and creeks'];
+    assert(heads.slice(0, 3).join('|') === want.join('|'), heads.join('|'));
+    assert(html.indexOf('class="dial"') < html.indexOf('class="panel week"'), 'score before the week');
+    state.view = 'ocean';
+  });
+  await it('the week sits with the daily score and the panel comes after both, ocean and river', async () => {
+    state.tab = 'plan';
+    for (const view of ['ocean', 'river']) {
+      state.view = view;
+      ui.render();
+      const html = nodes.app.innerHTML;
+      const colA = html.slice(html.indexOf('class="col col-a"'), html.indexOf('class="advsec"'));
+      assert(
+        colA.includes('class="dial"') && colA.includes('class="panel week"'),
+        view + ': week not beside the score'
+      );
+      assert(!colA.includes('class="adv '), view + ': panel still in the first column');
+      assert(
+        html.indexOf('class="advsec"') > html.indexOf('class="panel week"'),
+        view + ': panel before the week'
+      );
+    }
+    // on a wide screen the panel runs full width under the three columns, where the week was
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const wide = css.slice(css.indexOf('@media (min-width: 900px)'));
+    assert(
+      /\.deck > \.advsec \{\s*flex: 1 1 100%;\s*order: 4;/.test(wide),
+      'panel not full width after the columns'
+    );
+    assert(!/\.telem|\.view-plan \.week/.test(css), 'old week rule left behind');
+    state.view = 'ocean';
+  });
+  await it('the old names are gone: telemetry, score tank, launch poll, launch control chart', async () => {
+    const fs = await import('fs');
+    const old =
+      /telemetry|score tank|river tank|launch poll|river poll|Launch control · chart|class="(tank|poll|telem)\b/i;
+    state.tab = 'plan';
+    for (const view of ['ocean', 'river']) {
+      state.view = view;
+      ui.render();
+      assert(!old.test(nodes.app.innerHTML), view + ': ' + (nodes.app.innerHTML.match(old) || [])[0]);
+    }
+    state.view = 'ocean';
+    ui.render();
+    assert(/<span class="cap">Daily score<\/span>/.test(nodes.app.innerHTML), 'ocean caption');
+    assert(/aria-label="Caution and advisory panel for /.test(nodes.app.innerHTML), 'ocean panel label');
+    state.view = 'river';
+    ui.render();
+    assert(/<span class="cap">Daily score<\/span>/.test(nodes.app.innerHTML), 'river caption');
+    assert(!/river score<\/span>|7-day river/i.test(nodes.app.innerHTML), 'river page still says river');
+    state.view = 'ocean';
+    const splash = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    assert(
+      /<div class="splash-tag">Mission Control · Wide Bay<\/div>/.test(splash),
+      'loading screen tagline'
+    );
+    for (const f of [
+      'index.html',
+      'manifest.json',
+      'app.js',
+      'ui.js',
+      'alerts.js',
+      'sw.js',
+      'util.js',
+      'styles.css',
+      'README.md'
+    ])
+      assert(
+        !old.test(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8')),
+        f + ' still uses an old name'
+      );
+  });
+  await it('the caution and advisory panel heading totals the calls', () => {
     state.tab = 'plan';
     state.view = 'ocean';
     ui.render();
     const html = nodes.app.innerHTML;
-    const tally = html.match(/<h2 class="sect">Launch poll <span>([^<]+)/)[1];
-    const n = st => (html.match(new RegExp(`poll-s ${st}"`, 'g')) || []).length;
+    const tally = html.match(/<h2 class="sect">Caution and advisory panel <span>([^<]+)/)[1];
+    const n = st => (html.match(new RegExp(`adv-s ${st}"`, 'g')) || []).length;
     const want = [
       ['go', 'GO'],
       ['hold', 'HOLD'],
@@ -1628,17 +1707,23 @@ await describe('ui', async () => {
     }
     d.overall = saved;
   });
-  await it('the score tank is the colour of its verdict word, at every score, ocean and river', () => {
+  await it('the daily score is the colour of its verdict word, at every score, ocean and river', () => {
     const { LINES } = util;
-    const tankColour = svg => svg.match(/fill="([^"]+)" class="dial-num"/)[1];
+    const scoreColour = svg => svg.match(/fill="([^"]+)" class="dial-num"/)[1];
     for (let s = 0; s <= 100; s++) {
       const sea = ui.VERDICT_COLOUR[ui.verdict(s, 50)[0]];
-      assert(tankColour(ui.dial(s, LINES.ocean)) === sea, 'ocean ' + s + ': tank vs ' + ui.verdict(s, 50)[0]);
+      assert(
+        scoreColour(ui.dial(s, LINES.ocean)) === sea,
+        'ocean ' + s + ': daily score vs ' + ui.verdict(s, 50)[0]
+      );
       const river = ui.VERDICT_COLOUR[ui.riverWord(s)];
-      assert(tankColour(ui.dial(s, LINES.river)) === river, 'river ' + s + ': tank vs ' + ui.riverWord(s));
+      assert(
+        scoreColour(ui.dial(s, LINES.river)) === river,
+        'river ' + s + ': daily score vs ' + ui.riverWord(s)
+      );
     }
   });
-  await it('every ocean score on the page is coloured at the verdict lines: tank, week, sites, map, pill', () => {
+  await it('every ocean score on the page is coloured at the verdict lines: daily score, week, sites, map, pill', () => {
     const d = state.days[0],
       saved = { overall: d.overall, scores: d.zones.map(z => z.score) };
     state.tab = 'plan';
@@ -1658,7 +1743,7 @@ await describe('ui', async () => {
     assert(!greens.length, 'still green at 72: ' + greens.join(' '));
     const pins = html.match(/<g class="pin"[^]*?<\/g>/g) || [];
     assert(pins.length && pins.every(p => !p.includes('var(--go)')), 'a map pin is still green at 72');
-    assert(/fill="var\(--mid\)" class="dial-num"/.test(html), 'tank not amber');
+    assert(/fill="var\(--mid\)" class="dial-num"/.test(html), 'daily score not amber');
     assert(/--line-go:75;--line-amber:42/.test(html), 'week lines not at 75 / 42');
     d.overall = saved.overall;
     d.zones.forEach((z, i) => (z.score = saved.scores[i]));
@@ -1667,7 +1752,7 @@ await describe('ui', async () => {
     assert(/--line-go:70;--line-amber:40/.test(nodes.app.innerHTML), 'river week lines not at 70 / 40');
     state.view = 'ocean';
   });
-  await it('the Bite figure is coloured at the poll lamp lines (60 / 45)', () => {
+  await it('the Bite figure is coloured at its lamp lines (60 / 45)', () => {
     const d = state.days[0],
       saved = d.bite;
     state.tab = 'plan';
@@ -1683,14 +1768,14 @@ await describe('ui', async () => {
       d.bite = bite;
       ui.render();
       const html = nodes.app.innerHTML;
-      const row = html.match(/data-st="(\w+)">\s*<span class="poll-k">Bite</);
+      const row = html.match(/data-st="(\w+)">\s*<span class="adv-k">Bite</);
       const fig = html.match(/<div class="k">Bite<\/div><div class="v num" style="color:([^"]+)">/);
       assert(row && row[1] === lamp, bite + ': lamp ' + (row && row[1]));
       assert(fig && fig[1] === colour, bite + ': figure ' + (fig && fig[1]));
     }
     d.bite = saved;
   });
-  await it('the Models % is coloured at the poll lamp lines (HOLD from 35%)', () => {
+  await it('the Models % is coloured at its lamp lines (HOLD from 35%)', () => {
     const d = state.days[0],
       saved = { prob: d.prob, members: d.ensembleMembers, level: d.agree.level };
     state.tab = 'plan';
@@ -1707,7 +1792,7 @@ await describe('ui', async () => {
       d.prob = prob;
       ui.render();
       const html = nodes.app.innerHTML;
-      const row = html.match(/data-st="(\w+)">\s*<span class="poll-k">Models</);
+      const row = html.match(/data-st="(\w+)">\s*<span class="adv-k">Models</);
       const ens = html.match(/<em style="color:([^"]+)">\d+%<\/em>/);
       const check = html.match(/<p class="sub"><b style="color:([^"]+)">\d+%<\/b>/);
       assert(row && row[1] === lamp, prob + ': lamp ' + (row && row[1]));
@@ -1746,7 +1831,7 @@ await describe('ui', async () => {
     d.agree.level = 'low';
     ui.render();
     let html = nodes.app.innerHTML;
-    assert(/data-st="hold">\s*<span class="poll-k">Models</.test(html), 'lamp should be HOLD');
+    assert(/data-st="hold">\s*<span class="adv-k">Models</.test(html), 'lamp should be HOLD');
     assert(/<em style="color:var\(--mid\)">80%<\/em>/.test(html), 'ensemble % not amber with its HOLD lamp');
     // the pre-launch words switch at the same 35% line as the lamp
     d.agree.level = 'high';
@@ -1764,7 +1849,7 @@ await describe('ui', async () => {
     d.river = 41; // "Steady": amber, where the old 48 line and the ocean 42 line make it red
     state.view = 'river';
     ui.render();
-    assert(/fill="var\(--mid\)" class="dial-num"/.test(nodes.app.innerHTML), 'river tank not amber at 41');
+    assert(/fill="var\(--mid\)" class="dial-num"/.test(nodes.app.innerHTML), 'river score not amber at 41');
     state.view = 'ocean';
     ui.render();
     assert(
@@ -1890,8 +1975,8 @@ await describe('ui', async () => {
       })
     );
     const html = nodes.app.innerHTML;
-    assert(/aria-label="River poll for/.test(html), 'river poll');
-    assert((html.match(/class="poll-row"/g) || []).length === 7, 'seven river stations');
+    assert(/aria-label="River caution and advisory panel for/.test(html), 'river panel');
+    assert((html.match(/class="adv-row"/g) || []).length === 7, 'seven river stations');
     assert(!/Launch control|id="tminus"|chart-map/.test(html), 'ocean-only parts must not show');
     config.ESTUARIES.forEach(e => assert(html.includes(e.name), e.name));
     state.view = 'ocean';
@@ -1901,7 +1986,7 @@ await describe('ui', async () => {
     const saved = [];
     globalThis.localStorage = { getItem: () => null, setItem: (k, v) => saved.push([k, v]) };
     ui.ACTIONS.view({ dataset: { view: 'river' } });
-    assert(state.view === 'river' && /River poll/.test(nodes.app.innerHTML));
+    assert(state.view === 'river' && /River caution and advisory panel/.test(nodes.app.innerHTML));
     assert(
       saved.some(([k, v]) => k === 'fishin-view' && v.includes('river')),
       'not saved'
