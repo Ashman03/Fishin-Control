@@ -56,29 +56,42 @@ import {
 const $ = id => document.getElementById(id);
 const short = name => name.split(' /')[0].split(' (')[0];
 const longDate = d => d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+/** "Sat 17 Oct": the parts joined by hand, as the en-AU format puts a comma after the day name. */
+const shortDate = d =>
+  ['weekday', 'day', 'month']
+    .map(k => d.toLocaleDateString('en-AU', { [k]: k === 'day' ? 'numeric' : 'short' }))
+    .join(' ');
 
 /* ── Small components ───────────────────────────────────────────────────── */
 
 /**
- * The score as a gauge that fills with water. The water is kept faint and its
- * surface drawn as a line, so the figures on top read the same in green, amber
- * or red.
+ * The score as a tank that fills with water, with ticks at the green (70) and
+ * amber (48) lines. The water is kept faint and its surface drawn as a line,
+ * so the figures on top read the same in green, amber or red.
  */
 export function dial(score) {
-  const y = 100 - score,
+  const W = 82,
+    H = 196,
+    y = +(H - (H * score) / 100).toFixed(1),
     c = light(score);
-  return `<svg class="dial" viewBox="0 0 100 100" role="img" aria-label="Score ${score} of 100">
-   <defs><clipPath id="dialClip"><circle cx="50" cy="50" r="44"/></clipPath></defs>
-   <circle cx="50" cy="50" r="44" fill="rgba(0,0,0,.30)" stroke="${c}" stroke-opacity=".5" stroke-width="1.5"/>
+  const tick = s =>
+    `<path d="M0 ${(H - (H * s) / 100).toFixed(1)}h14" stroke="#e9f4fb" stroke-opacity=".5"/>`;
+  return `<svg class="dial" viewBox="0 0 ${W} ${H}" role="img" aria-label="Score ${score} of 100">
+   <defs><clipPath id="dialClip"><rect width="${W}" height="${H}"/></clipPath></defs>
+   <rect x=".5" y=".5" width="${W - 1}" height="${H - 1}" fill="#061420" stroke="#7ad3f5" stroke-opacity=".35"/>
    <g clip-path="url(#dialClip)">
-     <rect class="fillw" x="0" y="${y}" width="100" height="${score + 3}" fill="${c}" opacity=".08"/>
-     <path class="fillw" d="M0 ${y} q12 -5 25 0 t25 0 t25 0 t25 0 V100 H0Z" fill="${c}" opacity=".16"/>
-     <path class="fillw" d="M0 ${y} q12 -5 25 0 t25 0 t25 0 t25 0" fill="none" stroke="${c}" stroke-opacity=".55" stroke-width="1.2"/>
+     <rect class="fillw" x="0" y="${y}" width="${W}" height="${H - y + 3}" fill="${c}" opacity=".16"/>
+     <path class="fillw" d="M0 ${y} q10 -4 20.5 0 t20.5 0 t20.5 0 t20.5 0 V${H} H0Z" fill="${c}" opacity=".06"/>
+     <path class="fillw" d="M0 ${y} q10 -4 20.5 0 t20.5 0 t20.5 0 t20.5 0" fill="none" stroke="${c}" stroke-width="2"/>
+     ${tick(70)}${tick(48)}
    </g>
-   <text x="50" y="55" text-anchor="middle" font-size="31" font-weight="700" fill="${c}" class="dial-num">${score}</text>
-   <text x="50" y="69" text-anchor="middle" font-size="8.5" fill="#bde9fb" class="dial-sub">out of 100</text>
+   <text x="41" y="90" text-anchor="middle" font-size="38" font-weight="700" fill="${c}" class="dial-num">${score}</text>
+   <text x="41" y="107" text-anchor="middle" font-size="11" fill="#bde9fb" class="dial-sub">out of 100</text>
   </svg>`;
 }
+
+/** The tank with its caption, as it sits at the left of the hero. */
+const tank = (score, caption) => `<div class="tank">${dial(score)}<span class="cap">${caption}</span></div>`;
 
 function verdict(score, river) {
   if (score >= 75) return ['Go', 'Inside your limits for a decent stretch of the day.'];
@@ -100,8 +113,15 @@ function verdict(score, river) {
   ];
 }
 
-const notice = (title, body) =>
-  `<div class="card warn" style="margin-bottom:12px"><h3>${title}</h3><p class="sub">${body}</p></div>`;
+/**
+ * A status panel with a lamp: kind 'no' (red), 'mid' (amber) or 'go' (green).
+ * `body` is markup, already escaped by the caller.
+ */
+const alertBox = (kind, title, body, extra = '') =>
+  `<div class="alert ${kind}"><span class="lamp" aria-hidden="true"></span>
+    <div class="alert-b"><h3>${title}</h3>${body}${extra}</div></div>`;
+
+const notice = (title, body) => alertBox('no', title, `<p class="sub">${body}</p>`);
 
 /** Banners for anything that makes the forecast less trustworthy than it looks. */
 function banners(day) {
@@ -155,9 +175,10 @@ function banners(day) {
 }
 
 function condChart(zone, cfg) {
-  const W = 680,
-    H = 155,
-    P = 28,
+  // drawn at roughly phone width, so its labels read at their real size
+  const W = 420,
+    H = 170,
+    P = 22,
     hrs = zone.hours;
   if (!hrs.length) return '';
   const t0 = +hrs[0].t,
@@ -188,9 +209,9 @@ function condChart(zone, cfg) {
     )
     .join('');
   const label = (t, txt) =>
-    `<text x="${x(t)}" y="${H - 2}" text-anchor="middle" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">${txt}</text>`;
+    `<text x="${x(t)}" y="${H - 2}" text-anchor="middle" font-size="10.5" fill="#95b8cd" font-family="Space Grotesk,sans-serif">${txt}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Swell, wind and gusts through the day">
-   <rect x="${P}" y="8" width="${W - P * 2}" height="${H - 24}" fill="rgba(0,0,0,.22)" rx="10"/>
+   <rect x="${P}" y="8" width="${W - P * 2}" height="${H - 24}" fill="rgba(0,0,0,.22)"/>
    ${bands}${storms}
    <line x1="${P}" x2="${W - P}" y1="${sy(cfg.maxSwell)}" y2="${sy(cfg.maxSwell)}" stroke="var(--sky)" stroke-opacity=".45" stroke-dasharray="2 4"/>
    <line x1="${P}" x2="${W - P}" y1="${wy(cfg.maxWind)}" y2="${wy(cfg.maxWind)}" stroke="var(--no)" stroke-opacity=".35" stroke-dasharray="2 4"/>
@@ -198,16 +219,16 @@ function condChart(zone, cfg) {
    <path d="${line(wy, h => h.wind)}" fill="none" stroke="var(--mid)" stroke-width="2"/>
    <path d="${line(sy, h => h.swellEff)}" fill="none" stroke="var(--sky)" stroke-width="2.4"/>
    ${[0, 6, 12, 18].map(hr => label(t0 + hr * HOUR, pad(hr) + ':00')).join('')}
-   <text x="${P + 3}" y="${sy(cfg.maxSwell) - 5}" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">swell limit ${cfg.maxSwell} m</text>
-   <text x="${W - P - 3}" y="${wy(cfg.maxWind) - 5}" text-anchor="end" font-size="9.5" fill="#65899f" font-family="Outfit,sans-serif">wind limit ${cfg.maxWind} kn</text>
+   <text x="${P + 3}" y="${sy(cfg.maxSwell) - 5}" font-size="10" fill="#95b8cd" font-family="Space Grotesk,sans-serif">SWELL LIMIT ${cfg.maxSwell} M</text>
+   <text x="${W - P - 3}" y="${wy(cfg.maxWind) - 5}" text-anchor="end" font-size="10" fill="#95b8cd" font-family="Space Grotesk,sans-serif">WIND LIMIT ${cfg.maxWind} KN</text>
   </svg>`;
 }
 
 /** Tide curve plotted against real time, so the curve and its markers cannot drift apart. */
 function tideSVG(day) {
-  const W = 680,
-    H = 124,
-    P = 26,
+  const W = 420,
+    H = 132,
+    P = 20,
     pts = day.tideCurve.filter(h => h.v != null);
   if (pts.length < 4) return '<p class="sub">No modelled tide curve for this day — use the MSQ table.</p>';
   const vs = pts.map(h => h.v),
@@ -219,10 +240,7 @@ function tideSVG(day) {
   const inDay = d => d && d >= day.d0 && d < new Date(+day.d0 + DAY);
   const maj = [day.me.over, day.me.under]
     .filter(inDay)
-    .map(
-      d =>
-        `<rect x="${x(d) - 15}" y="10" width="30" height="${H - 38}" fill="var(--go)" opacity=".13" rx="6"/>`
-    )
+    .map(d => `<rect x="${x(d) - 10}" y="10" width="20" height="${H - 38}" fill="var(--go)" opacity=".13"/>`)
     .join('');
   const sun = [day.sunrise, day.sunset]
     .map(
@@ -235,7 +253,7 @@ function tideSVG(day) {
       const cx = x(t.t),
         cy = y(t.v);
       return `<circle cx="${cx}" cy="${cy}" r="3.6" fill="${t.hi ? 'var(--sky2)' : 'var(--sky)'}"/>
-      <text x="${cx}" y="${t.hi ? cy - 9 : cy + 16}" text-anchor="middle" font-size="10.5" fill="#e9f4fb"
+      <text x="${cx}" y="${t.hi ? cy - 9 : cy + 16}" text-anchor="middle" font-size="11" fill="#e9f4fb"
         font-family="Space Grotesk,sans-serif">${hhmm(t.t)}</text>`;
     })
     .join('');
@@ -248,6 +266,13 @@ function tideSVG(day) {
   </svg>`;
 }
 
+const ICONS = {
+  plan: '<path d="M3 15c2 0 2-2 4.5-2s2.5 2 4.5 2 2-2 4.5-2 2.5 2 4.5 2"/><path d="M3 19c2 0 2-2 4.5-2s2.5 2 4.5 2 2-2 4.5-2 2.5 2 4.5 2"/><path d="M12 3v7M9 7l3 3 3-3"/>',
+  marks: '<path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  log: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h6"/>'
+};
+
+/** The three sections: a bar along the bottom on a phone, across the top on a wide screen. */
 function tabs() {
   // plain buttons marked aria-current: ARIA tab roles would promise arrow-key
   // navigation that a three-button switcher does not need
@@ -259,28 +284,36 @@ function tabs() {
     ]
       .map(
         ([k, l]) =>
-          `<button data-act="tab" data-tab="${k}" class="${state.tab === k ? 'on' : ''}"${state.tab === k ? ' aria-current="page"' : ''}>${l}</button>`
+          `<button data-act="tab" data-tab="${k}" class="${state.tab === k ? 'on' : ''}"${state.tab === k ? ' aria-current="page"' : ''}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">${ICONS[k]}</svg>${l}</button>`
       )
       .join('')}
   </nav>`;
 }
 
+/** A section heading: spaced capitals, with a quieter note on the right. */
+const sect = (title, note = '') => `<h2 class="sect">${title}${note ? ` <span>${note}</span>` : ''}</h2>`;
+
 function barCard(zone) {
   if (!zone.barWin.length) return '';
   const worst = Math.max(...zone.barWin.map(w => w.max));
-  return `<div class="card warn">
-    <h3>${worst >= 3 ? 'Bar: stay off it' : 'Bar: wind against tide'}</h3>
-    <p class="sub">A run-out into an onshore breeze stands the bar up regardless of what the swell number says.
-    ${zone.barWin.map(w => hhmm(w.a) + '–' + hhmm(w.b)).join(', ')} at ${esc(zone.z.ramp.split(',')[0])}.
-    ${worst >= 3 ? 'Cross before it starts or wait for the flood.' : 'Treat it with respect, and never cross on the last of the run-out into wind.'}</p>
-  </div>`;
+  return alertBox(
+    worst >= 3 ? 'no' : 'mid',
+    worst >= 3 ? 'Bar · stay off it' : 'Bar · wind against tide',
+    `<p class="sub">${zone.barWin.map(w => hhmm(w.a) + '–' + hhmm(w.b)).join(', ')} at ${esc(zone.z.ramp.split(',')[0])}.
+    A run-out into an onshore breeze stands the bar up regardless of what the swell number says.
+    ${worst >= 3 ? 'Cross before it starts or wait for the flood.' : 'Treat it with respect, and never cross on the last of the run-out into wind.'}</p>`
+  );
 }
 
 /** What actually answered, so a silent failure upstream is visible on screen. */
 function sourceStatus() {
   const s = state.raw && state.raw.status;
   if (!s || !s.length) return '';
-  return `<details data-key="sources"><summary>Data sources (${s.filter(x => x.ok).length} of ${s.length} responding)</summary>
+  const up = s.filter(x => x.ok).length;
+  return `<details data-key="sources"><summary><span>Data sources</span>
+      <b class="num" style="color:${up === s.length ? 'var(--go)' : 'var(--mid)'}">${up} of ${s.length} up</b>
+      <span class="dots" aria-hidden="true">${s.map(x => `<i class="${x.ok ? 'ok' : 'down'}"></i>`).join('')}</span></summary>
     ${s
       .map(
         x => `<div class="mk"><span class="g">${esc(x.label)} <span class="ty">${esc(x.role)}${x.detail ? ' · ' + esc(x.detail) : ''}</span></span>
@@ -348,15 +381,25 @@ function launchPoll(day, zone) {
     ],
     ['Rules', closed.length ? 'hold' : 'go', closed.length ? closed.length + ' closed' : 'all open']
   ];
-  return pollHTML(rows, 'Launch poll for ' + zone.z.name);
+  return pollHTML(rows, 'Launch poll for ' + zone.z.name, 'Launch poll');
 }
 
-/** A go / no-go poll: rows of [label, 'go' | 'hold' | 'nogo', value]. */
-function pollHTML(rows, label) {
-  return `<div class="poll" role="list" aria-label="${esc(label)}">
+/**
+ * A go / no-go poll: rows of [label, 'go' | 'hold' | 'nogo', value], under a
+ * heading that totals the calls. Each station is a tile with its own lamp;
+ * `layout` 'rows' lists them one per line instead.
+ */
+function pollHTML(rows, label, title, layout = 'tiles') {
+  const count = st => rows.filter(r => r[1] === st).length;
+  const tally = ['go', 'hold', 'nogo']
+    .filter(count)
+    .map(st => count(st) + ' ' + STATUS[st])
+    .join(' · ');
+  return `${sect(title, tally)}
+  <div class="poll ${layout}" role="list" aria-label="${esc(label)}">
     ${rows
       .map(
-        ([k, st, v]) => `<div class="poll-row" role="listitem">
+        ([k, st, v]) => `<div class="poll-row" role="listitem" data-st="${st}">
       <span class="poll-k">${k}</span><span class="poll-v num">${esc(v)}</span>
       <span class="poll-s ${st}">${STATUS[st]}</span></div>`
       )
@@ -414,7 +457,7 @@ export function countdown(now = new Date()) {
   const p = clockParts(open ? now - n.w.a : n.w.a - now);
   const units = CLOCK_UNITS.map(
     ([k, label]) => `<span class="tm-unit"><b data-u="${k}">${p[k]}</b><i>${label}</i></span>`
-  ).join('<span class="tm-sep" aria-hidden="true">:</span>');
+  ).join('');
   const spoken =
     (open ? 'Window open at ' + where + ', closes ' : 'Next launch window ') +
     day +
@@ -458,7 +501,7 @@ function windowTrack(d) {
     )
     .join('');
   return `<svg class="track" viewBox="0 0 ${W} 5" aria-hidden="true">
-    <rect width="${W}" height="5" rx="2.5" fill="rgba(255,255,255,.09)"/>${lit}</svg>`;
+    <rect width="${W}" height="5" fill="rgba(122,211,245,.12)"/>${lit}</svg>`;
 }
 
 function closuresCard(day, zone) {
@@ -467,13 +510,14 @@ function closuresCard(day, zone) {
   const stale = closureDatesStale(day.d0);
   if (!now.length && !soon.length && !stale) return '';
   const fmt = d => d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-  return `<div class="card closure">
-    <h3>${now.length ? 'Closed season in force' : 'Closed season coming up'}</h3>
-    ${now.map(c => `<p class="sub"><b>${esc(c.title)}.</b> ${esc(c.detail)}${c.where ? ' Applies ' + esc(c.where) + '.' : ''}</p>`).join('')}
+  return alertBox(
+    'mid',
+    now.length ? 'Closed season in force' : 'Closed season coming up',
+    `${now.map(c => `<p class="sub"><b>${esc(c.title)}.</b> ${esc(c.detail)}${c.where ? ' Applies ' + esc(c.where) + '.' : ''}</p>`).join('')}
     ${soon.map(u => `<p class="sub"><b>${esc(u.closure.title)}</b> from ${fmt(u.starts)}.${u.closure.where ? ' Applies ' + esc(u.closure.where) + '.' : ''}</p>`).join('')}
-    ${stale ? '<p class="sub">The published coral reef fin fish dates in this app have run out — check the official page.</p>' : ''}
-    <div class="links"><a href="${CLOSURES_SOURCE}" target="_blank" rel="noopener">Official closed seasons</a></div>
-  </div>`;
+    ${stale ? '<p class="sub">The published coral reef fin fish dates in this app have run out — check the official page.</p>' : ''}`,
+    `<div class="links"><a href="${CLOSURES_SOURCE}" target="_blank" rel="noopener">Official closed seasons</a></div>`
+  );
 }
 
 function freshGoBanner() {
@@ -484,14 +528,17 @@ function freshGoBanner() {
       day: 'numeric',
       month: 'short'
     }) +
-    ' — ' +
+    ' · ' +
     esc(short(g.ramp)) +
     ' ' +
     g.score +
-    (g.from ? ', ' + g.from + '–' + g.to : '');
-  return `<div class="card gonew"><h3>New go ${state.freshGo.length > 1 ? 'days' : 'day'}</h3>
-    <p class="sub">${state.freshGo.map(item).join('<br>')}</p>
-    <button class="ghost" data-act="dismissGo">Got it</button></div>`;
+    (g.from ? ' · ' + g.from + '–' + g.to : '');
+  return alertBox(
+    'go',
+    `New go ${state.freshGo.length > 1 ? 'days' : 'day'}`,
+    `<p class="sub">${state.freshGo.map(item).join('<br>')}</p>`,
+    '<button class="ghost" data-act="dismissGo">Got it</button>'
+  );
 }
 
 function alertsPanel() {
@@ -506,13 +553,14 @@ function alertsPanel() {
       unsupported: 'This browser cannot show notifications.'
     }[a.on ? a.mode : a.mode === 'denied' || a.mode === 'unsupported' ? a.mode : ''] ||
     'Get a notification when a day newly turns green, without opening the app.';
-  return `<details data-key="alerts"><summary>Go-day alerts ${a.on ? '· on' : ''}</summary>
-    <p class="sub" style="margin-top:10px">${msg}</p>
-    ${
+  return `<details data-key="alerts"><summary><span>Go-day alerts</span>
+      <b style="color:${a.on ? 'var(--go)' : 'var(--mute)'}">${a.on ? 'Armed' : 'Off'}</b></summary>
+    <p class="sub">${msg}</p>
+    <div class="btns">${
       a.on
-        ? '<button class="save" data-act="alertsTest">Send a test alert</button> <button class="ghost" data-act="alertsOff">Turn off</button>'
-        : '<button class="save" data-act="alertsOn">Turn on alerts</button>'
-    }
+        ? '<button class="save solid" data-act="alertsTest">Send a test alert</button> <button class="ghost" data-act="alertsOff">Turn off</button>'
+        : '<button class="save solid" data-act="alertsOn">Turn on alerts</button>'
+    }</div>
   </details>`;
 }
 
@@ -530,29 +578,36 @@ const moonPhase = p =>
     'Waning crescent'
   ][Math.round(p * 8) % 8];
 
-/** The week as a row of day chips. score(d), what(d) for the spoken label, extra(d) under the score. */
-function dayStrip(score, what, extra) {
-  return `<div class="strip">${state.days
-    .map(
-      (d, i) => `
+/**
+ * The week as a bar chart, one bar per day at the height of its score, with
+ * dashed lines at the green (70) and amber (48) marks. Each day is a button.
+ * score(d), what(d) for the spoken label, extra(d) under the date.
+ */
+function dayStrip(title, score, what, extra) {
+  return `<section class="panel telem">${sect(title, 'Tap a day')}
+    <div class="strip" style="--n:${state.days.length}">${state.days
+      .map(
+        (d, i) => `
     <button class="day ${i === state.sel ? 'on' : ''}" data-act="day" data-i="${i}" aria-pressed="${i === state.sel}"
       aria-label="${longDate(d.d0)}, score ${score(d)} of 100, ${what(d)}">
-      <div class="dow">${d.d0.toLocaleDateString('en-AU', { weekday: 'short' })}</div>
-      <div class="dd num">${d.d0.getDate()}/${d.d0.getMonth() + 1}</div>
-      <div class="sc num" style="color:${light(score(d))}">${score(d)}</div>
+      <span class="plot" aria-hidden="true"><span class="sc num" style="color:${light(score(d))}">${score(d)}</span>
+        <span class="bar" style="--s:${score(d)};--c:${light(score(d))}"></span></span>
+      <span class="dow">${d.d0.toLocaleDateString('en-AU', { weekday: 'short' })}</span>
+      <span class="dd num">${d.d0.getDate()}/${d.d0.getMonth() + 1}</span>
       ${extra(d)}
     </button>`
-    )
-    .join('')}</div>`;
+      )
+      .join('')}</div>
+  </section>`;
 }
 
 function tideSection(day) {
-  return `<section>
-    <h2 class="sect">Tide and moon</h2>
-    <div class="card chartwrap">${tideSVG(day)}
-      <div class="kv" style="margin-top:10px">
+  return `<section class="tide">
+    ${sect('Tide and moon', shortDate(day.d0))}
+    <div class="panel chartwrap">${tideSVG(day)}
+      <div class="kv">
         <div><div class="k">Range</div><div class="v num">${day.range != null ? day.range.toFixed(1) + ' m' : '—'}</div></div>
-        <div><div class="k">Moon</div><div class="v" style="font-size:12.5px">${moonPhase(day.moon.phase)}</div></div>
+        <div><div class="k">Moon</div><div class="v small">${moonPhase(day.moon.phase)}</div></div>
         <div><div class="k">Moon up</div><div class="v num">${hhmm(day.me.rise)}</div></div>
         <div><div class="k">Overhead</div><div class="v num">${hhmm(day.me.over)}</div></div>
         <div><div class="k">Sunrise</div><div class="v num">${hhmm(day.sunrise)}</div></div>
@@ -560,51 +615,52 @@ function tideSection(day) {
         <div><div class="k">Water</div><div class="v num">${day.sst != null ? day.sst.toFixed(1) + '°' : '—'}</div></div>
         <div><div class="k">Bite</div><div class="v num" style="color:${light(day.bite)}">${day.bite}</div></div>
       </div>
-      <p class="sub" style="margin-top:9px">Green bands are the major feeding periods, when the moon is directly
+      <p class="sub">Green bands are the major feeding periods, when the moon is directly
       overhead or underfoot. Tide times are modelled 10 km off Burnett Heads rather than official —
       check the MSQ table before you plan a bar crossing.</p>
-      ${day.hint ? `<p class="sub" style="color:var(--sky)">${esc(day.hint.text)}</p>` : ''}
+      ${day.hint ? `<p class="sub hint">${esc(day.hint.text)}</p>` : ''}
     </div>
   </section>`;
 }
 
-/** Sessions and what's biting. `river` swaps the marks note for the river one. */
+/** Sessions, then what's biting. `river` swaps the marks note for the river one. */
 function flightPlan(day, zone, ss, river = false) {
   const shut = closedSpecies(day.d0, zone.z);
   const t = techniques(day);
-  return `<section>
-    <h2 class="sect">Flight plan <span>when to go, and what to throw</span></h2>
-    <div class="card">${ss
+  const month = day.d0.toLocaleDateString('en-AU', { month: 'long' });
+  return `<section class="plan">
+    ${sect('Flight plan', 'when to go, and what to throw')}
+    <div class="panel list">${ss
       .map(
         s => `
       <div class="sess">
         <div class="when"><b class="num">${hhmm(s.a)}–${hhmm(s.b)}</b><i>${s.hrs} h · ${s.tide}</i></div>
-        <div class="what"><div class="t">${s.title}${s.bar >= 2 ? ' <span style="color:var(--no);font-size:12px">· bar risk</span>' : ''}</div>
+        <div class="what"><div class="t">${s.title}${s.bar >= 2 ? ' <span class="risk">· bar risk</span>' : ''}</div>
           <div class="d">${s.how}</div>
           ${s.marks.length ? `<div class="bars">${s.marks.map(m => `<span>${esc(m.name)} · ${esc(m.km)} km · ${esc(m.depth)} m</span>`).join('')}</div>` : ''}
         </div>
       </div>`
       )
       .join('')}
-      <p class="sub" style="margin-top:10px">${
+      <p class="sub foot">${
         river
           ? 'Sessions are built on the tide turns and the moon, inside your fishing hours.'
           : 'Spots come from your marks list. Add your own on the My marks tab and they will be picked here by tide and swell.'
       }</p>
     </div>
-    <div class="card">
-      <h3>${t.m.t} — what's biting</h3>
-      <div class="fish" style="margin:12px 0 4px">${t.m.sp
+  </section>
+  <section class="biting">
+    ${sect("What's biting", esc(month + ' · ' + t.m.t))}
+    <div class="panel">
+      <div class="fish">${t.m.sp
         .map(
           n =>
             `<div class="fc${shut.has(n) ? ' closed' : ''}">${speciesArt(n)}<div class="n">${esc(n)}${shut.has(n) ? '<span class="shut">Closed</span>' : ''}</div></div>`
         )
         .join('')}</div>
-      <div class="rule"></div>
-      <p class="lbl">Bait</p><p class="sub">${t.m.bait.join(' · ')}</p>
-      <p class="lbl">Lures</p><p class="sub">${t.m.lure.join(' · ')}</p>
+      <dl class="dl"><dt>Bait</dt><dd>${t.m.bait.join(' · ')}</dd><dt>Lures</dt><dd>${t.m.lure.join(' · ')}</dd></dl>
       <p class="sub">${t.m.note}</p>
-      ${t.mods.length ? `<div class="rule"></div><ul class="tight">${t.mods.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+      ${t.mods.length ? `<ul class="tight">${t.mods.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
     </div>
   </section>`;
 }
@@ -627,6 +683,16 @@ function renderPlan() {
     `<button data-act="view" data-view="${v}" class="${state.view === v ? 'on' : ''}" aria-pressed="${state.view === v}">${label}</button>`;
   return `<div class="switch" role="group" aria-label="Water">${btn('ocean', 'Ocean')}${btn('river', 'Rivers and creeks')}</div>
   ${river ? renderRiver() : renderOcean()}`;
+}
+
+/** The big call beside the tank: a kicker, the verdict in the score's colour, and why. */
+function call(kicker, score, word, why, extra = '') {
+  const go = word === 'Go';
+  return `<div class="call">
+      <span class="kick">${kicker}</span>
+      <div class="verdict${word.length > 6 ? ' long' : ''}" style="color:${light(score)}">${word}${go ? '<small>for launch</small>' : ''}</div>
+      <p class="why">${why}</p>${extra}
+    </div>`;
 }
 
 function riverVerdict(day) {
@@ -690,38 +756,43 @@ function renderRiver() {
   ];
   const [word, why] = riverVerdict(day);
   return `${banners(day)}
-  <div class="hero">
-    <div class="hrow">${dial(day.river)}
-      <div class="verdict">${word}<small>${why}</small></div></div>
-    ${pollHTML(rows, 'River poll for ' + est.name)}
-  </div>
-
-  ${dayStrip(
-    d => d.river,
-    () => 'rivers and creeks',
-    d => `<div class="dd" style="margin-top:4px">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</div>`
-  )}
-
-  <section>
-    <h2 class="sect">Rivers and creeks <span>${longDate(day.d0)}</span></h2>
-    <div class="card">
-      ${ESTUARIES.map(
-        e => `<button class="zone ${e.z === state.zsel ? 'on' : ''}" data-act="zone" data-z="${e.z}" aria-pressed="${e.z === state.zsel}">
-          <span class="zb"><span class="t">${esc(e.name)}</span><span class="d">${esc(e.d)}</span></span>
-        </button>`
-      ).join('')}
-      <div class="links" style="margin-top:10px">
-        <a href="https://www.msq.qld.gov.au/Tides/Tide-tables" target="_blank" rel="noopener">MSQ tide tables</a>
-        <a href="https://www.bom.gov.au/australia/radar/" target="_blank" rel="noopener">BOM radar</a>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions</a>
-      </div>
+  <div class="deck">
+    <div class="col col-a">
+      <section class="panel hero">${tank(day.river, 'River tank')}
+        ${call(esc(shortDate(day.d0) + ' · ' + est.name), day.river, word, why)}
+      </section>
+      <section class="pollsec">${pollHTML(rows, 'River poll for ' + est.name, 'River poll', 'rows')}</section>
     </div>
-    ${closuresCard(day, zone)}
-  </section>
-
-  ${tideSection(day)}
-
-  ${flightPlan(day, zone, sessions(day, zone, state.marks, est), true)}`;
+    ${dayStrip(
+      '7-day river telemetry',
+      d => d.river,
+      () => 'rivers and creeks',
+      d =>
+        `<span class="odds${d.riverInfo.runoff ? ' runoff' : ''}">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</span>`
+    )}
+    <div class="col col-c">
+      <section>
+        ${sect('Rivers and creeks', esc(longDate(day.d0)))}
+        <div class="panel list">
+          ${ESTUARIES.map(
+            e => `<button class="zone ${e.z === state.zsel ? 'on' : ''}" data-act="zone" data-z="${e.z}" aria-pressed="${e.z === state.zsel}">
+              <span class="zb"><span class="t">${esc(e.name)}</span><span class="d">${esc(e.d)}</span></span>
+            </button>`
+          ).join('')}
+          <div class="links pad">
+            <a href="https://www.msq.qld.gov.au/Tides/Tide-tables" target="_blank" rel="noopener">MSQ tide tables</a>
+            <a href="https://www.bom.gov.au/australia/radar/" target="_blank" rel="noopener">BOM radar</a>
+            <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions</a>
+          </div>
+        </div>
+      </section>
+      ${closuresCard(day, zone)}
+    </div>
+    <div class="grid">
+      ${tideSection(day)}
+      ${flightPlan(day, zone, sessions(day, zone, state.marks, est), true)}
+    </div>
+  </div>`;
 }
 
 function renderOcean() {
@@ -735,88 +806,109 @@ function renderOcean() {
     ln = launchNotes(zone, cfg);
   const bom = BOM_ZONES[zone.z.bom];
 
+  const ensemble =
+    day.prob != null
+      ? `<div class="ens" role="img" aria-label="${day.prob}% of ${day.ensembleMembers} forecast runs give you a usable window at ${esc(short(best.z.name))}">
+        <div class="ens-h"><span>Ensemble</span><b class="num"><em style="color:${light(day.prob)}">${day.prob}%</em> of ${day.ensembleMembers} runs</b></div>
+        <div class="segs" aria-hidden="true">${Array.from({ length: 10 }, (_, i) => `<i${i < Math.round(day.prob / 10) ? ' class="on"' : ''}></i>`).join('')}</div>
+      </div>`
+      : '';
+
   return `${banners(day)}${freshGoBanner()}
-  <div class="hero">
-    ${countdown()}
-    <div class="hrow">${dial(day.overall)}
-      <div class="verdict">${word}<small>${why}${day.caps.length ? ' Capped: ' + esc(day.caps.join('; ')) + '.' : ''}</small></div></div>
-    ${launchPoll(day, best)}
-    ${
-      day.prob != null
-        ? `<div class="prob" title="${day.prob}% of ensemble runs give a usable window">
-      <i style="width:${day.prob}%;background:${light(day.prob)}"></i></div>
-      <p class="sub" style="margin:7px 0 0;font-size:12.5px">${day.prob}% of ${day.ensembleMembers} forecast runs give you a usable window at ${esc(short(best.z.name))}.</p>`
-        : ''
-    }
-    <div class="pills">
-      <span class="pill ${lightKey(best.score)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
-      <span class="pill">Swell <b>${span(best.swell, best.swellMax)} m</b>${best.period ? ` · ${Math.round(best.period)} s, ${seaWord(best.period)}` : ''}</span>
-      <span class="pill">Wind <b>${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
-      <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
-      ${best.chop >= 0.3 ? `<span class="pill">Chop <b>${best.chop.toFixed(1)} m</b></span>` : ''}
-      ${best.barMax >= 2 ? '<span class="pill r"><b>Bar</b> wind against tide</span>' : ''}
+  <div class="deck">
+    <div class="col col-a">
+      ${countdown()}
+      <section class="panel hero">${tank(day.overall, 'Score tank')}
+        ${call(
+          "Flight director's call · " + esc(shortDate(day.d0)),
+          day.overall,
+          word,
+          why + (day.caps.length ? ' Capped: ' + esc(day.caps.join('; ')) + '.' : ''),
+          ensemble
+        )}
+      </section>
+      <section class="pollsec">
+        ${launchPoll(day, best)}
+        <div class="pills">
+          <span class="pill ${lightKey(best.score)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
+          <span class="pill">Swell <b>${span(best.swell, best.swellMax)} m</b>${best.period ? ` · ${Math.round(best.period)} s, ${seaWord(best.period)}` : ''}</span>
+          <span class="pill">Wind <b>${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
+          <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
+          ${best.chop >= 0.3 ? `<span class="pill">Chop <b>${best.chop.toFixed(1)} m</b></span>` : ''}
+          ${best.barMax >= 2 ? '<span class="pill r"><b>Bar</b> wind against tide</span>' : ''}
+        </div>
+      </section>
     </div>
-  </div>
 
-  ${dayStrip(
-    d => d.overall,
-    d => `${d.zones[0].goodHrs} hours inside your limits`,
-    d =>
-      windowTrack(d) +
-      `<div class="dd num" style="margin-top:4px">${d.prob != null ? d.prob + '%' : '&nbsp;'}</div>`
-  )}
+    ${dayStrip(
+      '7-day telemetry',
+      d => d.overall,
+      d => `${d.zones[0].goodHrs} hours inside your limits`,
+      d => windowTrack(d) + `<span class="odds num">${d.prob != null ? d.prob + '%' : '&nbsp;'}</span>`
+    )}
 
-  <section>
-    <h2 class="sect">Launch control <span>${longDate(day.d0)}</span></h2>
-    <div class="card mapwrap">
-      ${mapSVG(day, state.zsel, state.marks, state.markInfo)}
+    <section class="col col-b mapsec">
+      ${sect('Launch control · chart', esc(shortDate(day.d0)))}
+      <div class="mapwrap">${mapSVG(day, state.zsel, state.marks, state.markInfo)}</div>
       ${markCaption(zone)}
       <div class="legend">
         <span><i style="background:var(--go)"></i>Go</span>
         <span><i style="background:var(--mid)"></i>Marginal</span>
         <span><i style="background:var(--no)"></i>No go</span>
         <span><i class="range"></i>Your 20 km range</span>
-        <span style="color:var(--dim)">Tap a ramp to plan around it</span>
+        <span class="hintx">Tap a ramp to plan around it</span>
       </div>
-    </div>
-    <div class="card">
-      ${day.zones
-        .map(
-          z => `
-        <button class="zone ${z.z.id === state.zsel ? 'on' : ''}" data-act="zone" data-z="${z.z.id}" aria-pressed="${z.z.id === state.zsel}">
-          <span class="led" style="background:${light(z.score)}"></span>
-          <span class="zsc num" style="color:${light(z.score)}">${z.score}</span>
-          <span class="zb">
-            <span class="t">${esc(z.z.name)}</span>
-            <span class="d">${esc(z.z.ramp)}</span>
-            <span class="tag ${z.swellEffMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind ? 'ok' : 'mid'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}
-          </span>
-        </button>`
-        )
-        .join('')}
-      <div class="rule"></div>
-      <h3>${esc(zone.z.name)}</h3>
-      <p class="sub">${esc(zone.z.grounds)}</p>
-      ${ln.length ? `<ul class="tight">${ln.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-      <p class="sub" style="margin-top:8px">Rivers and creeks today
-        <b style="color:${light(day.river)}">${day.river}/100</b>.
-        <button class="inline" data-act="view" data-view="river">River view</button></p>
-      <div class="links" style="margin-top:10px">
-        <a href="${bom[1]}" target="_blank" rel="noopener">${bom[0]}</a>
-        <a href="https://www.windy.com/-Waves-waves?waves,${zone.z.mlat},${zone.z.mlon},9" target="_blank" rel="noopener">Windy at ${esc(short(zone.z.name))}</a>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions</a>
-      </div>
-    </div>
-    ${barCard(zone)}
-    ${closuresCard(day, zone)}
-  </section>
+    </section>
 
-  <section>
-    <h2 class="sect">Conditions <span>10–20 km off ${esc(zone.z.name)}</span></h2>
-    <div class="card chartwrap">${condChart(zone, cfg)}
-      <p class="sub" style="margin-top:6px">Light blue is swell, weighted for period. Amber is sustained wind, dashed red is gusts.
-      Green shading marks every hour that clears all three of your limits; an amber tick along the top marks storm risk.
-      Figures are the worst of the 10, 15 and 20 km
+    <div class="col col-c">
+      <section>
+        ${sect('Launch sites', esc(longDate(day.d0)))}
+        <div class="panel list">
+          ${day.zones
+            .map(
+              z => `
+            <button class="zone ${z.z.id === state.zsel ? 'on' : ''}" data-act="zone" data-z="${z.z.id}" aria-pressed="${z.z.id === state.zsel}">
+              <span class="zsc num" style="color:${light(z.score)}">${z.score}</span>
+              <span class="zb">
+                <span class="t">${esc(z.z.name)}</span>
+                <span class="d">${esc(z.z.ramp)}</span>
+                <span class="tags"><span class="tag ${z.swellEffMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind ? 'ok' : 'mid'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}</span>
+              </span>
+            </button>`
+            )
+            .join('')}
+          <div class="brief">
+            <h3>Site brief · ${esc(short(zone.z.name))}</h3>
+            <p class="sub">${esc(zone.z.grounds)}</p>
+            ${ln.length ? `<ul class="tight">${ln.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+            <p class="sub">Rivers and creeks today
+              <b style="color:${light(day.river)}">${day.river}/100</b>.
+              <button class="inline" data-act="view" data-view="river">River view</button></p>
+            <div class="links">
+              <a href="${bom[1]}" target="_blank" rel="noopener">${bom[0]}</a>
+              <a href="https://www.windy.com/-Waves-waves?waves,${zone.z.mlat},${zone.z.mlon},9" target="_blank" rel="noopener">Windy at ${esc(short(zone.z.name))}</a>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions</a>
+            </div>
+          </div>
+        </div>
+      </section>
+      ${barCard(zone)}
+      ${closuresCard(day, zone)}
+    </div>
+
+    <div class="grid">
+  <section class="cond">
+    ${sect('Conditions', '10–20 km off ' + esc(short(zone.z.name)))}
+    <div class="panel chartwrap">${condChart(zone, cfg)}
+      <div class="legend key">
+        <span><i class="ln sw"></i>Swell</span>
+        <span><i class="ln wd"></i>Wind</span>
+        <span><i class="ln gu"></i>Gusts</span>
+        <span><i class="bx ok"></i>Inside limits</span>
+        <span><i class="bx st"></i>Storm risk</span>
+      </div>
+      <p class="sub">Swell is weighted for period. Dashed lines are your limits;
+      green shading marks every hour that clears all three. Figures are the worst of the 10, 15 and 20 km
       points on the bearing you run out on —
       ${zone.period ? `period today is around ${Math.round(zone.period)} seconds, ${seaWord(zone.period)}` : 'period data is missing today'}.</p>
     </div>
@@ -826,9 +918,9 @@ function renderOcean() {
 
   ${flightPlan(day, zone, ss)}
 
-  <section>
-    <h2 class="sect">Pre-launch checks</h2>
-    <div class="card">
+  <section class="checks">
+    ${sect('Pre-launch checks')}
+    <div class="panel">
       ${
         day.prob != null
           ? `<p class="sub"><b style="color:${light(day.prob)}">${day.prob}%</b> of ${day.ensembleMembers} ensemble
@@ -845,15 +937,19 @@ function renderOcean() {
       ${sourceStatus()}
       ${alertsPanel()}
       <details data-key="limits">
-        <summary>Your limits</summary>
-        <label class="f">Maximum swell (m)<input type="number" step="0.1" min="0.1" max="6" id="s1" value="${cfg.maxSwell}"></label>
-        <label class="f">Maximum sustained wind (kn)<input type="number" min="1" max="60" id="s2" value="${cfg.maxWind}"></label>
-        <label class="f">Maximum gust (kn)<input type="number" min="1" max="80" id="s3" value="${cfg.maxGust}"></label>
-        <button class="save" data-act="saveLimits">Save limits</button>
-        <p class="sub" style="margin-top:10px">Swell is weighted for period before it meets your limit, so 0.6 m at
+        <summary><span>Your limits</span><b class="num">${cfg.maxSwell} m · ${cfg.maxWind} kn · ${cfg.maxGust} kn</b></summary>
+        <div class="limits">
+          <label>Swell (m)<input type="number" inputmode="decimal" step="0.1" min="0.1" max="6" id="s1" value="${cfg.maxSwell}"></label>
+          <label>Wind (kn)<input type="number" inputmode="numeric" min="1" max="60" id="s2" value="${cfg.maxWind}"></label>
+          <label>Gusts (kn)<input type="number" inputmode="numeric" min="1" max="80" id="s3" value="${cfg.maxGust}"></label>
+        </div>
+        <button class="save wide" data-act="saveLimits">Save limits</button>
+        <p class="sub">Swell is weighted for period before it meets your limit, so 0.6 m at
         5 seconds counts as roughly 0.8 m and 0.6 m at 11 seconds as about 0.5 m. Wind and gusts are compared as
         forecast — no allowance for shelter.</p>
       </details>
+    </div>
+  </section>
     </div>
     <footer>
       Forecasts from Open-Meteo: wind from its best-match model with ECMWF IFS 9 km, NOAA GFS and DWD ICON as
@@ -864,7 +960,7 @@ function renderOcean() {
       <br><a href="https://open-meteo.com/" target="_blank" rel="noopener">Weather data by Open-Meteo.com</a> (CC BY 4.0).
       Coastline from <a href="https://www.soest.hawaii.edu/pwessel/gshhg/" target="_blank" rel="noopener">GSHHG</a> (Wessel and Smith, LGPL).
     </footer>
-  </section>`;
+  </div>`;
 }
 
 function renderMarks() {
@@ -873,45 +969,55 @@ function renderMarks() {
   const imported = state.marks.filter(m => m.imported).length;
   const row = m => `
           <div class="mk">
-            <span class="g"><b style="font-weight:500">${esc(m.name)}</b>
-              <span class="ty">${esc(m.km)} km · ${esc(m.depth)} m · ${esc(m.type)}</span></span>
+            <span class="km num">${esc(m.km)} km</span>
+            <span class="g"><b>${esc(m.name)}</b>
+              <span class="ty">${esc(m.depth)} m · ${esc(m.type)}</span></span>
             <button data-act="delMark" data-id="${esc(m.id)}" aria-label="Remove ${esc(m.name)}">Remove</button>
           </div>`;
-  return `<section style="margin-top:14px">
-    <h2 class="sect">Your marks</h2>
-    <div class="card">
-      <h3>Import from your Helix</h3>
-      <p class="sub">On the Helix: Menu twice → Nav → Waypoints, Routes, Tracks → Options → Select All → Export
-      (older software: Nav → Export All Nav Data). Put the SD card in your phone with the adapter and choose
-      <b>DATA.HWR</b> from the <b>matrix</b> folder. A GPX file works too. Each mark is matched to its nearest
-      ramp with its real distance, and they stay on this phone only.</p>
-      <label class="save filebtn">Choose file<input type="file" id="importFile" class="vh"></label>
-      ${state.importMsg ? `<p class="sub" style="margin-top:10px;color:var(--sky)">${esc(state.importMsg)}</p>` : ''}
-      ${imported ? `<button class="ghost" style="margin-top:12px" data-act="clearImported">Remove all ${imported} imported marks</button>` : ''}
+  return `<div class="pages">
+  <section>
+    ${sect('Your marks', state.marks.length + ' on this phone')}
+    <div class="panel bracket stack">
+      <h3>Uplink · import from your Helix</h3>
+      <ol class="steps">
+        <li>On the Helix: Menu twice → Nav → Waypoints, Routes, Tracks → Options → Select All → Export
+        (older software: Nav → Export All Nav Data).</li>
+        <li>Put the SD card in your phone with the adapter.</li>
+        <li>Choose <b>DATA.HWR</b> from the <b>matrix</b> folder. A GPX file works too.</li>
+      </ol>
+      <label class="save solid wide filebtn">Choose file<input type="file" id="importFile" class="vh"></label>
+      ${state.importMsg ? `<p class="note">${esc(state.importMsg)}</p>` : ''}
+      ${imported ? `<button class="danger wide" data-act="clearImported">Remove all ${imported} imported marks</button>` : ''}
+      <p class="sub">Each mark is matched to its nearest ramp with its real distance, and they stay on this phone only.</p>
     </div>
-    <div class="card">
-      <h3>Add a mark by hand</h3>
-      <p class="sub">These feed the session planner — it picks the ground that suits the tide, the light and the
-      swell. Distances are from the ramp, so keep everything inside your 20 km line.</p>
+  </section>
+  <section>
+    ${sect('Add a mark by hand')}
+    <div class="panel stack">
       <div class="form">
-        <div><label for="mn">Name</label><input id="mn" placeholder="Four Mile lump"></div>
-        <div><label for="mr">Ramp</label><select id="mr">${ZONES.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('')}</select></div>
-        <div><label for="mk">Distance out (km)</label><input id="mk" type="number" step="0.5" min="0" max="20" value="8"></div>
-        <div><label for="md">Depth (m)</label><input id="md" type="number" min="0" max="200" value="10"></div>
+        <div class="wide"><label for="mn">Name</label><input id="mn" placeholder="Four Mile lump"></div>
+        <div class="wide"><label for="mr">Ramp</label><select id="mr">${ZONES.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('')}</select></div>
+        <div><label for="mk">Distance out (km)</label><input id="mk" type="number" inputmode="decimal" step="0.5" min="0" max="20" value="8"></div>
+        <div><label for="md">Depth (m)</label><input id="md" type="number" inputmode="numeric" min="0" max="200" value="10"></div>
         <div class="wide"><label for="mt">Ground</label><select id="mt">${MARK_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select></div>
-        <div class="wide"><button class="save" data-act="addMark">Add mark</button></div>
+        <div class="wide"><button class="save wide" data-act="addMark">Add mark</button></div>
       </div>
+      <p class="sub">These feed the flight plan, which picks the ground that suits the tide, the light and the
+      swell. Distances are from the ramp, so keep everything inside your 20 km line.</p>
     </div>
+  </section>
     ${ZONES.filter(z => byRamp[z.id])
       .map(z => {
         const list = byRamp[z.id].sort((a, b) => a.km - b.km);
         // a long imported list folds away so the page stays usable
-        return list.length > 8
-          ? `<div class="card"><details data-key="marks-${z.id}"><summary><b>${esc(z.name)}</b> · ${list.length} marks</summary>${list.map(row).join('')}</details></div>`
-          : `<div class="card"><h3>${esc(z.name)}</h3>${list.map(row).join('')}</div>`;
+        return `<section>${sect(esc(z.name), list.length + (list.length === 1 ? ' mark' : ' marks'))}${
+          list.length > 8
+            ? `<div class="panel list"><details data-key="marks-${z.id}" class="fold"><summary><span>Show all ${list.length} marks</span></summary>${list.map(row).join('')}</details></div>`
+            : `<div class="panel list">${list.map(row).join('')}</div>`
+        }</section>`;
       })
       .join('')}
-  </section>`;
+  </div>`;
 }
 
 function renderLog() {
@@ -929,38 +1035,40 @@ function renderLog() {
   const pat = patterns(state.log);
   const cap = k => k.charAt(0).toUpperCase() + k.slice(1);
   const rampName = id => (ZONES.find(z => z.id === id) || { name: id }).name;
-  return `<section style="margin-top:14px">
-    <h2 class="sect">Log a session</h2>
-    <div class="card">
+  return `<div class="pages">
+  <section>
+    ${sect('Log a session', state.log.length + (state.log.length === 1 ? ' session' : ' sessions'))}
+    <div class="panel bracket stack">
       <div class="form">
         <div><label for="ld">Date</label><input id="ld" type="date" max="${today}" value="${esc(d.date)}"></div>
         <div><label for="lr">Ramp</label><select id="lr">${ZONES.map(
           z => `<option value="${z.id}" ${z.id === d.ramp ? 'selected' : ''}>${esc(z.name)}</option>`
         ).join('')}</select></div>
-        <div class="wide"><label>What you caught</label>
+        <div class="wide"><span class="lab">What you caught</span>
           <div class="chips">${allSpecies
             .map(
               n =>
                 `<button data-act="logSp" data-name="${esc(n)}" class="${d.picked.includes(n) ? 'on' : ''}" aria-pressed="${d.picked.includes(n)}">${esc(n)}</button>`
             )
             .join('')}</div></div>
-        <div class="wide"><label>How it went</label>
+        <div class="wide"><span class="lab">How it went</span>
           <div class="rate">${RATINGS.map(
             (r, i) =>
               `<button data-act="rate" data-rating="${i}" class="${i === d.rating ? 'on' : ''}" aria-pressed="${i === d.rating}">${r}</button>`
           ).join('')}</div></div>
         <div class="wide"><label for="lnotes">Notes</label><input id="lnotes" value="${esc(d.notes)}" placeholder="Last of the run-out, 3in paddle tail"></div>
-        <div class="wide"><button class="save" data-act="addLog">Save session</button></div>
+        <div class="wide"><button class="save solid wide" data-act="addLog">Save session</button></div>
       </div>
-      <p class="sub" style="margin-top:10px">Conditions are stamped on the entry automatically for today and the
+      <p class="sub">Conditions are stamped on the entry automatically for today and the
       two days before — tide phase, moon, wind and swell. Older sessions get the moon only. Save while you're
       out and the nearest of your marks is added from the phone's location (it asks once).</p>
     </div>
+  </section>
 
     ${
       pat
-        ? `<h2 class="sect" style="margin-top:22px">What your log says</h2>
-    <div class="card">
+        ? `<section>${sect('What your log says', 'average out of 3')}
+    <div class="panel stack">
       ${[
         ['tide', 'Tide'],
         ['moon', 'Moon'],
@@ -970,42 +1078,45 @@ function renderLog() {
         .map(([k, lab]) => {
           const rows = pat[k];
           if (!rows || !rows.length) return '';
-          return `<p class="lbl">${lab}</p><div class="bars" style="margin-bottom:10px">${rows
+          return `<div class="pat"><span class="lab">${lab}</span>${rows
             .slice(0, 4)
-            .map(
-              r =>
-                `<span style="color:${light((r.avg / 3) * 100)}">${esc(k === 'ramp' ? short(rampName(r.k)) : cap(k === 'moon' ? moonLabel(r.k) : String(r.k)))} · ${r.avg.toFixed(1)}/3 · ${r.n}</span>`
-            )
+            .map(r => {
+              const c = light((r.avg / 3) * 100);
+              return `<div class="pat-row"><span>${esc(k === 'ramp' ? short(rampName(r.k)) : cap(k === 'moon' ? moonLabel(r.k) : String(r.k)))}</span>
+              <span class="pat-bar" aria-hidden="true"><i style="width:${Math.round((r.avg / 3) * 100)}%;background:${c}"></i></span>
+              <span class="num" style="color:${c}">${r.avg.toFixed(1)} · ${r.n}</span></div>`;
+            })
             .join('')}</div>`;
         })
         .join('')}
       ${
         pat.species.length
-          ? `<p class="lbl">Most logged</p>
-        <div class="bars">${pat.species.map(([n, c]) => `<span>${esc(n)} × ${c}</span>`).join('')}</div>`
+          ? `<div class="pat"><span class="lab">Most logged</span>
+        <div class="bars">${pat.species.map(([n, c]) => `<span>${esc(n)} × ${c}</span>`).join('')}</div></div>`
           : ''
       }
-      <p class="sub" style="margin-top:12px">Once a pattern has enough sessions behind it, it nudges the bite score
-      by a few points either way. It never touches the safety side — wind, swell and bar calls stay as they are.</p>
-    </div>`
-        : `<div class="card"><p class="sub">Log four or more sessions and this turns into your own pattern
-      summary — which tide, moon and ramp actually produce for you.</p></div>`
+      <p class="sub">Each row is the average rating, then the number of sessions. Once a pattern has enough sessions
+      behind it, it nudges the bite score by a few points either way. It never touches the safety side — wind,
+      swell and bar calls stay as they are.</p>
+    </div></section>`
+        : `<section>${sect('What your log says')}<div class="panel"><p class="sub">Log four or more sessions and this turns into your own pattern
+      summary — which tide, moon and ramp actually produce for you.</p></div></section>`
     }
 
     ${
       state.log.length
-        ? `<h2 class="sect" style="margin-top:22px">History <span>${state.log.length} sessions</span></h2>
-    <div class="card">${state.log
+        ? `<section class="span">${sect('History', state.log.length + (state.log.length === 1 ? ' session' : ' sessions'))}
+    <div class="panel list">${state.log
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 40)
       .map(
         e => `
-      <div class="entry">
-        <div class="h"><b>${esc(e.date)}</b>
-          <span style="color:${light((e.rating / 3) * 100)}">${RATINGS[e.rating] || ''}</span>
-          <span class="sub">${esc(rampName(e.ramp))}</span></div>
-        ${e.species ? `<div>${esc(e.species)}</div>` : ''}
+      <div class="entry" style="--c:${light((e.rating / 3) * 100)}">
+        <div class="h"><b class="num">${esc(e.date)}</b>
+          <span class="r">${RATINGS[e.rating] || ''}</span>
+          <span class="where">${esc(rampName(e.ramp))}</span></div>
+        ${e.species ? `<div class="sp-l">${esc(e.species)}</div>` : ''}
         <div class="m">${[
           e.tide && e.tide !== 'unknown' ? esc(e.tide) : null,
           esc(moonLabel(e.moon)) + ' moon',
@@ -1020,13 +1131,13 @@ function renderLog() {
         ]
           .filter(Boolean)
           .join(' · ')}</div>
-        <div style="margin-top:5px"><button data-act="delLog" data-id="${esc(e.id)}" class="del">Delete</button></div>
+        <button data-act="delLog" data-id="${esc(e.id)}" class="del">Delete</button>
       </div>`
       )
-      .join('')}</div>`
+      .join('')}</div></section>`
         : ''
     }
-  </section>`;
+  </div>`;
 }
 
 /* ── Render and actions ─────────────────────────────────────────────────── */
@@ -1059,7 +1170,7 @@ export function render() {
       ? controlKey(active)
       : null;
   const body = state.tab === 'plan' ? renderPlan() : state.tab === 'marks' ? renderMarks() : renderLog();
-  app.innerHTML = tabs() + body;
+  app.innerHTML = tabs() + `<div class="view view-${state.tab}">${body}</div>`;
   open.forEach(k => {
     const d = app.querySelector(`details[data-key="${k}"]`);
     if (d) d.open = true;

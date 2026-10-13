@@ -30,6 +30,12 @@ import { esc, isoDay } from './util.js';
 const app = document.getElementById('app');
 const stamp = document.getElementById('stamp');
 
+/** The status in the header; `st` (live, saved, demo, busy) colours its lamp. */
+function setStamp(st, text) {
+  stamp.dataset.st = st;
+  stamp.textContent = text;
+}
+
 // A go-day notification opens the app on its day: ./?day=YYYY-MM-DD
 let wantDay = new URLSearchParams(location.search).get('day');
 
@@ -40,20 +46,49 @@ const splashFill = document.getElementById('splashFill');
 let splashUp = !!(splash && splashFill);
 if (splashUp) splash.classList.add('live'); // the app has started: no boot help, and the bar is ours
 
+/**
+ * One line of the systems check: st is 'go', 'busy', 'wait' or 'nogo'. Each
+ * line reports something the app has actually done, never a timed animation.
+ */
+function check(id, st, word, label) {
+  const row = splashUp && document.getElementById(id);
+  if (!row) return;
+  row.dataset.st = st;
+  row.querySelector('b').textContent = word;
+  if (label) row.querySelector('span').textContent = label;
+  const rows = [...splash.querySelectorAll('.sc-row')];
+  const n = rows.filter(r => r.dataset.st !== 'busy' && r.dataset.st !== 'wait').length;
+  document.getElementById('splashCount').textContent = n + ' of ' + rows.length;
+}
+
 /** Move the loading bar: a sliver at the start, full when the forecast is in. */
 function splashProgress(done, total) {
   if (!splashUp) return;
   const pct = Math.round(6 + (88 * done) / total);
   splashFill.style.width = pct + '%';
   splashFill.parentElement.setAttribute('aria-valuenow', pct);
+  document.getElementById('splashPct').textContent = pct + ' %';
+  check(
+    'scFeeds',
+    done < total ? 'busy' : 'go',
+    done < total ? 'Loading' : 'Go',
+    `Forecast feeds · ${done} of ${total}`
+  );
+}
+
+if (splashUp) {
+  document.getElementById('splashVer').textContent = 'v' + APP_VERSION;
+  check('scApp', 'go', 'Go');
 }
 
 /** Fill the bar, hold it long enough to be seen, then fade the screen away. */
 function hideSplash() {
   if (!splashUp) return;
+  check('scScore', state.days.length ? 'go' : 'nogo', state.days.length ? 'Go' : 'No go');
   splashUp = false;
   splashFill.style.width = '100%';
   splashFill.parentElement.setAttribute('aria-valuenow', 100);
+  document.getElementById('splashPct').textContent = '100 %';
   setTimeout(
     () => {
       splash.classList.add('out');
@@ -74,7 +109,8 @@ async function start() {
   const keepDay = wantDay || (state.days[state.sel] && state.days[state.sel].ds);
   wantDay = null;
   if (!state.days.length) app.innerHTML = '<div class="state">Reading the water…</div>';
-  stamp.textContent = 'Updating…';
+  setStamp('busy', 'Updating…');
+  check('scAlerts', state.alerts.on ? 'go' : 'off', state.alerts.on ? 'Armed' : 'Off');
 
   let raw,
     demo = false,
@@ -82,6 +118,7 @@ async function start() {
   try {
     raw = await getData(splashProgress);
   } catch (err) {
+    check('scFeeds', 'nogo', 'No go', 'Forecast feeds · offline');
     console.warn('[data] using sample data:', err.message, err.status || '');
     raw = sampleData();
     raw.status = err.status || raw.status; // keep the real per-source outcomes for the panel
@@ -98,12 +135,13 @@ async function start() {
     if (!state.days.length) throw new Error('no forecast days returned');
     if (fromAlert) selectDay(keepDay, true);
     else if (keepDay && keepDay !== state.days[state.sel].ds) selectDay(keepDay);
-    stamp.textContent = demo
-      ? 'Sample data'
-      : raw.cached
-        ? 'Saved copy'
-        : 'Live · ' +
-          new Date(raw.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    if (demo) setStamp('demo', 'Sample data');
+    else if (raw.cached) setStamp('saved', 'Saved copy');
+    else
+      setStamp(
+        'live',
+        'Live ' + new Date(raw.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+      );
     hideSplash();
     if (!demo && !raw.cached) await checkGoDays();
   } catch (err) {
@@ -131,7 +169,7 @@ async function checkGoDays() {
 function fail(err) {
   console.error('[app]', err);
   hideSplash();
-  stamp.textContent = '';
+  setStamp('', '');
   app.innerHTML =
     '<div class="state err">Something went wrong building the forecast.<br>' +
     '<span style="color:var(--dim)">' +

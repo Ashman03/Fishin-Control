@@ -155,7 +155,7 @@ const DEFS = `<defs>
       <pattern id="mDots" width="9" height="9" patternUnits="userSpaceOnUse">
         <circle cx="2" cy="2" r=".9" fill="#7ad3f5" opacity=".16"/></pattern>
       <filter id="mGlow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="6"/></filter>
-      <clipPath id="mFrame"><rect width="${MAPW}" height="${MAPH}" rx="18"/></clipPath>
+      <clipPath id="mFrame"><rect width="${MAPW}" height="${MAPH}"/></clipPath>
     </defs>`;
 
 /* ── The chart ─────────────────────────────────────────────────────────── */
@@ -225,15 +225,17 @@ export function mapSVG(day, selId, marks = [], infoId = null) {
         size = on ? 16 : 15,
         w = textWidth(name, size) * (on ? 1.02 : 1) + 18,
         lx = x + r + 5;
-      // the name on a pill edged in the ramp's colour, like the app's score pills
+      // a square score marker, and the name on a dark plate with a bar of the
+      // ramp's colour down its left edge, like the launch sites list
       return `<g class="pin" data-act="zone" data-z="${z.z.id}" role="button" tabindex="0"
       aria-label="${esc(z.z.name)}, score ${z.score}" style="cursor:pointer">
-      <circle cx="${f1(x)}" cy="${f1(y)}" r="${r + 11}" fill="${c}" opacity="${on ? 0.28 : 0.12}"/>
-      <rect x="${f1(lx)}" y="${f1(y - 12)}" width="${f1(w)}" height="24" rx="12" fill="#061420" fill-opacity=".82"
-        stroke="${c}" stroke-opacity="${on ? 0.9 : 0.45}" stroke-width="1.3"/>
+      <rect x="${f1(x - r - 9)}" y="${f1(y - r - 9)}" width="${(r + 9) * 2}" height="${(r + 9) * 2}" fill="${c}" opacity="${on ? 0.22 : 0.1}"/>
+      <rect x="${f1(lx)}" y="${f1(y - 12)}" width="${f1(w)}" height="24" fill="#061420" fill-opacity=".9"/>
       <text x="${f1(lx + 9)}" y="${f1(y + 5.2)}" font-size="${size}" font-weight="${on ? 600 : 500}"
         fill="${on ? '#e9f4fb' : '#bde9fb'}">${esc(name)}</text>
-      <circle cx="${f1(x)}" cy="${f1(y)}" r="${r}" fill="${c}" stroke="${on ? '#e9f4fb' : '#04121c'}" stroke-width="${on ? 2.2 : 1.8}"/>
+      <rect x="${f1(lx)}" y="${f1(y - 12)}" width="3" height="24" fill="${c}"/>
+      <rect x="${f1(x - r)}" y="${f1(y - r)}" width="${r * 2}" height="${r * 2}" fill="${c}"
+        stroke="${on ? '#e9f4fb' : '#04121c'}" stroke-width="${on ? 2.4 : 1.8}"/>
       <text x="${f1(x)}" y="${f1(y + 5)}" class="score" text-anchor="middle" font-size="${on ? 15 : 14}" font-weight="700"
         fill="#04121c">${z.score}</text>
     </g>`;

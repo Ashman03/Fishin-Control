@@ -41,13 +41,23 @@
   <body>
     <!-- Loading screen, shown from the first paint until the first forecast is drawn (app.js removes it). -->
     <div class="splash" id="splash" role="status">
+      <div class="splash-top" aria-hidden="true"><span>Sys · boot</span><span id="splashVer"></span></div>
       <div class="splash-radar" aria-hidden="true">
         <img class="splash-logo" src="logo-448.webp" width="148" height="148" alt="" />
       </div>
-      <div class="splash-mark">Fishin'<span>Control</span></div>
+      <div class="splash-mark">Fishin' Control</div>
       <div class="splash-tag">Launch control · Bundaberg coast</div>
+      <div class="splash-checks">
+        <div class="sc-head"><span>Systems check</span><span id="splashCount"></span></div>
+        <div class="sc-row" id="scApp" data-st="busy"><i></i><span>Mission software</span><b>Loading</b></div>
+        <div class="sc-row" id="scFeeds" data-st="wait"><i></i><span>Forecast feeds</span><b>Standby</b></div>
+        <div class="sc-row" id="scScore" data-st="wait">
+          <i></i><span>Scoring every ramp</span><b>Standby</b>
+        </div>
+        <div class="sc-row" id="scAlerts" data-st="wait"><i></i><span>Go-day alerts</span><b>Standby</b></div>
+      </div>
       <div class="splash-load">
-        <span class="splash-msg">Reading the water…</span>
+        <div class="splash-msg"><span>Reading the water…</span><span class="num" id="splashPct"></span></div>
         <div
           class="splash-bar"
           role="progressbar"
@@ -62,20 +72,50 @@
         Still nothing after a few seconds? Some of the app's files are missing from the site. Every file in
         the download has to be uploaded to the repository, alongside index.html.
       </p>
-      <svg class="splash-swell" viewBox="0 0 400 60" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 22q25 -9 50 0t50 0t50 0t50 0t50 0t50 0t50 0t50 0" />
-        <path d="M0 38q25 -9 50 0t50 0t50 0t50 0t50 0t50 0t50 0t50 0" />
-        <path d="M0 54q25 -9 50 0t50 0t50 0t50 0t50 0t50 0t50 0t50 0" />
-      </svg>
+      <div class="splash-foot" aria-hidden="true">Forecast by Open-Meteo</div>
     </div>
-    <div class="wrap">
-      <header class="top">
+    <header class="top">
+      <div class="top-in">
         <img class="logo" src="logo-128.webp" width="38" height="38" alt="" />
-        <div class="mark">Fishin'<span> Control</span></div>
-        <button class="ghost" id="install" hidden>Install</button>
-        <button class="ghost" id="reload">Refresh</button>
-        <div class="stamp" id="stamp" aria-live="polite"></div>
-      </header>
+        <div class="brand">
+          <div class="mark">Fishin' Control<span>Bundaberg coast</span></div>
+          <div class="stamp" id="stamp" aria-live="polite"></div>
+        </div>
+        <button class="iconbtn" id="install" aria-label="Install the app" title="Install" hidden>
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 4v11M7 10l5 5 5-5" />
+            <path d="M5 20h14" />
+          </svg>
+        </button>
+        <button class="iconbtn" id="reload" aria-label="Refresh the forecast" title="Refresh">
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+            <path d="M20 4v7h-7" />
+          </svg>
+        </button>
+      </div>
+    </header>
+    <div class="wrap">
       <main id="app">
         <div class="state">Reading the water…</div>
       </main>
