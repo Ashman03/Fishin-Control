@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.1
+
+- **One name for the area.** The header and the browser tab now say "Wide Bay", to match
+  the loading screen (they said "Bundaberg coast").
+- Tests: 223.
+
 ## 6.1.0
 
 Everything since 6.0.4 in one release: the new Caution and advisory panel, the Rivers
