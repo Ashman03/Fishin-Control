@@ -12,12 +12,14 @@ Scores, limits and fishing logic are unchanged.
   sunrise times and so on) or sends it in different units, the forecast screen shows a red
   **Forecast data incomplete** panel naming what is missing. Before, a missing figure
   quietly read as zero: with no gust figures, gusts could never stop a GO.
+- No go-day alert is sent from a forecast with fields missing, on the phone or in the
+  background, just as none is sent from a saved copy.
 - Data sources has a new **Forecast details** line: "all fields present", or what is
   missing.
 
 **Daily check (on GitHub, not in the app)**
 
-- Every morning at 6 am a check on GitHub makes the same forecast requests the app makes,
+- Every morning just after 6 am a check on GitHub makes the same forecast requests the app makes,
   reads the DPI closed seasons page and tries every link in the app. If something has
   changed (a model renamed, a field dropped, the DPI page updated, a link gone), it opens
   an issue on the repository and GitHub emails you. It closes the issue itself once
@@ -25,16 +27,30 @@ Scores, limits and fishing logic are unchanged.
 - DPI's website turns away GitHub's machines, so a monthly Claude check reads the closed
   seasons page instead and reports in the project only if DPI has updated it.
 
-**Fixes**
+- Every pull request and every change to the live site now runs the tests and the
+  formatting check on GitHub too, so a broken change is caught before it goes live.
 
+**Fixes (from the senior dev review)**
+
+- A go-day alert could be sent from a forecast with gust or storm figures missing, which
+  read as calm. Alerts now wait for a complete forecast.
+- A day when the forecast service was busy could close a reported problem as "back to
+  normal" without proving it. Only a clean run closes it now.
+- If the forecast service was rate limiting GitHub, every request was retried, long
+  enough to outlast the run. After one request has used its retries, the rest are tried
+  once.
+- The schedule keep-alive was skipped on any run where an earlier step had failed.
+- The link check downloaded every page; it now only needs the answer code.
+- GitHub's own actions updated to their current versions (the old ones were warning).
 - The Willyweather Burnett Heads tide link had moved (the first run of the new check
   found it). It now points to the current page.
 
 **Tests**
 
-- 182 tests (18 new): the app flagging a dropped field, new units, missing tide heights
+- 189 tests (25 new): the app flagging a dropped field, new units, missing tide heights
   and sunrise times, the backup wave model not being faulted for what it has never sent,
-  the warning on screen, and the daily check telling a change from an outage.
+  the warning on screen, no alert from an incomplete forecast, the daily check telling a
+  change from an outage, and one test for each review fix.
 
 ## 6.0.0
 

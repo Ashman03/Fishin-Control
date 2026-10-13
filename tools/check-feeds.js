@@ -75,6 +75,7 @@ function hoursAhead(sets, name, now) {
     const vals = pickVar(o.hourly, name) || [];
     let last = -1;
     vals.forEach((v, k) => v != null && (last = k));
+    // times are Queensland local (the requests set timezone), and Queensland has no daylight saving
     if (last >= 0) best = Math.max(best, (Date.parse(times[last] + ':00+10:00') - now) / 36e5);
   }
   return Math.round(best);
@@ -87,7 +88,13 @@ function hoursAhead(sets, name, now) {
 export async function checkOpenMeteo({ now = Date.now(), wait } = {}) {
   const out = [];
   const add = (source, kind, detail) => out.push({ source, kind, detail });
-  const failed = (source, r) => add(source, passing(r) ? 'outage' : 'changed', r.error || 'no usable answer');
+  // once one request has used its retries on a busy service, the rest get one
+  // try each: retrying them all could outlast the run's time limit
+  let busy = false;
+  const failed = (source, r) => {
+    if (passing(r)) busy = true;
+    add(source, passing(r) ? 'outage' : 'changed', r.error || 'no usable answer');
+  };
 
   const jobs = [
     {
@@ -152,7 +159,7 @@ export async function checkOpenMeteo({ now = Date.now(), wait } = {}) {
   ];
 
   for (const job of jobs) {
-    const r = await request(job.url, { wait });
+    const r = await request(job.url, { wait, tries: busy ? 1 : 3 });
     if (!r.ok) {
       failed(job.source, r);
       continue;
@@ -174,8 +181,11 @@ export function isoDate(text) {
   return `${m[3]}-${String(mon + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 }
 
-/** A page as text, or { status } when it would not come. Browsers' headers, as some sites refuse others. */
-async function page(url) {
+/**
+ * A page's status, and its text when `read` (only the DPI page is read; the
+ * links only need a status). Browser headers, as some sites refuse others.
+ */
+async function page(url, { read = false } = {}) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 30000);
   try {
@@ -189,7 +199,9 @@ async function page(url) {
         'accept-language': 'en-AU,en;q=0.9'
       }
     });
-    return { status: r.status, text: r.ok ? await r.text() : '' };
+    if (read && r.ok) return { status: r.status, text: await r.text() };
+    await r.body?.cancel();
+    return { status: r.status, text: '' };
   } catch (e) {
     return { status: 0, text: '' };
   } finally {
@@ -218,7 +230,7 @@ export async function checkClosures({ now = Date.now() } = {}) {
       detail: `the app's dates end in ${CRFF_LAST_YEAR}; add more once DPI publishes them`
     });
 
-  const r = await page(CLOSURES_SOURCE);
+  const r = await page(CLOSURES_SOURCE, { read: true });
   if (r.status === 404 || r.status === 410) {
     out.push({ source, kind: 'changed', detail: `page gone (HTTP ${r.status}); the app links to it` });
     return out;
@@ -288,7 +300,7 @@ export function report(findings, when = new Date()) {
     : outage.length
       ? 'A service was busy or down when checked. That usually fixes itself; the check runs again tomorrow.'
       : 'Nothing to do.';
-  const esc = s => String(s).replace(/\|/g, '\\|');
+  const esc = s => String(s).replace(/\|/g, '\\|').replace(/\s+/g, ' ');
   const rows = findings.map(f => `| ${esc(f.source)} | ${WORD[f.kind]} | ${esc(f.detail)} |`);
   return [
     head,
@@ -317,10 +329,22 @@ export async function run(opts = {}) {
     ...(await checkClosures(opts)),
     ...(await checkLinks(opts))
   ];
-  return { findings, changed: findings.some(f => f.kind === 'changed'), signature: signature(findings) };
+  return { findings, state: overall(findings), signature: signature(findings) };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+/**
+ * The run in one word, which the workflow acts on: "changed" opens or updates
+ * the alert issue, "ok" closes it, and "outage" leaves it as it is, because a
+ * source that could not be reached cannot show that a reported problem is fixed.
+ */
+export const overall = findings =>
+  findings.some(f => f.kind === 'changed')
+    ? 'changed'
+    : findings.some(f => f.kind === 'outage')
+      ? 'outage'
+      : 'ok';
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const arg = name => {
     const i = process.argv.indexOf(name);
     return i > 0 ? process.argv[i + 1] : null;
@@ -330,5 +354,5 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   console.log(text);
   if (arg('--report')) writeFileSync(arg('--report'), text + '\n');
   if (arg('--json')) writeFileSync(arg('--json'), JSON.stringify(result, null, 2) + '\n');
-  process.exitCode = result.changed ? 1 : 0;
+  process.exitCode = result.state === 'changed' ? 1 : 0;
 }

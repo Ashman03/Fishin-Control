@@ -1,0 +1,29 @@
+# Runs the test suite and the formatting check on every pull request and on
+# every change to main, so a broken change is caught before it goes live.
+
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Tests
+        run: node tests/run.js
+
+      - name: Formatting (Prettier)
+        run: npx --yes prettier@3.8.1 --check .

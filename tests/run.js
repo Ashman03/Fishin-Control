@@ -456,7 +456,7 @@ await describe('feed check', async () => {
     globalThis.fetch = serve();
     const r = await feeds.run({ wait: 0 });
     const bad = r.findings.filter(f => f.kind !== 'ok');
-    assert(!r.changed && bad.length === 0, JSON.stringify(bad));
+    assert(r.state === 'ok' && bad.length === 0, JSON.stringify(bad));
     assert(/✅ All data sources/.test(feeds.report(r.findings)), 'headline');
   });
 
@@ -550,6 +550,72 @@ await describe('feed check', async () => {
     ];
     assert(feeds.signature(a) === 'A + B', feeds.signature(a));
     assert(/❌ Something the app relies on has changed/.test(feeds.report(a)), 'headline');
+  });
+
+  await it('a run with only outages reads "outage", so it never closes a reported problem', async () => {
+    globalThis.fetch = serve(url => (url.includes('models=' + MODELS.windCheck[0] + '&') ? http(503) : null));
+    const r = await feeds.run({ wait: 0 });
+    assert(r.state === 'outage', r.state);
+    assert(
+      feeds.overall([{ kind: 'outage' }, { kind: 'changed' }]) === 'changed',
+      'a change outranks an outage'
+    );
+    assert(feeds.overall([{ kind: 'ok' }, { kind: 'note' }]) === 'ok', 'notes are fine');
+  });
+
+  await it('a busy service is retried for one request, then each other request is tried once', async () => {
+    let calls = 0;
+    globalThis.fetch = serve(url => (url.includes('open-meteo') ? (calls++, http(429)) : null));
+    const found = await feeds.checkOpenMeteo({ wait: 0 });
+    assert(
+      found.every(f => f.kind === 'outage'),
+      JSON.stringify(found)
+    );
+    assert(calls === 3 + (found.length - 1), calls + ' requests for ' + found.length + ' sources');
+  });
+
+  await it('the links are checked without downloading their pages', async () => {
+    let reads = 0;
+    globalThis.fetch = serve(url =>
+      url.includes('open-meteo')
+        ? null
+        : {
+            ...http(200),
+            ok: true,
+            text: async () => (reads++, url.includes('dpi.qld') ? DPI : 'page')
+          }
+    );
+    await feeds.checkLinks();
+    assert(reads === 0, reads + ' link pages downloaded');
+    await feeds.checkClosures();
+    assert(reads === 1, 'the DPI page is the one page read');
+  });
+
+  await it('a detail with a line break stays on its own row of the report', () => {
+    const text = feeds.report([{ source: 'A', kind: 'changed', detail: 'line one\nline two' }]);
+    assert(text.includes('| A | ❌ Changed | line one line two |'), text);
+  });
+
+  await it('the check can be imported without a script path (as the workflow may)', async () => {
+    const { execFileSync } = await import('child_process');
+    const out = execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `const m = await import(${JSON.stringify(new URL('../tools/check-feeds.js', import.meta.url).href)}); console.log(typeof m.run)`
+    ]).toString();
+    assert(out.trim() === 'function', out);
+  });
+
+  await it('the daily workflow closes an issue only on a clean run and keeps its schedule alive', async () => {
+    const fs = await import('fs');
+    const yml = fs.readFileSync(new URL('../.github/workflows/feed-check.yml', import.meta.url), 'utf8');
+    assert(/issue && result\.state === 'ok'/.test(yml), 'an outage could close a real problem');
+    assert(/open\.find\(i => !i\.pull_request\)/.test(yml), 'a pull request could be taken for the issue');
+    assert(
+      /if: always\(\) && github\.event_name == 'schedule'/.test(yml),
+      'keep-alive skipped after a failure'
+    );
+    assert(/"state":"changed"/.test(yml), 'a crashed check must still raise the alert');
   });
 
   await it('isoDate reads the dates DPI writes', () => {
@@ -926,6 +992,16 @@ await describe('closures', async () => {
 
 await describe('alerts', async () => {
   const al = await imp('alerts');
+  await it('no go-day alert from a saved copy or a forecast with fields missing', async () => {
+    assert(al.canAlert({ cached: false, gaps: [] }), 'a clean live forecast may alert');
+    assert(!al.canAlert({ cached: true, gaps: [] }), 'saved copy');
+    assert(!al.canAlert({ cached: false, gaps: ['gusts missing'] }), 'gusts missing reads as calm');
+    assert(!al.canAlert(null), 'nothing at all');
+    const fs = await import('fs');
+    const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+    assert(/if \(!canAlert\(raw\)\) return \{ checked: false \}/.test(read('sw.js')), 'background check');
+    assert(/!demo && canAlert\(raw\)\) await checkGoDays\(\)/.test(read('app.js')), 'page check');
+  });
   const day = (ds, overall) => ({
     ds,
     overall,

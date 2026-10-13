@@ -13,6 +13,10 @@ only; the site works without them.
 
 Settings → Pages → Deploy from a branch → `main` → `/ (root)`.
 
+The hidden `.github` folder (the daily data feed check and the test run) cannot go
+through the web uploader. Changes to it come through a pull request: open it on GitHub
+and press **Merge pull request**. Uploading the site files never touches it.
+
 The site uses ES modules, so it must be served over http(s). Opening `index.html` by
 double-clicking will not work — use the single-file preview for that (see below). If the
 loading screen sticks on "Mission software · Loading" and a "files are missing" note
@@ -100,15 +104,15 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 182 tests, no dependencies, clock pinned to Queensland time
+npm test             # 189 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
 
 ### Daily data feed check
 
-`.github/workflows/feed-check.yml` runs `tools/check-feeds.js` every morning at 6 am
-Queensland time (and on any pull request that touches the data code). It makes the same
+`.github/workflows/feed-check.yml` runs `tools/check-feeds.js` every morning just after
+6 am Queensland time (and on any pull request that touches the data code). It makes the same
 Open-Meteo requests the app makes, reads the DPI closed seasons page and tries every
 link in `SOURCES`, and reports:
 
@@ -124,7 +128,10 @@ DPI's website turns away GitHub's machines (HTTP 403), so the check notes that a
 on; a monthly Claude routine in the project reads the page and compares its "Last
 updated" date with `CLOSURES_CHECKED` instead.
 
-Run it by hand from Actions → Data feed check → Run workflow, or locally with
+`.github/workflows/tests.yml` runs `node tests/run.js` and the Prettier check on every
+pull request and every change to `main`.
+
+Run the feed check by hand from Actions → Data feed check → Run workflow, or locally with
 `node tools/check-feeds.js`. The app itself does the field check on every load too
 (`fieldGaps()` in `data.js`): anything missing shows as "Forecast data incomplete" on the
 forecast and in Data sources.

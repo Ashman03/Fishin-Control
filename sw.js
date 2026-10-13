@@ -23,7 +23,16 @@
  */
 import { getData } from './data.js';
 import { build } from './model.js';
-import { goDays, newlyGo, alertText, readShared, writeShared, SYNC_TAG, STATE_CACHE } from './alerts.js';
+import {
+  goDays,
+  newlyGo,
+  alertText,
+  canAlert,
+  readShared,
+  writeShared,
+  SYNC_TAG,
+  STATE_CACHE
+} from './alerts.js';
 
 const VERSION = 'v6.0.1';
 const SHELL = 'fishin-shell-' + VERSION;
@@ -182,7 +191,7 @@ async function checkForGoDays() {
   const ctx = await readShared('context');
   if (!ctx || !ctx.alertsOn) return { checked: false };
   const raw = await getData();
-  if (raw.cached) return { checked: false }; // never alert from a saved copy
+  if (!canAlert(raw)) return { checked: false }; // never from a saved copy or an incomplete forecast
   const { days } = build(raw, { cfg: ctx.cfg, log: ctx.log || [] });
   const now = goDays(days);
   const fresh = newlyGo(await readShared('seen'), now);

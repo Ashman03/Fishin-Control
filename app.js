@@ -25,7 +25,7 @@ import {
   selectDay,
   feedsLine
 } from './ui.js';
-import { goDays, newlyGo, readShared, writeShared } from './alerts.js';
+import { goDays, newlyGo, canAlert, readShared, writeShared } from './alerts.js';
 import { esc, isoDay } from './util.js';
 
 const app = document.getElementById('app');
@@ -144,7 +144,7 @@ async function start() {
         'Live ' + new Date(raw.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
       );
     hideSplash();
-    if (!demo && !raw.cached) await checkGoDays();
+    if (!demo && canAlert(raw)) await checkGoDays();
   } catch (err) {
     fail(err);
   }
