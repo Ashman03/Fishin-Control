@@ -261,6 +261,7 @@ header.top {
 .view,
 .deck,
 .col,
+.notes,
 .grid,
 .pages {
   display: flex;
@@ -1838,6 +1839,14 @@ label.filebtn:focus-within {
     flex: 1 1 100%;
     order: 4;
   }
+  /* the day's cautions, side by side under the panel (rivers) or the sites (ocean) */
+  .deck > .notes {
+    flex: 1 1 100%;
+    order: 4;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+  }
   /* the keys four to a row */
   .annun {
     padding: 10px 30px 12px;
@@ -1864,7 +1873,7 @@ label.filebtn:focus-within {
   .deck.ocean {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-    grid-template-areas: 'a b' 't t' 'p p' 'c c' 'g g' 'f f';
+    grid-template-areas: 'a b' 't t' 'p p' 'c c' 'n n' 'g g' 'f f';
     align-items: start;
   }
   /* the countdown runs as one strip across the score and the chart, its
@@ -1911,6 +1920,9 @@ label.filebtn:focus-within {
   }
   .deck.ocean > .col-c {
     grid-area: c;
+  }
+  .deck.ocean > .notes {
+    grid-area: n;
   }
   .deck.ocean > .grid {
     grid-area: g;
@@ -2225,7 +2237,25 @@ label.filebtn:focus-within {
 @media (min-width: 1180px) {
   .deck.ocean {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr) minmax(0, 1fr);
-    grid-template-areas: 'a b c' 't t c' 'p p c' 'g g g' 'f f f';
+    grid-template-areas: 'a b c' 't t c' 'p p c' 'n n n' 'g g g' 'f f f';
+    /* the sites column runs beside the score, countdown and panel; when its
+       brief runs long the extra lands under the panel, not between them */
+    grid-template-rows: auto auto 1fr;
+  }
+  /* and the panel's bezel grows to meet the foot of the sites, keys centred */
+  .deck.ocean > .advsec {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+  .deck.ocean > .advsec > .annun {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .deck.ocean > .advsec .adv.tiles {
+    flex: 1;
+    align-content: center;
   }
   /* Three columns: conditions over tide down the left; the flight plan and
      the pre-launch checks side by side, with what's biting under both, its
