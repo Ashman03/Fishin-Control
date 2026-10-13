@@ -14,6 +14,8 @@ on:
   schedule:
     - cron: '37 20 * * *' # 6:37 am in Queensland, once yesterday is complete
   workflow_dispatch:
+  push: # TEMPORARY: a first run from the feature branch, removed before merge
+    branches: [claude/project-thread-57r1a3]
 
 permissions:
   contents: write
