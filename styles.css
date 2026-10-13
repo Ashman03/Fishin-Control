@@ -1205,9 +1205,20 @@ button.inline {
   object-fit: contain;
   display: block;
 }
-/* a species with no picture yet keeps the card's shape */
+/* a species with no picture yet keeps the card's shape, with a faint fish in it */
 .fc .sp-none {
   background: rgba(122, 211, 245, 0.06);
+}
+.fc .sp-none svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.fc .sp-none path {
+  fill: rgba(122, 211, 245, 0.12);
+}
+.fc .sp-none circle {
+  fill: var(--ink);
 }
 .fc .n {
   padding: 6px 8px;
