@@ -1681,6 +1681,36 @@ await describe('ui', async () => {
       'gusts tagged ok with no gust figures'
     );
   });
+  await it('launch sites quote the same hours as the caution panel (panel 3–8 kn green, sites 11–21 kn red)', () => {
+    const keep = state.raw;
+    state.raw = calm();
+    // calm morning, blowing afternoon: a morning window, and a day peak well over the limits
+    state.raw.fc.forEach(p =>
+      p.hourly.time.forEach((t, k) => {
+        if (+t.slice(11, 13) >= 12) [p.hourly.wind_speed_10m[k], p.hourly.wind_gusts_10m[k]] = [20, 26];
+      })
+    );
+    ui.rebuild();
+    state.sel = 1;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.zsel = 'burnett';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    state.raw = keep;
+    ui.rebuild();
+    const at =
+      html.indexOf('<button class="zone') +
+      html.slice(html.indexOf('<button class="zone')).indexOf('data-z="burnett"');
+    const site = html.slice(at, html.indexOf('</button>', at));
+    assert(site.includes('Burnett Heads / Port Bundaberg ramp'), 'not the launch sites entry');
+    assert(
+      /tag ok">6 kn/.test(site) && /tag ok">gusts 8/.test(site),
+      'site tags: ' + site.replace(/<[^>]+>/g, ' ')
+    );
+    assert(/tag ok">window \d\d:\d\d–12:00/.test(site), 'window tag missing');
+    assert(!/tag bad/.test(site.split('bar risk')[0]), 'a red tag beside a green panel');
+  });
   await it('each ramp links to its own BOM zone', () => {
     state.sel = 0;
     state.tab = 'plan';
