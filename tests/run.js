@@ -2776,6 +2776,79 @@ await describe('flight log', async () => {
     assert(r.stored === 0 && r.errors.length === 2, JSON.stringify(r));
     assert(/could not fetch/i.test(tool.describeReport(r)), 'reported');
   });
+  await it('review: a day with holes in the swell is left out, not stored as a calm Go day', async () => {
+    const d5 = tmp();
+    // a rough sea everywhere, with the swell missing from 5 to 9 Oct 2026
+    const holey = archive((H, kind) => {
+      if (kind !== 'marine') return;
+      H.time.forEach((t, k) => {
+        const ds = t.slice(0, 10);
+        const gone = ds >= '2026-10-05' && ds <= '2026-10-09';
+        H.swell_wave_height[k] = gone ? null : 2.5;
+        H.wave_height[k] = gone ? null : 2.6;
+      });
+    });
+    const r = await tool.updateHistory({
+      dir: d5,
+      today: '2026-10-14',
+      fetcher: holey.fetcher,
+      pause: 0,
+      maxMonths: 1
+    });
+    const s = JSON.parse(fs.readFileSync(path.join(d5, 'summary.json'), 'utf8'));
+    for (let ds = '2026-10-05'; ds <= '2026-10-09'; ds = history.addDays(ds, 1)) {
+      assert(s.days[history.daysBetween(s.first, ds)] === null, ds + ' stored');
+      assert(r.gaps.includes(ds), ds + ' not reported');
+    }
+    assert(s.days[history.daysBetween(s.first, '2026-10-10')], 'a whole day either side is kept');
+  });
+  await it('review: when Open-Meteo is limiting requests the run stops, keeps what it has and says so', async () => {
+    const d6 = tmp();
+    const ok = archive();
+    let n = 0;
+    const busy = async url => (++n > 2 ? { ok: false, status: 429, error: 'busy' } : ok.fetcher(url));
+    const r = await tool.updateHistory({ dir: d6, today: '2026-10-14', fetcher: busy, pause: 0, wait: 0 });
+    assert(r.months === 1 && n === 5, 'carried on after a 429: ' + n + ' requests'); // two, then three tries
+    assert(r.left === 36 && /limiting requests/.test(tool.describeReport(r)), JSON.stringify(r));
+    assert(r.save && fs.existsSync(path.join(d6, 'summary.json')), 'the first month was not kept');
+    const slow = await tool.updateHistory({
+      dir: tmp(),
+      today: '2026-10-14',
+      fetcher: ok.fetcher,
+      pause: 0,
+      budget: -1
+    });
+    assert(
+      slow.months === 0 && slow.left === 37 && /out of time/.test(slow.errors.join()),
+      JSON.stringify(slow)
+    );
+  });
+  await it('review: a month the model cannot work out is reported, and the run goes on to the next', async () => {
+    const odd = archive((H, kind) => {
+      if (kind === 'wind' && H.time[0].startsWith('2026-08-2')) H.time = 5; // September's fetch is damaged
+    });
+    const r = await tool.updateHistory({
+      dir: tmp(),
+      today: '2026-10-14',
+      fetcher: odd.fetcher,
+      pause: 0,
+      maxMonths: 2
+    });
+    assert(
+      r.months === 1 && /2026-09 .*could not be worked out/.test(r.errors.join()),
+      JSON.stringify(r.errors)
+    );
+  });
+  await it('review: a run never saves over far more days than it ends with, and a stale one shows red', () => {
+    const v = (o, y = '2026-10-13') => tool.verdict({ before: 0, last: '2026-10-13', ...o }, y);
+    assert(!v({ stored: 0 }).save && v({ stored: 0 }).fail, 'nothing stored');
+    const shrunk = v({ stored: 31, before: 1096 });
+    assert(!shrunk.save && shrunk.fail, 'a rebuild over three good years');
+    const stale = v({ stored: 1096, before: 1096, last: '2026-10-01' });
+    assert(stale.save && stale.fail, 'fell behind but kept its work');
+    const fine = v({ stored: 1096, before: 1096 });
+    assert(fine.save && !fine.fail, 'a normal morning');
+  });
   await it('a damaged or newer-format summary is not misread', () => {
     assert(history.readSummary({ v: 2, first: '2026-01-01', days: [] }) === null, 'newer format');
     assert(history.readSummary(null) === null && history.readSummary({ v: 1 }) === null, 'empty');
@@ -2918,9 +2991,46 @@ await describe('flight log', async () => {
     assert(served.includes(history.hoursUrl('2026-09')), 'month of hours fetched');
     assert(/Looking back/.test(html) && /SWELL LIMIT 0.7 M/.test(html), 'hero and chart');
     assert(
-      (html.match(/data-act="histRamp"/g) || []).length === 6 + ZONES.length,
-      'ramp chips and site list'
+      (html.match(/data-act="histRamp"/g) || []).length === 1 + ZONES.length,
+      'ramp picker and site list'
     );
+  });
+  await it('critique: the ramp picker is one drop-down that acts on change, not on the tap that opens it', () => {
+    const pick = (value, ev) => {
+      const el = { tagName: 'SELECT', value, dataset: { act: 'histRamp' } };
+      el.closest = () => el;
+      ui[ev]({ target: el });
+    };
+    pick('woodgate', 'onAppClick');
+    assert(state.hist.ramp === '', 'opening the drop-down changed the ramp');
+    pick('woodgate', 'onAppChange');
+    assert(state.hist.ramp === 'woodgate', 'choice not taken');
+    assert(/<option value="woodgate" selected>/.test(nodes.app.innerHTML), 'choice not shown');
+    pick('', 'onAppChange');
+    assert(state.hist.ramp === '' && !/class="chips hramps"/.test(nodes.app.innerHTML), 'back to best ramp');
+    const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+    assert(/addEventListener\('change', onAppChange\)/.test(app), 'change not wired up');
+  });
+  await it('critique: amber is called Hold throughout the Flight log, as on the caution panel', () => {
+    for (const view of ['week', 'month', 'year']) {
+      ui.ACTIONS.histView({ dataset: { view } });
+      const html = nodes.app.innerHTML;
+      assert(!/in between/i.test(html), view + ' still says in between');
+      assert(/\d+ hold</.test(html), view + ' has no hold count');
+    }
+  });
+  await it('critique: the chart of days names its limit lines, and the year names months in three letters', () => {
+    ui.ACTIONS.histView({ dataset: { view: 'month' } });
+    const m = nodes.app.innerHTML;
+    assert(
+      />0\.7<\/text>/.test(m) && />10<\/text>/.test(m) && /Limits \(0\.7 m, 10 kn\)/.test(m),
+      'limit lines'
+    );
+    ui.ACTIONS.histView({ dataset: { view: 'year' } });
+    const html = nodes.app.innerHTML;
+    const names = [...html.matchAll(/class="ytile[^"]*"[^>]*>\s*<span class="caps">(\w+)</g)].map(m => m[1]);
+    assert(names.join() === 'Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec', names.join());
+    assert((html.match(/class="ystack"/g) || []).length === 12, 'a stacked bar per month');
   });
   await it('the year view shows a coloured tile for every month and opens a month on tap', () => {
     ui.ACTIONS.histView({ dataset: { view: 'year' } });
@@ -2982,6 +3092,15 @@ await describe('flight log', async () => {
     assert(state.hist.status === 'ready' && state.hist.data, 'a failed top-up keeps what was showing');
     serve();
   });
+  await it('review: a top-up that adds days drops the hours already loaded for those months', async () => {
+    const old = { v: 1, days: {} };
+    Object.assign(state.hist, { last: '2026-10-11', at: 0, months: { '2026-10': old, '2026-08': old } });
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(state.hist.last === '2026-10-13', state.hist.last);
+    assert(state.hist.months['2026-10'] !== old, 'October still shows the hours from before the new days');
+    assert(state.hist.months['2026-08'] === old, 'August need not be fetched again');
+  });
   await it('without a connection or a saved copy, the Flight log says so and can try again', async () => {
     Object.assign(state.hist, { status: 'idle', data: null, months: {} });
     serve(true);
@@ -3031,6 +3150,10 @@ await describe('flight log', async () => {
     assert(!/HEAD:main|refs\/heads\/main/.test(wf), 'never main');
     assert(/cron: '37 20 \* \* \*'/.test(wf) && /TZ: Australia\/Brisbane/.test(wf), 'daily, Queensland time');
     assert(history.HISTORY_BASE.endsWith('/' + history.HISTORY_BRANCH + '/'), 'the app reads that branch');
+    assert(!/\bpush:/.test(wf), 'runs on a push');
+    assert(/elif \[ "\$found" -ne 2 \]/.test(wf), 'a failed look for the branch would start afresh');
+    assert(/if: steps\.update\.outputs\.save == 'true'/.test(wf), 'saves whatever the run ends with');
+    assert(/if: steps\.update\.outputs\.fail == 'true'/.test(wf), 'a run that fell behind shows green');
   });
   await it('the service worker keeps a saved copy of the Flight log files for offline', () => {
     const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
@@ -3150,13 +3273,13 @@ await describe('shell', async () => {
     const csp = html.match(/Content-Security-Policy"\s+content="([^"]+)"/)[1];
     const hosts = [...csp.matchAll(/https:\/\/[^\s;]+/g)].map(m => m[0]);
     const { HISTORY_BASE } = await imp('history');
-    const historyHost = new URL(HISTORY_BASE).origin;
+    // the Flight log is allowed its own branch's folder, not all of GitHub's raw files
     assert(
       hosts.length &&
-        hosts.every(h => /^https:\/\/[a-z-]*api\.open-meteo\.com$/.test(h) || h === historyHost),
+        hosts.every(h => /^https:\/\/[a-z-]*api\.open-meteo\.com$/.test(h) || h === HISTORY_BASE),
       hosts.join(' ')
     );
-    assert(hosts.includes(historyHost), 'the Flight log files are blocked');
+    assert(hosts.includes(HISTORY_BASE), 'the Flight log files are blocked');
   });
   await it('the service worker installs fresh files and keeps the saved forecast across updates', () => {
     assert(

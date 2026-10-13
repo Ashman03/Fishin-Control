@@ -1278,6 +1278,9 @@ export async function loadHistory() {
     data.byDs = new Map(data.days.map(d => [d.ds, d]));
     const first = data.days[0].ds,
       last = data.days[data.days.length - 1].ds;
+    // a top-up adds days: the hours already loaded for those months are out of date
+    if (h.last && last > h.last)
+      for (const ym of Object.keys(h.months)) if (ym >= h.last.slice(0, 7)) delete h.months[ym];
     Object.assign(h, {
       status: 'ready',
       data,
@@ -1357,7 +1360,8 @@ const LOGGED = '<i class="logged" aria-hidden="true"></i>';
 
 /**
  * The period at a glance: its average score (the period's colour, on the
- * forecast's own lines), and a bar split into Go, in-between and no-go days.
+ * forecast's own lines, which also tints the card), and a bar split into
+ * Go, Hold and No go days.
  */
 function periodHead(t, rampId, label) {
   if (!t.n)
@@ -1367,10 +1371,10 @@ function periodHead(t, rampId, label) {
   return `<div class="panel hsum" style="--c:${c};order:1">
     <div class="hsum-avg"><b class="num">${t.avg}</b><span>${label}</span></div>
     <div class="hsum-main">
-      <div class="split" role="img" aria-label="${t.go} go days, ${t.amber} in between, ${t.red} no go, of ${t.n}">
+      <div class="split" role="img" aria-label="${t.go} go days, ${t.amber} hold, ${t.red} no go, of ${t.n}">
         <i style="width:${w(t.go)};background:var(--go)"></i><i style="width:${w(t.amber)};background:var(--mid)"></i><i style="width:${w(t.red)};background:var(--no)"></i>
       </div>
-      <p class="hsum-k num"><span style="color:var(--go)">${t.go} go</span><span style="color:var(--mid)">${t.amber} in between</span><span style="color:var(--no)">${t.red} no go</span></p>
+      <p class="hsum-k num"><span style="color:var(--go)">${t.go} go</span><span style="color:var(--mid)">${t.amber} hold</span><span style="color:var(--no)">${t.red} no go</span></p>
       ${t.n > 1 ? `<button class="hlink" data-act="histDay" data-id="${t.best.ds}">Best: ${esc(shortDate(t.best.d0))} · ${scoreOf(t.best, rampId)}</button>` : ''}
     </div>
   </div>`;
@@ -1378,13 +1382,14 @@ function periodHead(t, rampId, label) {
 
 /**
  * A run of days as a chart: the strongest gust, the average wind and the
- * highest swell each day, against the standard limits, with green behind
- * every day that had a launch window. Drawn like the forecast's hourly chart.
+ * highest swell each day, against the standard limits (dotted, their figures
+ * in the margins), with green behind every day that had a launch window.
+ * Drawn like the forecast's hourly chart.
  */
 function daysChart(list, rampId, tick) {
   const W = 420,
     H = 170,
-    P = 22;
+    P = 24;
   const n = list.length;
   const x = i => P + ((W - P * 2) * (i + 0.5)) / n;
   const bw = (W - P * 2) / n;
@@ -1422,8 +1427,9 @@ function daysChart(list, rampId, tick) {
    <rect x="${P}" y="8" width="${W - P * 2}" height="${H - 24}" fill="rgba(0,0,0,.22)"/>
    ${bands}
    ${txt(P + 3, 22, 'start', 'var(--sky)', maxS.toFixed(1) + ' m')}${txt(W - P - 3, 22, 'end', 'var(--mid)', Math.round(maxW) + ' kn')}
-   <line x1="${P}" x2="${W - P}" y1="${sy(DEFAULTS.maxSwell)}" y2="${sy(DEFAULTS.maxSwell)}" stroke="var(--sky)" stroke-opacity=".45" stroke-dasharray="2 4"/>
-   <line x1="${P}" x2="${W - P}" y1="${wy(DEFAULTS.maxWind)}" y2="${wy(DEFAULTS.maxWind)}" stroke="var(--no)" stroke-opacity=".35" stroke-dasharray="2 4"/>
+   <line x1="${P}" x2="${W - P}" y1="${sy(DEFAULTS.maxSwell)}" y2="${sy(DEFAULTS.maxSwell)}" stroke="var(--sky)" stroke-opacity=".5" stroke-dasharray="2 4"/>
+   <line x1="${P}" x2="${W - P}" y1="${wy(DEFAULTS.maxWind)}" y2="${wy(DEFAULTS.maxWind)}" stroke="var(--mid)" stroke-opacity=".5" stroke-dasharray="2 4"/>
+   ${txt(P - 3, sy(DEFAULTS.maxSwell) + 4, 'end', 'var(--sky)', DEFAULTS.maxSwell)}${txt(W - P + 3, wy(DEFAULTS.maxWind) + 4, 'start', 'var(--mid)', DEFAULTS.maxWind)}
    <path d="${line(g => g.gust, wy)}" fill="none" stroke="var(--no)" stroke-width="1.4" stroke-dasharray="4 3" opacity=".75"/>
    <path d="${line(g => g.wind, wy)}" fill="none" stroke="var(--mid)" stroke-width="2"/>
    <path d="${line(g => g.swellMax / 100, sy)}" fill="none" stroke="var(--sky)" stroke-width="2.4"/>
@@ -1437,6 +1443,7 @@ const DAYS_KEY = `<div class="legend key">
     <span><i class="ln sw"></i>Highest swell</span>
     <span><i class="ln wd"></i>Average wind</span>
     <span><i class="ln gu"></i>Strongest gust</span>
+    <span><i class="ln lim"></i>Limits (${DEFAULTS.maxSwell} m, ${DEFAULTS.maxWind} kn)</span>
     <span><i class="bx ok"></i>Had a window</span>
   </div>`;
 
@@ -1477,7 +1484,7 @@ function histDay(d, rampId) {
         `<dl class="readout">
           <div class="wide"><dt>${rampId ? 'Ramp' : 'Best ramp'}</dt><dd>${esc(rampShort(zid))}</dd></div>
           <div><dt>Swell</dt><dd class="num">${zid === d.bestId ? span(d.swell / 100, f.swellMax / 100) : 'to ' + (f.swellMax / 100).toFixed(1)} m${d.period && zid === d.bestId ? ` · ${d.period} s` : ''}</dd></div>
-          <div><dt>Wind</dt><dd class="num">${f.wind} kn${zid === d.bestId ? ' ' + dirOf(d.wdir) : ''}</dd></div>
+          <div><dt>Wind</dt><dd class="num">${f.wind} kn${zid === d.bestId && d.wdir != null ? ' ' + dirOf(d.wdir) : ''}</dd></div>
           <div><dt>Gusts</dt><dd class="num">${f.gust} kn</dd></div>
           ${win ? `<div class="wide"><dt>Window</dt><dd class="g num">${win}</dd></div>` : ''}
         </dl>`
@@ -1604,7 +1611,7 @@ function histMonth(ym, rampId, logged) {
     </div>
     <div class="legend">
       <span><i style="background:var(--go)"></i>Go</span>
-      <span><i style="background:var(--mid)"></i>In between</span>
+      <span><i style="background:var(--mid)"></i>Hold</span>
       <span><i style="background:var(--no)"></i>No go</span>
       <span>${LOGGED}Session logged</span>
     </div>
@@ -1615,6 +1622,8 @@ function histMonth(ym, rampId, logged) {
   </section></div>`;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function histYear(year, rampId) {
   const h = state.hist;
   const months = yearMonths(h.data.days, year, rampId);
@@ -1622,34 +1631,37 @@ function histYear(year, rampId) {
     h.data.days.filter(d => d.ds.startsWith(year)),
     rampId
   );
-  const top = Math.max(1, ...months.map(m => m.windows));
-  const mon = ym => localDate(ym + '-01').toLocaleDateString('en-AU', { month: 'short' });
+  const top = Math.max(1, ...months.map(m => m.n));
+  const mon = ym => MONTHS[+ym.slice(5) - 1];
   return `<div class="hcol">${periodHead(t, rampId, 'year avg')}
-  <section style="order:2">${sect('Month by month', 'Tap a month')}
-    <div class="ytiles">${months
-      .map(m => {
-        if (!m.n) return `<span class="ytile none"><span class="caps">${mon(m.ym)}</span></span>`;
-        const w = k => ((100 * m[k]) / m.n).toFixed(1) + '%';
-        return `<button class="ytile" style="--c:${light(m.avg, LINES.ocean)}" data-act="histMonth" data-id="${m.ym}"
-          aria-label="${monthName(m.ym)}: average ${m.avg}, ${m.go} go days of ${m.n}">
-          <span class="caps">${mon(m.ym)}</span>
-          <b class="num">${m.go}</b><span class="yk">go days</span>
-          <span class="split" aria-hidden="true"><i style="width:${w('go')};background:var(--go)"></i><i style="width:${w('amber')};background:var(--mid)"></i><i style="width:${w('red')};background:var(--no)"></i></span>
-        </button>`;
-      })
-      .join('')}</div>
-    <p class="sub hnote">Each month's colour is its average score; the bar splits its days into go, in between and no go.</p>
-  </section></div>
-  <div class="hcol"><section class="panel week" style="order:3">${sect('Days with a launch window')}
-    <div class="ybars" role="img" aria-label="Days with a launch window each month">${months
+  <section class="panel week" style="order:2">${sect('Go, hold and no go', 'number = go days')}
+    <div class="ybars" role="img" aria-label="Go, hold and no go days each month">${months
       .map(
         m => `<span class="ybar">
-        <span class="yplot"><span class="yn num">${m.n ? m.windows : ''}</span>
-          <span class="yw" style="height:${(100 * m.windows) / top}%"></span></span>
-        <span class="dow">${localDate(m.ym + '-01').toLocaleDateString('en-AU', { month: 'narrow' })}</span>
+        <span class="yplot"><span class="yn num">${m.n ? m.go : ''}</span>
+          <span class="ystack" style="height:${(100 * m.n) / top}%"><i style="flex:${m.go};background:var(--go)"></i><i style="flex:${m.amber};background:var(--mid)"></i><i style="flex:${m.red};background:var(--no)"></i></span></span>
+        <span class="dow">${mon(m.ym)[0]}</span>
       </span>`
       )
       .join('')}</div>
+    <div class="legend">
+      <span><i style="background:var(--go)"></i>Go</span>
+      <span><i style="background:var(--mid)"></i>Hold</span>
+      <span><i style="background:var(--no)"></i>No go</span>
+    </div>
+  </section></div>
+  <div class="hcol"><section style="order:3">${sect('Month by month', 'Tap a month')}
+    <div class="ytiles">${months
+      .map(m => {
+        if (!m.n) return `<span class="ytile none"><span class="caps">${mon(m.ym)}</span></span>`;
+        return `<button class="ytile" style="--c:${light(m.avg, LINES.ocean)}" data-act="histMonth" data-id="${m.ym}"
+          aria-label="${monthName(m.ym)}: average ${m.avg}, ${m.go} go days of ${m.n}">
+          <span class="caps">${mon(m.ym)}</span>
+          <b class="num">${m.go}</b><span class="yk">go days · avg ${m.avg}</span>
+        </button>`;
+      })
+      .join('')}</div>
+    <p class="sub hnote">Each month's colour is its average score.</p>
   </section></div>`;
 }
 
@@ -1723,13 +1735,10 @@ function renderHistory() {
         <h2 class="num">${esc(p.title)}</h2>
         <button class="ghost" data-act="histStep" data-i="1" ${p.b >= h.last ? 'disabled' : ''} aria-label="Later">›</button>
       </div>
-      <div class="chips hramps" role="group" aria-label="Ramp">
-        <button data-act="histRamp" data-z="" class="${!rampId ? 'on' : ''}" aria-pressed="${!rampId}">Best ramp</button>
-        ${ZONES.map(
-          z =>
-            `<button data-act="histRamp" data-z="${z.id}" class="${rampId === z.id ? 'on' : ''}" aria-pressed="${rampId === z.id}">${esc(rampShort(z.id))}</button>`
-        ).join('')}
-      </div>
+      <select class="hramp" data-act="histRamp" aria-label="Ramp">
+        <option value="">Best ramp each day</option>
+        ${ZONES.map(z => `<option value="${z.id}" ${rampId === z.id ? 'selected' : ''}>${esc(z.name)}</option>`).join('')}
+      </select>
     </div>
     <div class="hbody hb-${h.view}">${body}</div>
     <p class="sub hnote">Each day is judged by the standard limits (${DEFAULTS.maxSwell} m swell, ${DEFAULTS.maxWind} kn wind,
@@ -1993,8 +2002,9 @@ export const ACTIONS = {
     render();
     scrollTop();
   },
+  /** From a launch site in the Day view, or the ramp picker (a <select>, on change). */
   histRamp(el) {
-    state.hist.ramp = el.dataset.z || '';
+    state.hist.ramp = (el.tagName === 'SELECT' ? el.value : el.dataset.z) || '';
     render();
   },
   histRetry() {
@@ -2007,5 +2017,11 @@ export const ACTIONS = {
 
 export function onAppClick(ev) {
   const el = ev.target.closest && ev.target.closest('[data-act]');
-  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
+  // a drop-down acts when its choice changes (onAppChange), not when it is opened
+  if (el && el.tagName !== 'SELECT' && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
+}
+
+export function onAppChange(ev) {
+  const el = ev.target;
+  if (el && el.tagName === 'SELECT' && el.dataset && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
 }

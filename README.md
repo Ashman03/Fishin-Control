@@ -100,7 +100,10 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   branch. Nothing older than three years is kept. The app reads them from
   `raw.githubusercontent.com` only when the Flight log tab opens, and the service worker
   keeps a copy for offline. The first run fills all three years (about ten minutes);
-  run it by hand from Actions → History update → Run workflow.
+  run it by hand from Actions → History update → Run workflow. A day with holes in its
+  wind, gusts or swell is left out, not guessed. The run saves only when it ends with
+  about as many days as it started with, and shows red when the newest day is more than
+  three days old.
 - **`rebuild()`** recomputes the model and repaints; **`render()`** only repaints, and
   keeps open panels and keyboard focus where they were.
 - **Releasing:** bump `APP_VERSION` in `config.js`, `VERSION` in `sw.js` and `version` in

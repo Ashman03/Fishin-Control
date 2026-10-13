@@ -14,8 +14,6 @@ on:
   schedule:
     - cron: '37 20 * * *' # 6:37 am in Queensland, once yesterday is complete
   workflow_dispatch:
-  push: # TEMPORARY: a first run from the feature branch, removed before review
-    branches: [claude/project-thread-57r1a3]
 
 permissions:
   contents: write
@@ -40,16 +38,25 @@ jobs:
         with:
           node-version: 22
 
+      # Only "no such branch" (exit 2) starts afresh; any other failure to
+      # look stops the run, rather than rebuilding over three good years.
       - name: Fetch the stored history
         run: |
           mkdir -p data
-          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+          set +e
+          git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null
+          found=$?
+          set -e
+          if [ "$found" -eq 0 ]; then
             git fetch --depth=1 origin "$BRANCH"
             git archive FETCH_HEAD | tar -x -C data
+          elif [ "$found" -ne 2 ]; then
+            echo "Could not check for the $BRANCH branch (exit $found)"; exit 1
           fi
 
       - name: Add the missing days
-        run: node tools/history.js --dir data --report report.md
+        id: update
+        run: node tools/history.js --dir data --report report.md --outputs "$GITHUB_OUTPUT"
 
       - name: Show the report on the run page
         if: always()
@@ -58,6 +65,7 @@ jobs:
       # One commit, replaced each day: the branch holds today's files and no
       # pile of old copies.
       - name: Save to the history-data branch
+        if: steps.update.outputs.save == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -69,6 +77,12 @@ jobs:
           git add -A
           git commit -q -m "History to $(date +%F)"
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:$BRANCH"
+
+      - name: Mark the run failed when the update fell behind
+        if: steps.update.outputs.fail == 'true'
+        run: |
+          echo "The update did not complete; see the report on the run page."
+          exit 1
 
       # GitHub pauses scheduled runs on a repository with no commits for 60
       # days. Re-enabling the workflow on each run keeps it going.

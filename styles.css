@@ -1080,6 +1080,10 @@ ul.tight li {
   height: 0;
   border-top: 2px dashed var(--no);
 }
+.key i.lim {
+  height: 0;
+  border-top: 2px dotted var(--sky2);
+}
 .key i.bx.ok {
   width: 10px;
   height: 10px;
@@ -1679,13 +1683,10 @@ footer {
   opacity: 0.3;
   cursor: default;
 }
-.hramps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.hramps button {
-  padding: 0 4px;
-  font-size: 12.5px;
+.hramp {
+  min-height: 44px;
+  font-family: var(--disp);
+  font-size: 14px;
 }
 .hlink {
   padding: 0;
@@ -1704,6 +1705,7 @@ footer {
   display: flex;
   align-items: center;
   gap: 14px;
+  background: color-mix(in srgb, var(--c) 13%, var(--panel));
   border-left: 3px solid var(--c);
 }
 .hsum-avg {
@@ -1805,14 +1807,15 @@ footer {
   background: none;
   border: 0;
 }
+/* a day the archive could not fill is outlined; a day still to come is just its date */
 .cal-c.none {
-  background: rgba(122, 211, 245, 0.04);
-  border-top: 2px solid var(--rule);
+  background: none;
+  border: 1px dashed var(--rule);
 }
 .cal-c.future {
   background: none;
-  border: 1px dashed var(--rule);
-  opacity: 0.6;
+  border: 0;
+  opacity: 0.45;
 }
 .cal-c b {
   font-family: var(--disp);
@@ -1834,11 +1837,11 @@ footer {
   position: absolute;
   top: 4px;
   right: 3px;
-  width: 11px;
-  height: 7px;
+  width: 14px;
+  height: 9px;
 }
 
-/* the year: a tile per month in its colour, with its Go days and its split */
+/* the year: a chart of each month's Go, Hold and No go days, and a tile per month in its colour */
 .ytiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1877,10 +1880,6 @@ footer {
   font-size: 11px;
   color: var(--mute);
 }
-.ytile .split {
-  height: 6px;
-  margin-top: 4px;
-}
 .ybars {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -1906,27 +1905,37 @@ footer {
   font-size: 11px;
   color: var(--sky2);
 }
-.yw {
+.ystack {
+  display: flex;
+  flex-direction: column;
   width: 70%;
   max-width: 26px;
-  background: rgba(122, 211, 245, 0.3);
-  border-top: 2px solid var(--sky);
+}
+.ystack i {
+  display: block;
+  min-height: 0;
+}
+.ytiles + .hnote {
+  margin-top: 8px;
 }
 
 @media (min-width: 900px) {
   .hist {
     gap: 18px;
   }
-  /* the view switch and the period on one line, the ramps below */
+  /* the view switch, the period and the ramp on one line */
   .hctl {
     display: grid;
-    grid-template-columns: 360px minmax(0, 1fr);
-    gap: 12px 18px;
+    grid-template-columns: 360px minmax(0, 1fr) 260px;
+    gap: 18px;
     align-items: center;
   }
-  .hramps {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* the arrows sit either side of the period's name */
+  .hnav {
+    justify-content: center;
+  }
+  .hnav h2 {
+    flex: 0 1 300px;
   }
   .hbody {
     display: grid;

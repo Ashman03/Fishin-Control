@@ -4,13 +4,14 @@
 
 - **Flight log replaces My marks.** A new tab looks back over the last three years of
   conditions on the Wide Bay coast, by day, week, month or year, for the best ramp each
-  day or any one ramp:
-  - **Month:** a calendar with each day coloured Go, in between or no go; the month's
-    own colour (its average score) and a bar splitting its days three ways; a chart of
-    each day's swell, wind and gusts against the limits.
+  day or any one ramp (picked from a drop-down beside the period):
+  - **Month:** a calendar with each day coloured Go, Hold or No go; the month's own
+    colour (its average score, which tints the summary card) and a bar splitting its
+    days three ways; a chart of each day's swell, wind and gusts against the limits
+    (dotted, with their figures in the margins).
   - **Week:** the week's scores as bars, like the forecast's week, and the same chart.
-  - **Year:** a tile per month in its colour with its Go days, and the days with a
-    launch window month by month.
+  - **Year:** a stacked bar of each month's Go, Hold and No go days, and a tile per
+    month in its colour with its Go days and average.
   - **Day:** the day's score and call, the forecast's hourly chart drawn from the
     archive, every ramp's score and window, and the tide, moon and rivers.
   - A small fish marks any day with a session in your catch log.
@@ -27,7 +28,13 @@
   location lookup when saving a session are all removed, along with `importer.js`. Any
   marks list still on a phone is deleted when the app opens. The catch log's list is
   now "Your sessions".
-- Tests: 246.
+- **The daily history job is careful with the stored files.** A day whose archived swell
+  has holes is left out rather than stored as a calm Go day. When Open-Meteo limits
+  requests, or the run nears its time limit, it stops and saves what it has; the next
+  run carries on. It never saves over the stored years when it ends with far fewer
+  days, or when it could not check for them, and a run that falls behind shows red on
+  GitHub.
+- Tests: 257.
 
 ## 6.2.1
 

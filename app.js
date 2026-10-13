@@ -19,6 +19,7 @@ import {
   render,
   rebuild,
   onAppClick,
+  onAppChange,
   ACTIONS,
   countdown,
   tickCountdown,
@@ -183,6 +184,7 @@ ACTIONS.retry = () => start();
 /* ── Wiring ─────────────────────────────────────────────────────────────── */
 
 app.addEventListener('click', onAppClick);
+app.addEventListener('change', onAppChange);
 app.addEventListener('keydown', e => {
   // the map pins are SVG <g> elements, so give them Enter / Space like a button
   if (e.key !== 'Enter' && e.key !== ' ') return;

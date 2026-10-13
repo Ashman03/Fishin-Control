@@ -3,6 +3,7 @@
  * .github/workflows/history.yml, and by hand with
  *
  *   node tools/history.js --dir <folder> [--max-months 40] [--pause 12000]
+ *                         [--report report.md] [--outputs $GITHUB_OUTPUT]
  *
  * <folder> holds the files from the `history-data` branch (empty the first
  * time). For every day from HISTORY_YEARS back to yesterday that is not yet
@@ -26,7 +27,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
-import { POINTS, TZ, DEFAULTS } from '../config.js';
+import { POINTS, ZONES, TZ, DEFAULTS } from '../config.js';
 import { attempt, FORECAST_VARS, MARINE_VARS } from '../data.js';
 import { build } from '../model.js';
 import { pickVar, hasData, isoDay, localDate, DAY } from '../util.js';
@@ -48,6 +49,12 @@ export const GAP_RETRY_DAYS = 10;
 /** Days fetched either side of the wanted ones: tide turns, the storm buffer and three-day rain need them. */
 const MARGIN_BEFORE = 3,
   MARGIN_AFTER = 1;
+/** Time for one archive request: a month at twenty points is a big answer. */
+const REQUEST_MS = 60000;
+/** A run stops starting months after this long, so it saves before the workflow's 40-minute limit. */
+const BUDGET_MS = 30 * 60000;
+/** The last stored day may lag yesterday by this much before the run is marked failed. */
+const STALE_DAYS = 3;
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 const query = o =>
@@ -109,11 +116,44 @@ async function request(url, fetcher, { tries = 3, wait = 60000 } = {}) {
 
 /**
  * Whether a built day has every figure the call depends on: wind and gusts at
- * every hour at every ramp, and swell at the best ramp. A swell figure that is
- * missing reads as 0 m in the app by the owner's choice; in history a whole
- * missing swell feed would turn every day calm, so the swell must be there.
+ * every hour at every ramp (the model's gapHrs), and a full day of hours.
  */
 const complete = d => d.zones.every(z => z.gapHrs === 0) && d.zones[0].hours.length >= 24;
+
+/**
+ * The dates with an hour that has no swell or wave height at any point of a
+ * ramp. A missing swell figure reads as 0 m in the forecast by the owner's
+ * choice; in history a hole in the archive would store a calm Go day, so such
+ * a day is left out instead. A ramp with no swell anywhere in the fetch is
+ * not held against it (the whole-feed check, hasWaves, covers an outage).
+ */
+export function swellHoles(sets, dates) {
+  const holes = new Set();
+  const want = new Set(dates);
+  for (const z of ZONES) {
+    const seen = new Map(); // time -> has a figure at some point of the ramp
+    let any = false;
+    for (const pi of z.pts) {
+      const h = sets[pi] && sets[pi].hourly;
+      if (!h || !Array.isArray(h.time)) continue;
+      const sw = pickVar(h, 'swell_wave_height') || [],
+        wv = pickVar(h, 'wave_height') || [];
+      h.time.forEach((t, k) => {
+        const ok = Number.isFinite(sw[k]) || Number.isFinite(wv[k]);
+        if (ok) any = true;
+        seen.set(t, seen.get(t) || ok);
+      });
+    }
+    if (!any) continue;
+    for (const ds of want)
+      for (let hr = 0; hr < 24; hr++)
+        if (!seen.get(ds + 'T' + String(hr).padStart(2, '0') + ':00')) {
+          holes.add(ds);
+          break;
+        }
+  }
+  return holes;
+}
 
 /** The dates still to fetch, oldest first: missing, too recent to be final, or gaps still worth retrying. */
 export function wanted(summary, yesterday) {
@@ -155,32 +195,40 @@ const readJson = (file, fallback) => {
  * One month's wanted days: fetched, built with the app's model and boiled
  * down. Returns { rows: Map, hours: {ds: …}, gaps: [ds], error }.
  */
-export async function fetchDays(dates, { fetcher = attempt } = {}) {
+export async function fetchDays(dates, { fetcher = url => attempt(url, REQUEST_MS), wait = 60000 } = {}) {
   const from = addDays(dates[0], -MARGIN_BEFORE),
     to = addDays(dates[dates.length - 1], MARGIN_AFTER);
-  let wind = await request(pastWindUrl(from, to), fetcher);
-  if (!wind.ok && wind.status === 400) wind = await request(pastWindUrl(from, to, true), fetcher);
-  if (!wind.ok || !hasWind(wind.json)) return { error: 'wind: ' + (wind.error || 'no wind values') };
-  const swell = await request(pastSwellUrl(from, to), fetcher);
-  if (!swell.ok || !hasWaves(swell.json)) return { error: 'swell: ' + (swell.error || 'no swell values') };
+  let wind = await request(pastWindUrl(from, to), fetcher, { wait });
+  if (!wind.ok && wind.status === 400) wind = await request(pastWindUrl(from, to, true), fetcher, { wait });
+  if (!wind.ok || !hasWind(wind.json))
+    return { error: 'wind: ' + (wind.error || 'no wind values'), busy: wind.status === 429 };
+  const swell = await request(pastSwellUrl(from, to), fetcher, { wait });
+  if (!swell.ok || !hasWaves(swell.json))
+    return { error: 'swell: ' + (swell.error || 'no swell values'), busy: swell.status === 429 };
 
-  // every day in the fetch counts as past: no "today" in the archive
-  const built = build(
-    { fc: wind.json, mar: swell.json },
-    { cfg: DEFAULTS, log: [], now: new Date(+localDate(to) + DAY) }
-  );
   const want = new Set(dates);
+  const holes = swellHoles(swell.json, dates);
   const rows = new Map(),
     hours = {},
     gaps = [];
-  for (const d of built.past) {
-    if (!want.has(d.ds)) continue;
-    if (!complete(d)) {
-      gaps.push(d.ds);
-      continue;
+  try {
+    // every day in the fetch counts as past: no "today" in the archive
+    const built = build(
+      { fc: wind.json, mar: swell.json },
+      { cfg: DEFAULTS, log: [], now: new Date(+localDate(to) + DAY) }
+    );
+    for (const d of built.past) {
+      if (!want.has(d.ds)) continue;
+      if (!complete(d) || holes.has(d.ds)) {
+        gaps.push(d.ds);
+        continue;
+      }
+      rows.set(d.ds, summariseDay(d));
+      hours[d.ds] = dayHours(d);
     }
-    rows.set(d.ds, summariseDay(d));
-    hours[d.ds] = dayHours(d);
+  } catch (e) {
+    // one odd month must not stop every run after it
+    return { error: 'could not be worked out: ' + e.message };
   }
   // a date the archive did not answer for at all is a gap too
   for (const ds of dates) if (!rows.has(ds) && !gaps.includes(ds)) gaps.push(ds);
@@ -194,28 +242,51 @@ export async function fetchDays(dates, { fetcher = attempt } = {}) {
 export async function updateHistory({
   dir,
   today = isoDay(new Date()),
-  fetcher = attempt,
+  fetcher,
   maxMonths = 40,
-  pause = 12000
+  pause = 12000,
+  budget = BUDGET_MS,
+  wait = 60000
 }) {
+  const began = Date.now();
   mkdirSync(join(dir, 'hours'), { recursive: true });
   const sumFile = join(dir, 'summary.json');
   let summary = readJson(sumFile, null);
   if (summary && summary.v !== HISTORY_FORMAT) summary = null; // a new format starts afresh
   const yesterday = addDays(today, -1);
   const months = byMonth(wanted(summary, yesterday));
-  const report = { months: 0, days: 0, gaps: [], errors: [], left: Math.max(0, months.length - maxMonths) };
+  const report = {
+    months: 0,
+    days: 0,
+    gaps: [],
+    errors: [],
+    left: 0,
+    before: summary ? summary.days.filter(Boolean).length : 0
+  };
   let gaps = new Set((summary && summary.gaps) || []);
 
-  for (const [i, [ym, dates]] of months.slice(0, maxMonths).entries()) {
+  const todo = months.slice(0, maxMonths);
+  for (const [i, [ym, dates]] of todo.entries()) {
+    // out of time, or Open-Meteo says it is busy: keep what is done, the next run carries on
+    if (Date.now() - began > budget) {
+      report.errors.push('out of time; the next run carries on');
+      report.left = months.length - i;
+      break;
+    }
     if (i && pause) await sleep(pause);
-    const got = await fetchDays(dates, { fetcher });
+    const got = await fetchDays(dates, fetcher ? { fetcher, wait } : { wait });
     if (got.error) {
       report.errors.push(ym + ' — ' + got.error);
+      if (got.busy) {
+        report.errors.push('Open-Meteo is limiting requests; the next run carries on');
+        report.left = months.length - i; // this month included: it is tried again
+        break;
+      }
       continue;
     }
     const mFile = join(dir, 'hours', ym + '.json');
-    const month = readJson(mFile, { v: HISTORY_FORMAT, days: {} });
+    let month = readJson(mFile, null);
+    if (!month || month.v !== HISTORY_FORMAT || !month.days) month = { v: HISTORY_FORMAT, days: {} };
     Object.assign(month.days, got.hours);
     writeFileSync(mFile, JSON.stringify(month));
     for (const ds of got.rows.keys()) gaps.delete(ds);
@@ -246,9 +317,31 @@ export async function updateHistory({
       writeFileSync(fm, JSON.stringify(month));
     }
   }
+  if (!report.left) report.left = Math.max(0, months.length - maxMonths);
   report.first = summary && summary.first;
   report.stored = summary ? summary.days.filter(Boolean).length : 0;
+  if (summary && summary.first) {
+    let i = summary.days.length - 1;
+    while (i >= 0 && !summary.days[i]) i--;
+    report.last = i >= 0 ? addDays(summary.first, i) : null;
+  }
+  Object.assign(report, verdict(report, yesterday));
   return report;
+}
+
+/**
+ * Whether the run's files may replace the stored ones (save), and whether the
+ * run should show as failed (fail), with the reason. Nothing stored, or far
+ * fewer days than before (a bad read of the stored files, say), is never
+ * saved over three good years; a run that fell behind saves but shows red.
+ */
+export function verdict(r, yesterday) {
+  if (!r.stored) return { save: false, fail: true, why: 'nothing is stored' };
+  if (r.before && r.stored < r.before - 40)
+    return { save: false, fail: true, why: `only ${r.stored} days against ${r.before} before; not saved` };
+  if (!r.last || daysBetween(r.last, yesterday) > STALE_DAYS)
+    return { save: true, fail: true, why: 'the newest stored day is ' + (r.last || 'missing') };
+  return { save: true, fail: false, why: '' };
 }
 
 /** The run report, as Markdown for the workflow's summary page. */
@@ -266,6 +359,8 @@ export function describeReport(r) {
       `- Left out for missing figures: ${r.gaps.length} days (${r.gaps.slice(0, 6).join(', ')}${r.gaps.length > 6 ? ', …' : ''})`
     );
   if (r.errors.length) lines.push(`- Could not fetch: ${r.errors.join('; ')}`);
+  if (r.fail)
+    lines.push(`- **Failed:** ${r.why}${r.save ? '' : ' (the stored files were left as they were)'}`);
   return lines.join('\n') + '\n';
 }
 
@@ -283,6 +378,8 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const md = describeReport(report);
   console.log(md);
   if (arg('report')) writeFileSync(arg('report'), md);
-  // nothing stored at all is a failure worth a red run; a few gaps are not
-  if (!report.stored) process.exit(1);
+  // the workflow saves and fails on these, so a bad run never replaces good files
+  if (arg('outputs'))
+    writeFileSync(arg('outputs'), `save=${report.save}\nfail=${report.fail}\n`, { flag: 'a' });
+  else if (report.fail) process.exit(1);
 }

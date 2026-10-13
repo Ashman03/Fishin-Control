@@ -175,7 +175,7 @@ export function readSummary(json) {
     Object.assign(o, { wind: b.wind, gust: b.gust, swellMax: b.swellMax });
     days.push(o);
   });
-  return { made: json.made || null, limits: json.limits || DEFAULTS, days };
+  return { days };
 }
 
 /**
