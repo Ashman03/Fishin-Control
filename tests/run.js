@@ -1579,10 +1579,7 @@ await describe('ui', async () => {
     assert(!/river score<\/span>|7-day river/i.test(nodes.app.innerHTML), 'river page still says river');
     state.view = 'ocean';
     const splash = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-    assert(
-      /<div class="splash-tag">Mission Control · Wide Bay<\/div>/.test(splash),
-      'loading screen tagline'
-    );
+    assert(/<div class="splash-tag">Wide Bay<\/div>/.test(splash), 'loading screen tagline');
     for (const f of [
       'index.html',
       'manifest.json',
