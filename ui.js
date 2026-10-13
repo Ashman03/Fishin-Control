@@ -814,11 +814,11 @@ function renderRiver() {
   return `${banners(day)}
   <div class="deck">
     <div class="col col-a">
-      <section class="panel hero">${dailyScore(day.river, 'Daily river score', LINES.river)}
+      <section class="panel hero">${dailyScore(day.river, 'Daily score', LINES.river)}
         ${call(esc(shortDate(day.d0) + ' · ' + est.name), word, why)}
       </section>
       ${dayStrip(
-        '7-day river forecast',
+        '7-day forecast',
         d => d.river,
         () => 'rivers and creeks',
         d =>

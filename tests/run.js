@@ -1526,7 +1526,7 @@ await describe('ui', async () => {
     ui.render();
     const html = nodes.app.innerHTML;
     const heads = [...html.matchAll(/<h2 class="sect">([^<]+)/g)].map(m => m[1].trim());
-    const want = ['7-day river forecast', 'Caution and advisory panel', 'Rivers and creeks'];
+    const want = ['7-day forecast', 'Caution and advisory panel', 'Rivers and creeks'];
     assert(heads.slice(0, 3).join('|') === want.join('|'), heads.join('|'));
     assert(html.indexOf('class="dial"') < html.indexOf('class="panel week"'), 'score before the week');
     state.view = 'ocean';
@@ -1575,8 +1575,14 @@ await describe('ui', async () => {
     assert(/aria-label="Caution and advisory panel for /.test(nodes.app.innerHTML), 'ocean panel label');
     state.view = 'river';
     ui.render();
-    assert(/<span class="cap">Daily river score<\/span>/.test(nodes.app.innerHTML), 'river caption');
+    assert(/<span class="cap">Daily score<\/span>/.test(nodes.app.innerHTML), 'river caption');
+    assert(!/river score<\/span>|7-day river/i.test(nodes.app.innerHTML), 'river page still says river');
     state.view = 'ocean';
+    const splash = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    assert(
+      /<div class="splash-tag">Mission Control · Wide Bay<\/div>/.test(splash),
+      'loading screen tagline'
+    );
     for (const f of [
       'index.html',
       'manifest.json',

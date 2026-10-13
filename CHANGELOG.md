@@ -7,11 +7,13 @@ week's scores, then the detail. Scores, limits and the GO / NO GO calls are unch
 the sample forecast every day, ramp and figure on the page is the same as 6.0.3, only
 the headings and their order differ.
 
-- **New names.** 7-day telemetry is now the **7-day forecast** (7-day river forecast on
-  the Rivers page). The score tank is now the **Daily score** (Daily river score). The
-  launch poll is now the **Caution and advisory panel** on both pages. The chart heading
+- **New names.** 7-day telemetry is now the **7-day forecast** and the score tank is now
+  the **Daily score**, on the Ocean and Rivers pages alike. The launch poll is now the
+  **Caution and advisory panel** on both pages. The chart heading
   "Launch control · chart" is now just **Launch control**. Screen readers hear the new
   names too.
+- **The loading screen now reads "Mission Control · Wide Bay"** under the name, instead
+  of "Launch control · Bundaberg coast".
 - **The 7-day forecast sits straight under the daily score,** where the launch poll was,
   and the Caution and advisory panel follows it, on the Ocean and Rivers pages. On a wide
   screen the week sits in the first column under the score, and the panel runs across
