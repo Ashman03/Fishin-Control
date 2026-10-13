@@ -105,11 +105,16 @@ const hasWaves = sets =>
     o => hasData(pickVar(o.hourly, 'swell_wave_height')) || hasData(pickVar(o.hourly, 'wave_height'))
   );
 
-/** A request retried while the service is busy (429) or down; a refusal is returned at once. */
-async function request(url, fetcher, { tries = 3, wait = 60000 } = {}) {
+/**
+ * A request retried while the service is busy (429) or down; a refusal is
+ * returned at once. A connection that never opened (status 0) is tried again
+ * after a few seconds: on GitHub's runners the first request after a pause
+ * often fails that way and the next one goes straight through.
+ */
+async function request(url, fetcher, { tries = 3, wait = 60000, quick = 3000 } = {}) {
   let res;
   for (let i = 0; i < tries; i++) {
-    if (i) await sleep(wait * i);
+    if (i) await sleep(res.status === 0 ? quick : wait * i);
     const t0 = Date.now();
     res = await fetcher(url);
     say(
@@ -201,14 +206,18 @@ const readJson = (file, fallback) => {
  * One month's wanted days: fetched, built with the app's model and boiled
  * down. Returns { rows: Map, hours: {ds: …}, gaps: [ds], error }.
  */
-export async function fetchDays(dates, { fetcher = url => attempt(url, REQUEST_MS), wait = 60000 } = {}) {
+export async function fetchDays(
+  dates,
+  { fetcher = url => attempt(url, REQUEST_MS), wait = 60000, quick = 3000 } = {}
+) {
   const from = addDays(dates[0], -MARGIN_BEFORE),
     to = addDays(dates[dates.length - 1], MARGIN_AFTER);
-  let wind = await request(pastWindUrl(from, to), fetcher, { wait });
-  if (!wind.ok && wind.status === 400) wind = await request(pastWindUrl(from, to, true), fetcher, { wait });
+  let wind = await request(pastWindUrl(from, to), fetcher, { wait, quick });
+  if (!wind.ok && wind.status === 400)
+    wind = await request(pastWindUrl(from, to, true), fetcher, { wait, quick });
   if (!wind.ok || !hasWind(wind.json))
     return { error: 'wind: ' + (wind.error || 'no wind values'), busy: wind.status === 429 };
-  const swell = await request(pastSwellUrl(from, to), fetcher, { wait });
+  const swell = await request(pastSwellUrl(from, to), fetcher, { wait, quick });
   if (!swell.ok || !hasWaves(swell.json))
     return { error: 'swell: ' + (swell.error || 'no swell values'), busy: swell.status === 429 };
 

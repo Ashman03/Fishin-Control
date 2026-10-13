@@ -2802,6 +2802,22 @@ await describe('flight log', async () => {
     }
     assert(s.days[history.daysBetween(s.first, '2026-10-10')], 'a whole day either side is kept');
   });
+  await it('a connection that drops is tried again within seconds, not after a minute', async () => {
+    const ok = archive();
+    const seen = new Set();
+    // the first try at each address never connects, as on GitHub's runners after a pause
+    const flaky = async url => {
+      if (!seen.has(url)) {
+        seen.add(url);
+        return { ok: false, status: 0, error: 'no connection (fetch failed)' };
+      }
+      return ok.fetcher(url);
+    };
+    const t0 = Date.now();
+    const got = await tool.fetchDays(['2026-09-01', '2026-09-02'], { fetcher: flaky, wait: 1e9, quick: 5 });
+    assert(!got.error && got.rows.size === 2, JSON.stringify(got.error));
+    assert(Date.now() - t0 < 5000, 'waited ' + (Date.now() - t0) + ' ms');
+  });
   await it('review: when Open-Meteo is limiting requests the run stops, keeps what it has and says so', async () => {
     const d6 = tmp();
     const ok = archive();
