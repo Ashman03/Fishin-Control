@@ -18,6 +18,7 @@ export const SPECIES_IMAGES = {
   'Blue salmon': 'species-blue-salmon.webp',
   Bream: 'species-bream.webp',
   'Coral trout': 'species-coral-trout.webp',
+  'Estuary cod': 'species-estuary-cod.webp',
   Flathead: 'species-flathead.webp',
   'Grass sweetlip': 'species-grass-sweetlip.webp',
   Grunter: 'species-grunter.webp',
@@ -25,6 +26,9 @@ export const SPECIES_IMAGES = {
   'Mac tuna': 'species-mac-tuna.webp',
   'Mangrove jack': 'species-mangrove-jack.webp',
   'Mud crab': 'species-mud-crab.webp',
+  Mulloway: 'species-mulloway.webp',
+  Prawns: 'species-prawns.webp',
+  Queenfish: 'species-queenfish.webp',
   'Red emperor': 'species-red-emperor.webp',
   'School mackerel': 'species-school-mackerel.webp',
   Snapper: 'species-snapper.webp',
@@ -32,12 +36,13 @@ export const SPECIES_IMAGES = {
   'Spotted mackerel': 'species-spotted-mackerel.webp',
   Squid: 'species-squid.webp',
   Threadfin: 'species-threadfin.webp',
+  Trevally: 'species-trevally.webp',
   Tuskfish: 'species-tuskfish.webp',
   Whiting: 'species-whiting.webp'
 };
 
-/** River species still waiting on a painting. Remove each one as its picture lands. */
-export const ART_PENDING = ['Estuary cod', 'Mulloway', 'Prawns', 'Queenfish', 'Trevally'];
+/** Species still waiting on a painting (none at the moment). Remove each one as its picture lands. */
+export const ART_PENDING = [];
 
 // A plain fish shape, filled faintly, standing in for a missing painting.
 const PLACEHOLDER =

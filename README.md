@@ -50,7 +50,7 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 | `importer.js` | Reads Humminbird DATA.HWR and GPX waypoints into marks, on the phone             |
 | `sw.js`       | Offline support; flags saved forecasts so they are never shown as live           |
 
-Assets, all at the top level: `species-*.webp` (21 pictures), `logo-128.webp` (header), `logo-448.webp` (loading screen),
+Assets, all at the top level: `species-*.webp` (26 pictures), `logo-128.webp` (header), `logo-448.webp` (loading screen),
 `icon-*.png` (favicon, notifications, install), `font-*.woff2` (Outfit and Space Grotesk,
 self-hosted under the SIL Open Font License — see `fonts-OFL.txt`). The chart's coastline
 is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded in `map.js`.
@@ -148,7 +148,7 @@ forecast and in Data sources.
 
 ### Species illustrations
 
-The 21 `species-*.webp` files are made from the supplied PNG artwork by
+The 26 `species-*.webp` files are made from the supplied PNG artwork by
 `python3 tools/prepare-species.py ORIGINALS_FOLDER [REDRAWN_FOLDER ...]` (needs Pillow,
 numpy and scipy). It removes the background haze and stray bits of neighbouring animals,
 centres each one on the same 600 × 320 canvas and writes WebP. Later folders override
