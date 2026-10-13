@@ -19,8 +19,9 @@ check, window, session and launch note is byte-for-byte the same as 6.0.4.
   instead of pelagics.
 - **The Ocean page's fish list is unchanged.**
 - **The catch log** offers the river fish as well as the ocean ones.
-- Estuary cod, trevally, queenfish, mulloway and prawns have no painting yet, so their
-  cards show a faint fish silhouette until the artwork arrives.
+- **New paintings for the river fish:** estuary cod, trevally, queenfish, mulloway and
+  prawns, in the same style, size and framing as the other 21. A species added later
+  without a painting shows a faint fish silhouette until its picture arrives.
 
 The Caution and advisory panel on the Ocean page is redrawn as a cockpit annunciator
 panel, and the wide-screen layout no longer leaves gaps. Scores, limits and the GO /

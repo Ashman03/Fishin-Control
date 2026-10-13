@@ -65,12 +65,13 @@ const APP_FILES = [
   './logo-448.webp',
   './icon-64.png',
   './icon-192.png',
-  // species illustrations (~0.5 MB in all), stored so the cards work offline
+  // species illustrations (~0.6 MB in all), stored so the cards work offline
   './species-barramundi.webp',
   './species-blackall.webp',
   './species-blue-salmon.webp',
   './species-bream.webp',
   './species-coral-trout.webp',
+  './species-estuary-cod.webp',
   './species-flathead.webp',
   './species-grass-sweetlip.webp',
   './species-grunter.webp',
@@ -78,6 +79,9 @@ const APP_FILES = [
   './species-mac-tuna.webp',
   './species-mangrove-jack.webp',
   './species-mud-crab.webp',
+  './species-mulloway.webp',
+  './species-prawns.webp',
+  './species-queenfish.webp',
   './species-red-emperor.webp',
   './species-school-mackerel.webp',
   './species-snapper.webp',
@@ -85,6 +89,7 @@ const APP_FILES = [
   './species-spotted-mackerel.webp',
   './species-squid.webp',
   './species-threadfin.webp',
+  './species-trevally.webp',
   './species-tuskfish.webp',
   './species-whiting.webp'
 ];
