@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+- **Flight log replaces My marks.** A new tab looks back over the last three years of
+  conditions on the Wide Bay coast, by day, week, month or year, for the best ramp each
+  day or any one ramp:
+  - **Month:** a calendar with each day coloured Go, in between or no go; the month's
+    own colour (its average score) and a bar splitting its days three ways; a chart of
+    each day's swell, wind and gusts against the limits.
+  - **Week:** the week's scores as bars, like the forecast's week, and the same chart.
+  - **Year:** a tile per month in its colour with its Go days, and the days with a
+    launch window month by month.
+  - **Day:** the day's score and call, the forecast's hourly chart drawn from the
+    archive, every ramp's score and window, and the tide, moon and rivers.
+  - A small fish marks any day with a session in your catch log.
+  - Each past day is judged by the app's own model at the standard limits (0.7 m,
+    10 kn, 12 kn, a 2-hour window), from Open-Meteo's archive of the same forecast
+    models. Three years at most is kept.
+  - Light on the phone: the forecast loads nothing extra. The Flight log fetches one
+    small file (about 115 KB, 16 KB over the network) when its tab opens, and an
+    hour-by-hour month (about 45 KB) only when a day is opened; the phone keeps a copy
+    for offline. The files are built each morning on GitHub (`history-data` branch), so
+    the live site is never touched by the daily update.
+- **My marks is gone, everywhere.** The tab, the marks list (and the starter marks), the
+  sounder import, the dots on the chart, the spot picks in the flight plan and the
+  location lookup when saving a session are all removed, along with `importer.js`. Any
+  marks list still on a phone is deleted when the app opens. The catch log's list is
+  now "Your sessions".
+- Tests: 246.
+
 ## 6.2.1
 
 - **Launch sites and the caution panel quote the same hours.** The panel shows a ramp's

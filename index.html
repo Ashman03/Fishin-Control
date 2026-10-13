@@ -11,7 +11,7 @@
     <!-- Only this site's own files may load; the only outside connection is the Open-Meteo forecast. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://ensemble-api.open-meteo.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://ensemble-api.open-meteo.com https://raw.githubusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
     />
     <title>Fishin' Control — go / no-go for the Wide Bay</title>
     <link rel="icon" href="icon-64.png" type="image/png" sizes="64x64" />
@@ -31,8 +31,8 @@
     <link rel="modulepreload" href="astro.js" />
     <link rel="modulepreload" href="advice.js" />
     <link rel="modulepreload" href="model.js" />
+    <link rel="modulepreload" href="history.js" />
     <link rel="modulepreload" href="art.js" />
-    <link rel="modulepreload" href="importer.js" />
     <link rel="modulepreload" href="map.js" />
     <link rel="modulepreload" href="closures.js" />
     <link rel="modulepreload" href="ui.js" />
