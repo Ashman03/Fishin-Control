@@ -19,10 +19,14 @@ export const SYNC_TAG = 'fc-go-check';
 export const SYNC_INTERVAL_MS = 6 * 36e5;
 export const STATE_CACHE = 'fishin-state';
 
-/** Days scoring GO_SCORE or more, with what an alert needs to say about them. */
+/**
+ * Days scoring GO_SCORE or more, with what an alert needs to say about them.
+ * The model never scores a day without a launch window that high; the window
+ * check here makes sure an alert can never go out without times.
+ */
 export function goDays(days) {
   return days
-    .filter(d => !d.past && d.overall >= GO_SCORE)
+    .filter(d => !d.past && d.overall >= GO_SCORE && d.zones[0].win.length > 0)
     .map(d => {
       const z = d.zones[0];
       const w = z.win[0];

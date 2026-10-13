@@ -240,7 +240,7 @@ function condChart(zone, cfg) {
   const t0 = +hrs[0].t,
     width = 23 * HOUR;
   const x = t => P + ((W - P * 2) * (+t - t0)) / width;
-  const maxS = Math.max(1.2, ...hrs.map(h => h.swellEff)),
+  const maxS = Math.max(1.2, ...hrs.map(h => h.swellChk)),
     maxW = Math.max(18, ...hrs.map(h => h.gust));
   const sy = v => H - 16 - (H - 44) * clamp(v / maxS, 0, 1),
     wy = v => H - 16 - (H - 44) * clamp(v / maxW, 0, 1);
@@ -280,7 +280,7 @@ function condChart(zone, cfg) {
    <line x1="${P}" x2="${W - P}" y1="${wy(cfg.maxWind)}" y2="${wy(cfg.maxWind)}" stroke="var(--no)" stroke-opacity=".35" stroke-dasharray="2 4"/>
    <path d="${line(wy, h => h.gust)}" fill="none" stroke="var(--no)" stroke-width="1.4" stroke-dasharray="4 3" opacity=".75"/>
    <path d="${line(wy, h => h.wind)}" fill="none" stroke="var(--mid)" stroke-width="2"/>
-   <path d="${line(sy, h => h.swellEff)}" fill="none" stroke="var(--sky)" stroke-width="2.4"/>
+   <path d="${line(sy, h => h.swellChk)}" fill="none" stroke="var(--sky)" stroke-width="2.4"/>
    ${[0, 6, 12, 18].map(hr => label(t0 + hr * HOUR, pad(hr) + ':00')).join('')}
    <text x="${P + 3}" y="${sy(cfg.maxSwell) - 5}" font-size="10" fill="#95b8cd" font-family="Space Grotesk,sans-serif">SWELL LIMIT ${cfg.maxSwell} M</text>
    <text x="${W - P - 3}" y="${wy(cfg.maxWind) - 5}" text-anchor="end" font-size="10" fill="#95b8cd" font-family="Space Grotesk,sans-serif">WIND LIMIT ${cfg.maxWind} KN</text>
@@ -365,7 +365,10 @@ function barCard(zone) {
     worst >= 3 ? 'Bar · stay off it' : 'Bar · wind against tide',
     `<p class="sub">${zone.barWin.map(w => hhmm(w.a) + '–' + hhmm(w.b)).join(', ')} at ${esc(zone.z.ramp.split(',')[0])}.
     A run-out into an onshore breeze stands the bar up regardless of what the swell number says.
-    ${worst >= 3 ? 'Cross before it starts or wait for the flood.' : 'Treat it with respect, and never cross on the last of the run-out into wind.'}</p>`
+    ${worst >= 3 ? 'Plan to stay off the bar through these hours.' : 'Treat it with respect, and never cross on the last of the run-out into wind.'}</p>
+    <p class="sub">Indicative only: worked out from one tide curve off Burnett Heads, not this bar's own tide.
+    Check the <a href="https://www.msq.qld.gov.au/Tides/Tide-tables" target="_blank" rel="noopener">MSQ tide tables</a>
+    and look at the bar before you cross.</p>`
   );
 }
 
@@ -432,9 +435,10 @@ function cautionPanel(day, zone) {
   const [models, modelsVal] = modelsLamp(day);
 
   const rows = [
-    ['Swell', station(hours(h => h.swellEff <= cfg.maxSwell)), span(lo('swell'), hi('swell')) + ' m'],
-    ['Wind', station(hours(h => h.wind <= cfg.maxWind)), span(lo('wind'), hi('wind'), 0) + ' kn'],
-    ['Gusts', station(hours(h => h.gust <= cfg.maxGust)), 'to ' + Math.round(hi('gust')) + ' kn'],
+    ['Swell', station(hours(h => h.swellChk <= cfg.maxSwell)), span(lo('swell'), hi('swell')) + ' m'],
+    // an hour with no wind or gust figure is not inside the limit
+    ['Wind', station(hours(h => !h.gap && h.wind <= cfg.maxWind)), span(lo('wind'), hi('wind'), 0) + ' kn'],
+    ['Gusts', station(hours(h => !h.gap && h.gust <= cfg.maxGust)), 'to ' + Math.round(hi('gust')) + ' kn'],
     [
       'Window',
       zone.win.length ? 'go' : zone.goodHrs ? 'hold' : 'nogo',
@@ -935,6 +939,7 @@ function renderOcean() {
       <div><dt>Gusts</dt><dd class="num">${Math.round(best.gust)} kn</dd></div>
       <div><dt>Close in</dt><dd class="num">${best.swellIn.toFixed(1)} m</dd></div>
       <div><dt>At 20 km</dt><dd class="num">${best.swell20.toFixed(1)} m</dd></div>
+      ${best.swellChkMax - best.swellMax >= 0.05 ? `<div><dt>Counts as</dt><dd class="num">${best.swellChkMax.toFixed(1)} m</dd></div>` : ''}
       ${best.chop >= 0.3 ? `<div><dt>Chop</dt><dd class="num">${best.chop.toFixed(1)} m</dd></div>` : ''}
       ${best.barMax >= 2 ? '<div class="wide"><dt>Bar</dt><dd class="r">Wind against tide</dd></div>' : ''}
     </dl>`;
@@ -991,7 +996,7 @@ function renderOcean() {
               <span class="zb">
                 <span class="t">${esc(z.z.name)}</span>
                 <span class="d">${esc(z.z.ramp)}</span>
-                <span class="tags"><span class="tag ${z.swellEffMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind ? 'ok' : 'bad'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}</span>
+                <span class="tags"><span class="tag ${z.swellChkMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind ? 'ok' : 'bad'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}</span>
               </span>
             </button>`
             )
@@ -1026,7 +1031,8 @@ function renderOcean() {
         <span><i class="bx ok"></i>In limits</span>
         <span><i class="bx st"></i>Storm</span>
       </div>
-      <p class="sub">Swell is weighted for period and read on the left scale, wind and gusts on the
+      <p class="sub">Swell is the figure checked against your limit (weighted for period, never less than
+      the forecast height) and read on the left scale, wind and gusts on the
       right. Dashed lines are your limits; green shading marks every hour that clears all three,
       white hatching any hour with a storm forecast. Figures are the worst of the 10, 15 and 20 km
       points on the bearing you run out on —
@@ -1070,9 +1076,10 @@ function renderOcean() {
           <label>Gusts (kn)<input type="number" inputmode="numeric" min="1" max="80" id="s3" value="${cfg.maxGust}"></label>
         </div>
         <button class="save wide" data-act="saveLimits">Save limits</button>
-        <p class="sub">Swell is weighted for period before it meets your limit, so 0.6 m at
-        5 seconds counts as roughly 0.8 m and 0.6 m at 11 seconds as about 0.5 m. Wind and gusts are compared as
-        forecast — no allowance for shelter.</p>
+        <p class="sub">Short, steep swell counts as more than its height before it meets your limit, so
+        0.6 m at 5 seconds counts as roughly 0.8 m. Long, lazy swell never counts as less than its height:
+        anything over your limit is a no go whatever its period. Wind and gusts are compared as
+        forecast — no allowance for shelter — and an hour with no wind or gust figure counts as outside them.</p>
       </details>
     </div>
   </section>

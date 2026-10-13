@@ -94,6 +94,27 @@ export function fieldGaps(sets, vars) {
   return gaps;
 }
 
+/**
+ * Wind and gusts decide go / no-go hour by hour, so a hole anywhere counts:
+ * the model treats an hour without them as outside the limits, and this says
+ * so on screen ("gusts missing at some hours"). Also catches a reply that
+ * left places out. Empty when every place has every hour.
+ */
+export const HARD_VARS = 'wind_speed_10m,wind_gusts_10m';
+export function fieldHoles(sets, vars = HARD_VARS) {
+  const gaps = [];
+  if (!Array.isArray(sets)) return gaps;
+  if (sets.length !== POINTS.length) gaps.push(`forecast for ${sets.length} of ${POINTS.length} places`);
+  for (const name of vars.split(',')) {
+    const [, label] = FIELDS[name] || [null, name];
+    const series = sets.map(o => pickVar(o && o.hourly, name));
+    if (!series.some(hasData)) continue; // missing everywhere: fieldGaps() already says so
+    if (series.some(a => !Array.isArray(a) || a.some(v => v == null)))
+      gaps.push(label + ' missing at some hours');
+  }
+  return gaps;
+}
+
 /** Sunrise and sunset, which set the fishing hours; without them the app guesses. */
 export const hasSunTimes = sets =>
   Array.isArray(sets) &&
@@ -316,6 +337,7 @@ export async function getData(onProgress = () => {}) {
   // reads a missing figure as zero, so say so rather than let it look calm.
   const gaps = [
     ...fieldGaps(fc.json, FORECAST_VARS),
+    ...fieldHoles(fc.json),
     ...(hasSunTimes(fc.json) ? [] : ['sunrise times missing']),
     ...(wave ? fieldGaps(wave.json, backup ? BACKUP_CHECKED : MARINE_VARS) : [])
   ];

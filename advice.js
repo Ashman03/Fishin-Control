@@ -293,13 +293,15 @@ export function launchNotes(zone, cfg) {
     w = dirOf(zone.wdir);
   if (zone.z.id === 'woodgate' && zone.score >= 48)
     n.push('Walkers Point is the pick today — the top of the bay knocks that ' + w + ' right down.');
-  if (zone.swellEffMax > cfg.maxSwell)
+  if (zone.swellChkMax > cfg.maxSwell)
     n.push(
       'Swell reaches ' +
         zone.swellMax.toFixed(1) +
         ' m' +
         (zone.period ? ' at ' + Math.round(zone.period) + ' s' : '') +
-        ' at its worst, which is over your limit once period is allowed for. Watch the bar and be honest about it.'
+        ' at its worst, which is over your limit' +
+        (zone.swellMax > cfg.maxSwell ? '' : ' once period is allowed for') +
+        '. Watch the bar and be honest about it.'
     );
   if (zone.chop >= 0.5)
     n.push(

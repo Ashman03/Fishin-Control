@@ -66,6 +66,7 @@ export const TUNING = Object.freeze({
   capLowAgreement: 74,
   capLowProbability: 62,
   lowProbability: 35,
+  capNoWindow: 74, // no launch window at the best ramp: never a Go
 
   // agreement thresholds between independent models
   agreeHighWind: 3,

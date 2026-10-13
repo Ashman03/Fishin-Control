@@ -11,6 +11,9 @@
  * The go / no-go rule is `passes()`, and it is the only place the user's
  * limits are compared. The charts, the day score, the windows and the
  * ensemble probability all call it, so they cannot disagree with each other.
+ * An hour with no wind or gust figure (`gap`) never passes, and a forecast
+ * thunderstorm ends a launch window: neither is a limit, so neither lives in
+ * `passes()`, but both apply wherever it does.
  */
 import { ZONES, POINTS, TUNING, REFERENCE_ZONE } from './config.js';
 import {
@@ -59,7 +62,15 @@ export function seaWord(T) {
 /* ── The rule ───────────────────────────────────────────────────────────── */
 
 /**
- * The user's go / no-go rule, exactly as stated: swell (period-weighted)
+ * The swell figure the limit is checked against: weighted for period, so
+ * short, steep swell counts as more than its height, but never counted as
+ * less than the forecast height. Long, lazy swell still breaks hard on a
+ * shallow bar, so anything over the limit is a no go whatever its period.
+ */
+export const swellCheck = (swell, swellEff) => Math.max(swell, swellEff);
+
+/**
+ * The user's go / no-go rule, exactly as stated: swell (as `swellCheck`)
  * at or under the limit, sustained wind at or under the limit, gusts at or
  * under the limit. No discounts for shelter or direction.
  */
@@ -94,7 +105,7 @@ export function hourScore(h, z, cfg) {
   const onshore = inArc(h.wdir, z.exposed);
   if (!onshore) s = Math.min(100, s * (1 + T.leeRankBonus)); // ranking only
   s = Math.max(0, s - softPenalties(h, cfg).total);
-  const ok = passes(h.swellEff, h.wind, h.gust, cfg);
+  const ok = !h.gap && passes(h.swellChk, h.wind, h.gust, cfg);
   return { s: Math.round(ok ? s : Math.min(s, T.breachCap)), ok, onshore };
 }
 
@@ -145,7 +156,14 @@ export function riverScore(c) {
 }
 
 /**
- * Unbroken runs of passing hours inside the fishing hours [from, to], at
+ * Whether an hour can sit inside a launch window: inside the limits, and no
+ * thunderstorm forecast in it or the hour after (zone hour `storm` 2 carries
+ * that buffer). A showery, unstable hour only costs points.
+ */
+export const launchable = h => h.z.ok && h.storm !== 2;
+
+/**
+ * Unbroken runs of launchable hours inside the fishing hours [from, to], at
  * least minWindowHours long. Each hour covers t to t + 1 h; a window never
  * runs past `to`, so the hour that starts at the cut-off adds nothing.
  */
@@ -153,7 +171,7 @@ export function windows(hours, from, to) {
   const out = [];
   let run = null;
   for (const h of hours) {
-    if (h.z.ok && h.t >= from && h.t < to) {
+    if (launchable(h) && h.t >= from && h.t < to) {
       if (!run) run = { a: h.t, b: h.t, ss: [] };
       run.b = new Date(Math.min(+h.t + HOUR, +to));
       run.ss.push(h.z.s);
@@ -225,12 +243,18 @@ export function alignTo(times, block) {
   return times.map(t => at.get(t) ?? -1);
 }
 
-/** One hourly series per sample point, every value read by name (suffix-tolerant). */
+/**
+ * One hourly series per sample point, every value read by name (suffix-tolerant).
+ * A missing wind or gust figure reads as 0 for the charts and sums, but marks
+ * the hour `gap`, and a gap hour never passes: an unknown gust is not a calm
+ * one. A point the forecast left out entirely is all gaps, not a copy of
+ * another point. (A missing swell figure reads as 0 m by the owner's choice.)
+ */
 export function pointSeries(raw) {
   const { fc, mar } = raw;
   const times = fc[0].hourly.time;
   return POINTS.map((p, i) => {
-    const F = (fc[i] && fc[i].hourly) || fc[0].hourly;
+    const F = (fc[i] && fc[i].hourly) || {};
     const own = mar[i] && mar[i].hourly;
     let W = own,
       borrowed = false;
@@ -266,6 +290,7 @@ export function pointSeries(raw) {
     return times.map((t, k) => {
       const m = wAt[k];
       const swell = w.swell[m] ?? w.wave[m] ?? 0;
+      const gap = f.wind[k] == null || f.gust[k] == null;
       const wind = f.wind[k] ?? 0,
         wdir = f.dir[k] ?? 0,
         rain = f.rain[k] ?? 0;
@@ -285,7 +310,8 @@ export function pointSeries(raw) {
         sea: Math.max(w.wave[m] ?? 0, swell),
         sst: w.sst[m] ?? null,
         lvl: lvl[lAt[k]] ?? null,
-        borrowed
+        borrowed,
+        gap
       };
     });
   });
@@ -307,6 +333,7 @@ export function zoneSeries(points, tideDir) {
       const swell = max(out.map(h => h.swell)) * shelter;
       const periods = out.map(h => h.period).filter(v => v != null);
       const period = periods.length ? Math.min(...periods) : null; // the short one is the one that hurts
+      const swellEff = swell * periodFactor(period);
       const td = tideDir[k] || { dir: 0, rate: 0 };
 
       // wind against tide on the bar: a run-out into an onshore breeze
@@ -328,7 +355,8 @@ export function zoneSeries(points, tideDir) {
         wdir: mid.wdir,
         swell,
         period,
-        swellEff: swell * periodFactor(period),
+        swellEff,
+        swellChk: swellCheck(swell, swellEff),
         chop: max(out.map(h => h.chop)),
         sea: max(out.map(h => h.sea)) * shelter,
         sst: mid.sst,
@@ -343,7 +371,8 @@ export function zoneSeries(points, tideDir) {
         stormNow: stormAt(k), // without the buffer: when the storm itself is forecast
         against: max(out.map(h => h.against)),
         rain: inn.rain,
-        pres: inn.pres
+        pres: inn.pres,
+        gap: out.some(h => h.gap) // wind or gust missing at a point that decides go / no-go
       };
     })
   );
@@ -456,7 +485,8 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
    * the limits at this ramp. Members are sampled at the reference point, so
    * each hour is shifted by the deterministic difference between this ramp
    * and the reference point at that same hour. Swell has no ensemble, so the
-   * deterministic swell gate applies to every member.
+   * deterministic swell gate applies to every member, and so do the gap and
+   * thunderstorm rules that end a window.
    */
   function probability(zi, from, to) {
     if (!ens) return null;
@@ -470,7 +500,7 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
       for (const h of zh) {
         const e = member.get(+h.t),
           r = refAt.get(+h.t);
-        if (!e || !r) {
+        if (!e || !r || r.gap) {
           run = 0;
           continue;
         }
@@ -478,7 +508,7 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
         const wind = e.wind + (h.wind - r.wind);
         const gustBase = e.gust ?? e.wind * (r.wind > 0 ? r.gust / r.wind : 1.35);
         const gust = gustBase + (h.gust - r.gust);
-        if (passes(h.swellEff, wind, gust, cfg)) {
+        if (!h.gap && h.storm !== 2 && passes(h.swellChk, wind, gust, cfg)) {
           run++;
           best = Math.max(best, run);
         } else run = 0;
@@ -527,17 +557,24 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
       if (rb) barWin.push(rb);
       const periods = day.map(h => h.period).filter(v => v != null);
       const stormy = day.filter(h => h.stormNow > 0);
+      const win = windows(hours, from, to);
+      // scattered passing hours can rank high, but without a window there is no launch
+      const noWindow = !win.length && score > TUNING.capNoWindow;
+      let capped = noWindow ? TUNING.capNoWindow : score;
+      if (noWaves) capped = Math.min(capped, TUNING.capNoWaves);
       return {
         z,
         hours,
-        win: windows(hours, from, to),
-        score: noWaves ? Math.min(score, TUNING.capNoWaves) : score,
+        win,
+        score: capped,
+        noWindow, // scored high enough to read as a Go, but had no window
         goodHrs,
         barWin,
         prob: probability(zi, from, to),
         swell: min(day.map(h => h.swell)),
         swellMax: max(day.map(h => h.swell)),
         swellEffMax: max(day.map(h => h.swellEff)),
+        swellChkMax: max(day.map(h => h.swellChk)),
         chop: max(day.map(h => h.chop)),
         period: periods.length ? Math.min(...periods) : null,
         wind: mean(day.map(h => h.wind)),
@@ -633,6 +670,11 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
     if (best.prob != null && best.prob < T.lowProbability) {
       overall = Math.min(overall, T.capLowProbability);
       caps.push('most ensemble runs give no window');
+    }
+    // a Go needs somewhere to go: the best ramp must have a launch window
+    if (!best.win.length && (best.noWindow || overall > T.capNoWindow)) {
+      overall = Math.min(overall, T.capNoWindow);
+      caps.push('no ' + T.minWindowHours + '-hour window inside your limits');
     }
 
     return {
