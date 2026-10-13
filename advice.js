@@ -1,7 +1,7 @@
 /**
  * advice.js — turns a scored day into plain-language advice: which sessions
- * to fish, what to throw, and what your own catch log
- * says. Pure: everything comes in as arguments.
+ * to fish, what to throw, and what your own catch log says. Pure: everything
+ * comes in as arguments.
  */
 import { SEASON, RIVER_SEASON, TUNING } from './config.js';
 import { mean, clamp, dirOf, fromNewOrFull, HOUR } from './util.js';

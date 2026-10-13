@@ -33,7 +33,8 @@ export const summaryUrl = () => HISTORY_BASE + 'summary.json';
 export const hoursUrl = ym => HISTORY_BASE + 'hours/' + ym + '.json';
 
 /** The forecast's own lines: Go at or above the first, red below the second. */
-export const [GO_LINE, AMBER_LINE] = LINES.ocean;
+export const GO_LINE = LINES.ocean[0];
+export const AMBER_LINE = LINES.ocean[1];
 
 /** What each stored day row holds, in order. Scaled values are whole numbers. */
 export const DAY_COLS = [
@@ -130,6 +131,13 @@ export function dayHours(d) {
 
 /* ── Reading the stored files ─────────────────────────────────────────── */
 
+/* The files come over the network, so every value is coerced back to what the
+   page expects: a number or null, a time as HH:MM. A damaged file can leave a
+   gap, but can neither break a render nor smuggle markup in. */
+const num = v => (v == null || v === '' || !Number.isFinite(+v) ? null : +v);
+const arr = v => (Array.isArray(v) ? v : []);
+const clock = v => (/^\d\d:\d\d$/.test(v) ? v : null);
+
 /**
  * The stored summary as day objects, oldest first. A row that is missing or
  * the wrong length (a damaged file, or a newer format) is left out rather than
@@ -149,14 +157,18 @@ export function readSummary(json) {
     if (!Array.isArray(row) || row.length !== width) return;
     const ds = addDays(json.first, i);
     const o = { ds, d0: localDate(ds) };
-    DAY_COLS.forEach((k, j) => (o[k] = row[j]));
+    DAY_COLS.forEach((k, j) => (o[k] = num(row[j])));
     o.ramps = ZONES.map((z, zi) => {
       const at = DAY_COLS.length + zi * RAMP_COLS.length;
       const x = { id: z.id };
-      RAMP_COLS.forEach((k, j) => (x[k] = row[at + j]));
-      x.win = x.win == null ? 0 : x.win / 10;
+      RAMP_COLS.forEach((k, j) => (x[k] = num(row[at + j])));
+      x.win = (x.win || 0) / 10;
       return x;
     });
+    // a day without its scores or figures is left out rather than drawn wrong
+    const must = [o.overall, o.river, o.bite, o.moon, o.rain, o.swell];
+    if (must.some(v => v == null) || o.ramps.some(x => [x.score, x.wind, x.gust, x.swellMax].includes(null)))
+      return;
     o.bestId = (ZONES[o.best] || ZONES[0]).id;
     // the best ramp's figures, as the day's own
     const b = o.ramps.find(x => x.id === o.bestId);
@@ -248,24 +260,41 @@ export const yearMonths = (days, year, rampId) =>
  */
 export function rampHours(month, ds, zi) {
   const day = month && month.days && month.days[ds];
-  const z = day && day.z && day.z[zi];
-  if (!z) return null;
-  const [wind, gust, swell, flag, win] = z;
+  const z = day && Array.isArray(day.z) && day.z[zi];
+  if (!Array.isArray(z)) return null;
+  const [wind, gust, swell, flag, win] = z.map(arr);
   const d0 = localDate(ds);
   const hours = [];
   for (let k = 0; k < 24; k++) {
-    if (wind[k] == null) continue;
+    if (num(wind[k]) == null || num(gust[k]) == null) continue;
+    const f = num(flag[k]) || 0;
     hours.push({
       t: new Date(+d0 + k * HOUR),
-      wind: wind[k],
-      gust: gust[k],
-      swellChk: (swell[k] || 0) / 100,
-      stormNow: flag[k] >> 1,
-      z: { ok: (flag[k] & 1) === 1 }
+      wind: num(wind[k]),
+      gust: num(gust[k]),
+      swellChk: (num(swell[k]) || 0) / 100,
+      stormNow: (f >> 1) & 3,
+      z: { ok: (f & 1) === 1 }
     });
   }
+  if (!hours.length) return null;
   return {
     hours,
-    win: (win || []).map(([a, b]) => ({ a: new Date(+d0 + a * 6e4), b: new Date(+d0 + b * 6e4) }))
+    win: win
+      .filter(w => Array.isArray(w) && num(w[0]) != null && num(w[1]) != null)
+      .map(([a, b]) => ({ a: new Date(+d0 + a * 6e4), b: new Date(+d0 + b * 6e4) }))
+  };
+}
+
+/** Sunrise, sunset and the tide turns stored for a day, checked; null when not stored. */
+export function dayTides(month, ds) {
+  const day = month && month.days && month.days[ds];
+  if (!day) return null;
+  return {
+    sr: clock(day.sr),
+    ss: clock(day.ss),
+    tides: arr(day.tides)
+      .filter(t => Array.isArray(t) && clock(t[0]) && num(t[1]) != null)
+      .map(([t, v, hi]) => ({ t, v: num(v) / 100, hi: !!hi }))
   };
 }

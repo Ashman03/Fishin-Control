@@ -39,6 +39,7 @@ export const state = {
     cached: false, // the phone's saved copy, not a fresh one
     first: null,
     last: null,
+    at: 0, // when the summary was fetched
     months: {} // YYYY-MM → hours file, 'loading' or 'error'
   },
   loadSeq: 0 // guards against an older refresh overwriting a newer one

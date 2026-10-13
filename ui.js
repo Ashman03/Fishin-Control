@@ -33,6 +33,7 @@ import {
   hoursUrl,
   readSummary,
   rampHours,
+  dayTides,
   rampOf,
   scoreOf,
   tally,
@@ -1261,6 +1262,7 @@ function logRow(e, del = true) {
 /* ── Flight log: the last three years ─────────────────────────────────── */
 
 const DATA_CACHE = 'fishin-data'; // the service worker's store for fetched data (DATA in sw.js)
+const HISTORY_STALE_MS = 6 * HOUR;
 
 /**
  * The stored history, fetched the first time the tab opens in a session.
@@ -1276,9 +1278,19 @@ export async function loadHistory() {
     data.byDs = new Map(data.days.map(d => [d.ds, d]));
     const first = data.days[0].ds,
       last = data.days[data.days.length - 1].ds;
-    Object.assign(h, { status: 'ready', data, error: null, cached: !!res.cached, first, last });
+    Object.assign(h, {
+      status: 'ready',
+      data,
+      error: null,
+      cached: !!res.cached,
+      first,
+      last,
+      at: Date.now()
+    });
     if (!h.ds || h.ds > last || h.ds < first) h.ds = last;
     forgetOldMonths(first);
+  } else if (h.data) {
+    h.status = 'ready'; // a failed top-up keeps what is already showing
   } else {
     h.status = 'error';
     h.error = res.ok ? 'the history file could not be read' : res.error;
@@ -1439,7 +1451,7 @@ function histDay(d, rampId) {
   const zi = ZONES.findIndex(z => z.id === zid);
   const ready = month && typeof month === 'object';
   const zh = ready ? rampHours(month, d.ds, zi) : null;
-  const day = ready ? month.days[d.ds] : null;
+  const day = ready ? dayTides(month, d.ds) : null;
   const f = rampOf(d, rampId);
   const score = scoreOf(d, rampId);
   const word = pastWord(score, rampId, d.river);
@@ -1484,7 +1496,13 @@ function histDay(d, rampId) {
           <span><i class="bx ok"></i>In limits</span>
           <span><i class="bx st"></i>Storm</span>
         </div>`
-          : `<p class="sub">${month === 'error' ? 'The hours for this day could not be loaded. <button class="hlink" data-act="histRetry">Try again</button>' : 'Loading the hours…'}</p>`
+          : `<p class="sub">${
+              month === 'error'
+                ? 'The hours for this day could not be loaded. <button class="hlink" data-act="histRetry">Try again</button>'
+                : ready
+                  ? 'No hours are stored for this day.'
+                  : 'Loading the hours…'
+            }</p>`
       }</div>
     </section></div>
 
@@ -1507,14 +1525,14 @@ function histDay(d, rampId) {
         <div class="kv">
           <div><div class="k">Range</div><div class="v num">${d.range != null ? (d.range / 100).toFixed(1) + ' m' : '—'}</div></div>
           <div><div class="k">Moon</div><div class="v small">${moonPhase(d.moon / 100)}</div></div>
-          <div><div class="k">Sunrise</div><div class="v num">${day ? day.sr : '—'}</div></div>
-          <div><div class="k">Sunset</div><div class="v num">${day ? day.ss : '—'}</div></div>
+          <div><div class="k">Sunrise</div><div class="v num">${(day && day.sr) || '—'}</div></div>
+          <div><div class="k">Sunset</div><div class="v num">${(day && day.ss) || '—'}</div></div>
           <div><div class="k">Water</div><div class="v num">${d.sst != null ? (d.sst / 10).toFixed(1) + '°' : '—'}</div></div>
           <div><div class="k">Rain</div><div class="v num">${(d.rain / 10).toFixed(1)} mm</div></div>
           <div><div class="k">Rivers</div><div class="v num" style="color:${light(d.river, LINES.river)}">${d.river}</div></div>
           <div><div class="k">Bite</div><div class="v num" style="color:${light(d.bite, LINES.bite)}">${d.bite}</div></div>
         </div>
-        ${day && day.tides.length ? `<p class="sub">${day.tides.map(([t, v, hi]) => `${hi ? 'High' : 'Low'} ${t} · ${(v / 100).toFixed(1)} m`).join('&ensp;')}</p>` : ''}
+        ${day && day.tides.length ? `<p class="sub">${day.tides.map(t => `${t.hi ? 'High' : 'Low'} ${t.t} · ${t.v.toFixed(1)} m`).join('&ensp;')}</p>` : ''}
       </div>
     </section>
 
@@ -1891,6 +1909,10 @@ export const ACTIONS = {
   },
   tab(el) {
     state.tab = el.dataset.tab;
+    // a new day lands each morning: an app left open picks it up on the next visit
+    const h = state.hist;
+    if (state.tab === 'history' && h.status === 'ready' && Date.now() - h.at > HISTORY_STALE_MS)
+      loadHistory();
     render();
     scrollTop();
   },

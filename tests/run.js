@@ -2785,6 +2785,37 @@ await describe('flight log', async () => {
     assert(s.days.length === 2 && s.days[1].ds === '2026-01-04', 'short and empty rows are skipped');
     assert(row.length === width, 'row width');
   });
+  await it('values from the network are coerced: markup in a stored file never reaches the page', () => {
+    const row = summaryJson.days[0].slice();
+    row[0] = '<img src=x onerror=alert(1)>';
+    assert(
+      history.readSummary({ v: 1, first: '2026-01-01', days: [row] }).days.length === 0,
+      'damaged row kept'
+    );
+    const good = summaryJson.days[0].slice();
+    good[5] = '<b>'; // tide range: optional, so it reads as missing
+    assert(history.readSummary({ v: 1, first: '2026-01-01', days: [good] }).days[0].range === null);
+    const month = {
+      days: {
+        '2026-01-01': {
+          sr: '<script>',
+          ss: '18:01',
+          tides: [
+            ['<i>', 100, 1],
+            ['03:10', 'x', 0],
+            ['09:40', 120, 1]
+          ],
+          z: [[['<b>'], [], [], [], [['<x>', 9]]]]
+        }
+      }
+    };
+    const t = history.dayTides(month, '2026-01-01');
+    assert(
+      t.sr === null && t.ss === '18:01' && t.tides.length === 1 && t.tides[0].t === '09:40',
+      JSON.stringify(t)
+    );
+    assert(history.rampHours(month, '2026-01-01', 0) === null, 'hours with no figures');
+  });
   await it('three years is the most kept: a merge drops the oldest days', () => {
     const row = summaryJson.days[0];
     const rows = new Map();
@@ -2925,6 +2956,31 @@ await describe('flight log', async () => {
     );
     assert(!/data-act="delLog"/.test(html), 'no delete button in the Flight log');
     state.log = state.log.slice(0, n);
+  });
+  await it('a day stored without its hours says so, rather than loading for ever', async () => {
+    const ym = '2026-08';
+    state.hist.months[ym] = { v: 1, days: {} };
+    ui.ACTIONS.histDay({ dataset: { id: ym + '-04' } });
+    assert(/No hours are stored for this day/.test(nodes.app.innerHTML), 'stuck on loading');
+    delete state.hist.months[ym];
+  });
+  await it('an app left open fetches the new days when the Flight log is next opened', async () => {
+    const summaries = () => served.filter(u => u === history.summaryUrl()).length;
+    const before = summaries();
+    ui.ACTIONS.tab({ dataset: { tab: 'plan' } });
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(summaries() === before, 'refetched while fresh');
+    state.hist.at = Date.now() - 7 * util.HOUR;
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(summaries() === before + 1 && state.hist.status === 'ready', 'not refreshed');
+    serve(true);
+    state.hist.at = 0;
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(state.hist.status === 'ready' && state.hist.data, 'a failed top-up keeps what was showing');
+    serve();
   });
   await it('without a connection or a saved copy, the Flight log says so and can try again', async () => {
     Object.assign(state.hist, { status: 'idle', data: null, months: {} });
