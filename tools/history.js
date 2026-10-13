@@ -57,6 +57,8 @@ const BUDGET_MS = 30 * 60000;
 const STALE_DAYS = 3;
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+/** Progress lines on the workflow's log; quiet in the tests. */
+let say = () => {};
 const query = o =>
   Object.entries(o)
     .filter(([, v]) => v != null)
@@ -108,7 +110,11 @@ async function request(url, fetcher, { tries = 3, wait = 60000 } = {}) {
   let res;
   for (let i = 0; i < tries; i++) {
     if (i) await sleep(wait * i);
+    const t0 = Date.now();
     res = await fetcher(url);
+    say(
+      `  ${new URL(url).hostname.split('.')[0]}: ${res.ok ? 'ok' : res.status + ' ' + (res.error || '')} in ${((Date.now() - t0) / 1000).toFixed(1)} s`
+    );
     if (res.ok || (res.status !== 0 && res.status !== 429 && res.status < 500)) return res;
   }
   return res;
@@ -274,7 +280,11 @@ export async function updateHistory({
       break;
     }
     if (i && pause) await sleep(pause);
+    say(`${ym} (${dates.length} days)`);
     const got = await fetchDays(dates, fetcher ? { fetcher, wait } : { wait });
+    say(
+      got.error ? '  not stored: ' + got.error : `  stored ${got.rows.size} days, ${got.gaps.length} left out`
+    );
     if (got.error) {
       report.errors.push(ym + ' — ' + got.error);
       if (got.busy) {
@@ -366,6 +376,7 @@ export function describeReport(r) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.env.TZ = TZ;
+  say = (...a) => console.log(...a);
   const arg = (name, d) => {
     const i = process.argv.indexOf('--' + name);
     return i > 0 ? process.argv[i + 1] : d;
