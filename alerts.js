@@ -12,9 +12,9 @@
  * Shared state lives in Cache Storage (readable by both page and worker,
  * unlike localStorage), in a cache whose name never changes between versions.
  */
-import { hhmm } from './util.js';
+import { hhmm, LINES } from './util.js';
 
-export const GO_SCORE = 70; // a day scoring this or more is a go day for alerts (the tank turns green at 75)
+export const GO_SCORE = LINES.ocean[0]; // alert on the same days the app calls Go (75 or more)
 export const SYNC_TAG = 'fc-go-check';
 export const SYNC_INTERVAL_MS = 6 * 36e5;
 export const STATE_CACHE = 'fishin-state';

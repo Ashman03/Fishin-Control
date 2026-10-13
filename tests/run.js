@@ -1008,12 +1008,12 @@ await describe('alerts', async () => {
     past: false,
     zones: [{ z: { name: 'Elliott Heads' }, win: [] }]
   });
-  await it('a go day for alerts is one scoring 70 or more', () =>
+  await it('a go day for alerts is one the app calls Go: 75 or more, not 70', () =>
     assert(
       al
-        .goDays([day('a', 69), day('b', 70), day('c', 88)])
+        .goDays([day('a', 70), day('b', 74), day('c', 75), day('d', 88)])
         .map(d => d.ds)
-        .join() === 'b,c'
+        .join() === 'c,d'
     ));
   await it('first run records a baseline and alerts nothing', () =>
     assert(al.newlyGo(null, [{ ds: 'x' }]).length === 0));
@@ -1779,7 +1779,7 @@ await describe('ui', async () => {
     assert(/bottom: calc\(var\(--line-go[,)]/.test(css), 'green dashed line is fixed');
     assert(/bottom: calc\(var\(--line-amber[,)]/.test(css), 'amber dashed line is fixed');
   });
-  await it('the alerts panel says what sets off an alert, not a colour', () => {
+  await it('the alerts panel says alerts come on Go days, 75 or more', () => {
     for (const alerts of [
       { on: false, mode: null },
       { on: true, mode: 'background' }
@@ -1788,10 +1788,32 @@ await describe('ui', async () => {
       Object.assign(state, { tab: 'plan', view: 'ocean' });
       ui.render();
       const html = nodes.app.innerHTML;
-      assert(!/turns green/.test(html), 'still says "turns green"');
-      assert(html.includes('70 or more'), 'does not say 70 or more');
+      assert(!/turns green|70 or more/.test(html), 'old wording');
+      assert(html.includes('turns Go (75 or more)'), 'does not say Go, 75 or more');
     }
     state.alerts = { on: false, mode: null };
+  });
+  await it('tapping a day keeps the page where it is, with the tapped day under the finger', () => {
+    const calls = [];
+    const saved = { scrollTo: window.scrollTo, scrollBy: window.scrollBy, qs: nodes.app.querySelector };
+    window.scrollTo = (...a) => calls.push(['to', ...a]);
+    window.scrollBy = (x, y) => calls.push(['by', x, y]);
+    // the week sits 300 px down the screen before the tap, and 340 px after the
+    // page above it is redrawn a little taller for the new day
+    nodes.app.querySelector = sel =>
+      sel === '.day[data-i="2"]' ? { getBoundingClientRect: () => ({ top: 340 }) } : null;
+    Object.assign(state, { tab: 'plan', view: 'ocean', sel: 0 });
+    ui.ACTIONS.day({ dataset: { i: '2' }, getBoundingClientRect: () => ({ top: 300 }) });
+    assert(state.sel === 2, 'day not selected');
+    assert(!calls.some(c => c[0] === 'to'), 'jumped: ' + JSON.stringify(calls));
+    assert(
+      JSON.stringify(calls) === '[["by",0,40]]',
+      'did not hold the day in place: ' + JSON.stringify(calls)
+    );
+    Object.assign(window, { scrollTo: saved.scrollTo, scrollBy: saved.scrollBy });
+    if (saved.qs) nodes.app.querySelector = saved.qs;
+    else delete nodes.app.querySelector;
+    state.sel = 0;
   });
   await it('loading screen: the feeds line is GO only when every source answered live', () => {
     const st = (...oks) => oks.map(ok => ({ label: 'x', role: 'y', ok }));

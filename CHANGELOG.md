@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.0.3
+
+- **Tapping a day in the 7-day telemetry keeps you where you are.** It used to scroll
+  back to the top of the page. The tapped day now stays under your finger, so you can
+  scroll up to the call or down to the chart from there.
+- **Go-day alerts now come on Go days only (75 or more),** the same days the app calls Go.
+  They used to come from 70, so a "Worth a look" day could send "Go for launch". The
+  alerts panel says so. Scores, limits and the GO / NO GO calls are unchanged.
+- Tests: 199.
+
 ## 6.0.2
 
 Colours now match the words beside them. GO / NO GO calls, scores, limits and fishing
