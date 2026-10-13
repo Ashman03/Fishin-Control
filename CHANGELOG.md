@@ -12,7 +12,7 @@ the headings and their order differ.
   **Caution and advisory panel** on both pages. The chart heading
   "Launch control · chart" is now just **Launch control**. Screen readers hear the new
   names too.
-- **The loading screen now reads "Mission Control · Wide Bay"** under the name, instead
+- **The loading screen now reads "Wide Bay"** under the name, instead
   of "Launch control · Bundaberg coast".
 - **The 7-day forecast sits straight under the daily score,** where the launch poll was,
   and the Caution and advisory panel follows it, on the Ocean and Rivers pages. On a wide
