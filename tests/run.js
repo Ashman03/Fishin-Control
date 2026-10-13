@@ -2197,14 +2197,29 @@ await describe('ui', async () => {
       ui.render();
       const html = nodes.app.innerHTML;
       const row = html.match(/data-st="(\w+)">\s*<span class="adv-k">Models</);
-      const ens = html.match(/<em style="color:([^"]+)">\d+%<\/em>/);
       const check = html.match(/<p class="sub"><b style="color:([^"]+)">\d+%<\/b>/);
       assert(row && row[1] === lamp, prob + ': lamp ' + (row && row[1]));
-      assert(ens && ens[1] === colour, prob + ': ensemble ' + (ens && ens[1]));
       assert(check && check[1] === colour, prob + ': pre-launch checks ' + (check && check[1]));
     }
     Object.assign(d, { prob: saved.prob, ensembleMembers: saved.members });
     d.agree.level = saved.level;
+  });
+  await it('the top card is a summary: the ensemble figure sits in the pre-launch checks, not the hero', () => {
+    const d = state.days[0],
+      saved = { prob: d.prob, members: d.ensembleMembers };
+    Object.assign(state, { tab: 'plan', view: 'ocean', sel: 0 });
+    d.ensembleMembers = d.ensembleMembers || 30;
+    d.prob = 11;
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const hero = html.slice(html.indexOf('class="panel hero"'), html.indexOf('class="panel week"'));
+    assert(!/Ensemble|class="ens"|class="segs"/.test(hero), 'ensemble row still in the top card');
+    const checks = html.slice(html.indexOf('class="checks"'));
+    assert(
+      /<b style="color:[^"]+">11%<\/b> of \d+ ensemble/.test(checks),
+      'figure missing from the pre-launch checks'
+    );
+    Object.assign(d, { prob: saved.prob, ensembleMembers: saved.members });
   });
   await it('the verdict words change at their own scores: ocean 75 / 58 / 42, river 70 / 55 / 40', () => {
     for (const [s, word] of [
@@ -2236,7 +2251,7 @@ await describe('ui', async () => {
     ui.render();
     let html = nodes.app.innerHTML;
     assert(/data-st="hold">\s*<span class="adv-k">Models</.test(html), 'lamp should be HOLD');
-    assert(/<em style="color:var\(--mid\)">80%<\/em>/.test(html), 'ensemble % not amber with its HOLD lamp');
+    assert(/<b style="color:var\(--mid\)">80%<\/b>/.test(html), 'ensemble % not amber with its HOLD lamp');
     // the pre-launch words switch at the same 35% line as the lamp
     d.agree.level = 'high';
     d.prob = 37;
