@@ -14,8 +14,6 @@ on:
   schedule:
     - cron: '37 20 * * *' # 6:37 am in Queensland, once yesterday is complete
   workflow_dispatch:
-  push: # TEMPORARY: a first run from the feature branch, removed before merge
-    branches: [claude/project-thread-57r1a3]
 
 permissions:
   contents: write
@@ -56,8 +54,12 @@ jobs:
             echo "Could not check for the $BRANCH branch (exit $found)"; exit 1
           fi
 
+      # IPv4 first: on the runners about half the first requests to Open-Meteo
+      # never connect (they time out after 10.5 s); a retry goes through.
       - name: Add the missing days
         id: update
+        env:
+          NODE_OPTIONS: --dns-result-order=ipv4first
         run: node tools/history.js --dir data --report report.md --outputs "$GITHUB_OUTPUT"
 
       - name: Show the report on the run page

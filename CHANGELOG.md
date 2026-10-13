@@ -19,7 +19,7 @@
     10 kn, 12 kn, a 2-hour window), from Open-Meteo's archive of the same forecast
     models. Three years at most is kept.
   - Light on the phone: the forecast loads nothing extra. The Flight log fetches one
-    small file (about 115 KB, 16 KB over the network) when its tab opens, and an
+    small file (about 115 KB, about 35 KB over the network) when its tab opens, and an
     hour-by-hour month (about 45 KB) only when a day is opened; the phone keeps a copy
     for offline. The files are built each morning on GitHub (`history-data` branch), so
     the live site is never touched by the daily update.
@@ -34,7 +34,7 @@
   run carries on. It never saves over the stored years when it ends with far fewer
   days, or when it could not check for them, and a run that falls behind shows red on
   GitHub.
-- Tests: 257.
+- Tests: 258.
 
 ## 6.2.1
 

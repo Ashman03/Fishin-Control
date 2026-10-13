@@ -2824,7 +2824,7 @@ await describe('flight log', async () => {
     let n = 0;
     const busy = async url => (++n > 2 ? { ok: false, status: 429, error: 'busy' } : ok.fetcher(url));
     const r = await tool.updateHistory({ dir: d6, today: '2026-10-14', fetcher: busy, pause: 0, wait: 0 });
-    assert(r.months === 1 && n === 5, 'carried on after a 429: ' + n + ' requests'); // two, then three tries
+    assert(r.months === 1 && n === 6, 'carried on after a 429: ' + n + ' requests'); // two, then four tries
     assert(r.left === 36 && /limiting requests/.test(tool.describeReport(r)), JSON.stringify(r));
     assert(r.save && fs.existsSync(path.join(d6, 'summary.json')), 'the first month was not kept');
     const slow = await tool.updateHistory({

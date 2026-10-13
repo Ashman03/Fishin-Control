@@ -111,7 +111,7 @@ const hasWaves = sets =>
  * after a few seconds: on GitHub's runners the first request after a pause
  * often fails that way and the next one goes straight through.
  */
-async function request(url, fetcher, { tries = 3, wait = 60000, quick = 3000 } = {}) {
+async function request(url, fetcher, { tries = 4, wait = 60000, quick = 3000 } = {}) {
   let res;
   for (let i = 0; i < tries; i++) {
     if (i) await sleep(res.status === 0 ? quick : wait * i);
