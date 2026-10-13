@@ -23,11 +23,16 @@ Scores, limits and fishing logic are unchanged.
   an issue on the repository and GitHub emails you. It closes the issue itself once
   things are back to normal. A busy or briefly down service does not raise an alert.
 
+**Fixes**
+
+- The Willyweather Burnett Heads tide link had moved (the first run of the new check
+  found it). It now points to the current page.
+
 **Tests**
 
-- 179 tests (15 new): the app flagging a dropped field, new units, missing tide heights
-  and sunrise times, the backup wave model not being faulted for what it was never asked
-  for, the warning on screen, and the daily check telling a change from an outage.
+- 181 tests (17 new): the app flagging a dropped field, new units, missing tide heights
+  and sunrise times, the backup wave model not being faulted for what it has never sent,
+  the warning on screen, and the daily check telling a change from an outage.
 
 ## 6.0.0
 

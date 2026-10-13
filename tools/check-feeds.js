@@ -37,7 +37,8 @@ import {
   parseEnsemble,
   FORECAST_VARS,
   MARINE_VARS,
-  WAVE_VARS
+  WAVE_VARS,
+  BACKUP_CHECKED
 } from '../data.js';
 import { CLOSURES_SOURCE, CLOSURES_CHECKED, CRFF_LAST_YEAR } from '../closures.js';
 import { pickVar, hasData } from '../util.js';
@@ -122,7 +123,7 @@ export async function checkOpenMeteo({ now = Date.now(), wait } = {}) {
     {
       source: `Backup swell model (${MODELS.waveFallback})`,
       url: marineUrl(MODELS.waveFallback, { vars: WAVE_VARS }),
-      check: sets => fieldGaps(sets, WAVE_VARS)
+      check: sets => fieldGaps(sets, BACKUP_CHECKED)
     },
     ...MODELS.windCheck.map(model => ({
       source: `Wind cross-check (${model})`,
@@ -183,7 +184,12 @@ async function page(url) {
     const r = await fetch(url, {
       signal: ac.signal,
       redirect: 'follow',
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; FishinControl feed check)', accept: 'text/html' }
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+        accept: 'text/html,application/xhtml+xml',
+        'accept-language': 'en-AU,en;q=0.9'
+      }
     });
     return { status: r.status, text: r.ok ? await r.text() : '' };
   } catch (e) {

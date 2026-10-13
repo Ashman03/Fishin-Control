@@ -263,10 +263,7 @@ export const SOURCES = [
   ['BOM radar', 'https://www.bom.gov.au/australia/radar/'],
   ['Windy', 'https://www.windy.com/-Waves-waves?waves,-24.800,152.400,9'],
   ['MSQ tide tables', 'https://www.msq.qld.gov.au/Tides/Tide-tables'],
-  [
-    'Willyweather Burnett Heads',
-    'https://tides.willyweather.com.au/qld/wide-bay-and-burnett/burnett-heads.html'
-  ],
+  ['Willyweather Burnett Heads', 'https://tides.willyweather.com.au/qld/wide-bay/burnett-heads.html'],
   ['Seabreeze Bundaberg', 'https://www.seabreeze.com.au/weather/wind-forecast/bundaberg'],
   ['Tackle World Bundaberg', 'https://tackleworldbundy.com.au/'],
   ['Fishing report (Bundaberg Now)', 'https://www.bundabergnow.com/?s=fishing+report'],

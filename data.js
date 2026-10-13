@@ -33,6 +33,9 @@ export const FORECAST_VARS =
 // model without currents or sea temperature can't turn a swell rescue into an error.
 export const WAVE_VARS =
   'wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_level_height_msl';
+// What the backup wave model is held to. NOAA GFS-Wave has never sent tide
+// heights, so their absence there is expected, not a change worth a warning.
+export const BACKUP_CHECKED = WAVE_VARS.replace(',sea_level_height_msl', '');
 // ocean_current_* include the tidal stream (direction is where the water is going)
 export const MARINE_VARS =
   'wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,' +
@@ -314,7 +317,7 @@ export async function getData(onProgress = () => {}) {
   const gaps = [
     ...fieldGaps(fc.json, FORECAST_VARS),
     ...(hasSunTimes(fc.json) ? [] : ['sunrise times missing']),
-    ...(wave ? fieldGaps(wave.json, backup ? WAVE_VARS : MARINE_VARS) : [])
+    ...(wave ? fieldGaps(wave.json, backup ? BACKUP_CHECKED : MARINE_VARS) : [])
   ];
   record(
     'Forecast details',

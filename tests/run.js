@@ -387,6 +387,18 @@ await describe('data', async () => {
     assert(row && row.ok && raw.gaps.length === 0, JSON.stringify(row));
   });
 
+  await it('the backup wave model is not faulted for tide heights it has never sent', async () => {
+    const s = data.sampleData();
+    globalThis.fetch = async url => {
+      const best = url.includes('marine-api') && !url.includes('models=');
+      return best
+        ? refuse(503, '')
+        : ok(url.includes('marine-api') ? drop(s.mar, 'sea_level_height_msl') : answer(s, url));
+    };
+    const raw = await data.getData();
+    assert(raw.gaps.length === 0, raw.gaps.join());
+  });
+
   await it('the backup wave model is not faulted for the currents it was never asked for', async () => {
     const s = data.sampleData();
     const waves = drop(drop(s.mar, 'ocean_current_velocity'), 'sea_surface_temperature');
@@ -459,6 +471,16 @@ await describe('feed check', async () => {
     assert(k[`Wind ensemble (${MODELS.ensemble[0]})`] === 'changed', JSON.stringify(k));
     assert(k[`Wind cross-check (${MODELS.windCheck[0]})`] === 'outage', JSON.stringify(k));
     assert(busy === 3, 'a busy service is tried three times, got ' + busy);
+  });
+
+  await it('the backup swell model is not faulted for tide heights it has never sent', async () => {
+    globalThis.fetch = serve(url =>
+      url.includes('models=' + MODELS.waveFallback) && url.includes('sea_level')
+        ? { ...http(200), ok: true, json: async () => strip(s.mar, 'sea_level_height_msl') }
+        : null
+    );
+    const f = (await feeds.checkOpenMeteo({ wait: 0 })).find(x => x.source.startsWith('Backup swell'));
+    assert(f.kind === 'ok', JSON.stringify(f));
   });
 
   await it('a field dropped from an answer that is otherwise fine is a change', async () => {
