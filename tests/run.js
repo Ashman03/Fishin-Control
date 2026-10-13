@@ -1678,6 +1678,10 @@ await describe('ui', async () => {
     state.view = 'ocean';
     const splash = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     assert(/<div class="splash-tag">Wide Bay<\/div>/.test(splash), 'loading screen tagline');
+    // one name for the area everywhere: header and tab title match the loading screen
+    assert(/<h1 class="mark">Fishin' Control<span>Wide Bay<\/span><\/h1>/.test(splash), 'header subtitle');
+    assert(/<title>[^<]*Wide Bay<\/title>/.test(splash), 'tab title');
+    assert(!/Bundaberg coast/i.test(splash), 'Bundaberg coast still on the page');
     for (const f of [
       'index.html',
       'manifest.json',

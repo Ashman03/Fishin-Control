@@ -11,7 +11,7 @@
  * moving a sample point changes the forecast as surely as changing a weight.
  */
 
-export const APP_VERSION = '6.1.0';
+export const APP_VERSION = '6.1.1';
 export const TZ = 'Australia/Brisbane';
 
 /** The user's go / no-go limits. Swell is swell height, as BOM reports it. */
