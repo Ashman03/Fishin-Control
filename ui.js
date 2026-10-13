@@ -52,6 +52,7 @@ import {
   isoDay,
   span,
   fromNewOrFull,
+  circularMean,
   HOUR,
   DAY
 } from './util.js';
@@ -412,6 +413,46 @@ const sourceLink = ([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${
 const STATUS = { go: 'GO', hold: 'HOLD', nogo: 'NO GO' };
 
 /**
+ * The hours a ramp's figures describe: its first launch window if it has one,
+ * otherwise the whole of the fishing day. The caution panel and the launch
+ * sites list both use it, so the two never quote different stretches of the
+ * day (6.2.0 showed the window's 3–8 kn in the panel beside the day's
+ * 11–21 kn in red on the same ramp).
+ */
+export function figureHours(day, zone) {
+  const w = zone.win[0];
+  const hrs = w
+    ? zone.hours.filter(h => h.t >= w.a && h.t < w.b)
+    : zone.hours.filter(h => h.t >= day.from && h.t <= day.to);
+  return { w, hrs: hrs.length ? hrs : zone.hours };
+}
+
+/** The launch sites list's tags for one ramp, from the same hours as its caution panel. */
+export function rampTags(day, z, cfg) {
+  const { w, hrs } = figureHours(day, z);
+  const lo = k => Math.min(...hrs.map(h => h[k])),
+    hi = k => Math.max(...hrs.map(h => h[k]));
+  const gap = hrs.some(h => h.gap);
+  const tag = (ok, txt) => `<span class="tag ${ok ? 'ok' : 'bad'}">${txt}</span>`;
+  const dir = dirOf(
+    circularMean(
+      hrs.map(h => h.wdir),
+      hrs.map(h => h.wind)
+    )
+  );
+  return (
+    tag(hi('swellChk') <= cfg.maxSwell, 'swell ' + span(lo('swell'), hi('swell')) + ' m') +
+    tag(!gap && hi('wind') <= cfg.maxWind, span(lo('wind'), hi('wind'), 0) + ' kn ' + dir) +
+    tag(!gap && hi('gust') <= cfg.maxGust, 'gusts ' + Math.round(hi('gust'))) +
+    (w
+      ? `<span class="tag ok">window ${hhmm(w.a)}–${hhmm(w.b)}</span>`
+      : `<span class="tag">${z.goodHrs} h ok · no window</span>`) +
+    (z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : '') +
+    (z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : '')
+  );
+}
+
+/**
  * The caution and advisory panel for one ramp on one day. Each station reads GO when its
  * own limit holds for at least a full window of daylight, HOLD when it holds
  * for some of it, NO GO when it never does.
@@ -427,8 +468,7 @@ function cautionPanel(day, zone) {
   // there is one, otherwise the whole of daylight. Windows run on whole hours,
   // so the window reads 06–18 to fit a phone-width column. A day's peak gust beside a
   // GO for the window reads as a contradiction.
-  const w = zone.win[0];
-  const inWin = w ? zone.hours.filter(h => h.t >= w.a && h.t < w.b) : daylight;
+  const { w, hrs: inWin } = figureHours(day, zone);
   const lo = k => Math.min(...inWin.map(h => h[k])),
     hi = k => Math.max(...inWin.map(h => h[k]));
 
@@ -996,7 +1036,7 @@ function renderOcean() {
               <span class="zb">
                 <span class="t">${esc(z.z.name)}</span>
                 <span class="d">${esc(z.z.ramp)}</span>
-                <span class="tags"><span class="tag ${z.swellChkMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind && !z.gapHrs ? 'ok' : 'bad'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust && !z.gapHrs ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}</span>
+                <span class="tags">${rampTags(day, z, cfg)}</span>
               </span>
             </button>`
             )

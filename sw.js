@@ -34,7 +34,7 @@ import {
   STATE_CACHE
 } from './alerts.js';
 
-const VERSION = 'v6.2.0';
+const VERSION = 'v6.2.1';
 const SHELL = 'fishin-shell-' + VERSION;
 const DATA = 'fishin-data';
 
