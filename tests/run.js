@@ -1711,6 +1711,54 @@ await describe('ui', async () => {
       .join(' · ');
     assert(tally === want, tally + ' vs ' + want);
   });
+  await it('the ocean panel is an annunciator: a bezel with four screws, its heading on the bezel', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const annun = html.slice(html.indexOf('<div class="annun">'), html.indexOf('class="pills"'));
+    assert(annun.length > 0 && html.includes('<div class="annun">'), 'no bezel');
+    assert(
+      (annun.match(/class="screw (tl|tr|bl|br)" aria-hidden="true"/g) || []).length === 4,
+      'four screws'
+    );
+    assert(/<h2 class="sect">Caution and advisory panel/.test(annun), 'heading inside the bezel');
+    assert((annun.match(/class="adv-row"/g) || []).length === 8, 'eight keys inside the bezel');
+    // the rivers list stays a list, without the bezel
+    state.view = 'river';
+    ui.render();
+    assert(!nodes.app.innerHTML.includes('class="annun"'), 'river panel in a bezel');
+    state.view = 'ocean';
+  });
+  await it('each key reads call, then station large, then figure', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const rule = sel => css.match(new RegExp(sel.replace(/\./g, '\\.') + ' \\{([^}]*)\\}'))[1];
+    const order = sel => +rule(sel).match(/order: (\d)/)[1];
+    const size = sel => parseFloat(rule(sel).match(/font-size: ([\d.]+)px/)[1]);
+    assert(order('.adv.tiles .adv-s') < order('.adv.tiles .adv-k'), 'call above the station');
+    assert(order('.adv.tiles .adv-k') < order('.adv.tiles .adv-v'), 'figure under the station');
+    assert(size('.adv.tiles .adv-k') > size('.adv.tiles .adv-s') + 6, 'station is the big word');
+    assert(size('.adv.tiles .adv-s') >= 12 && size('.adv.tiles .adv-v') >= 12, 'small text stays readable');
+    assert(!/-webkit-text-stroke|text-stroke/.test(css), 'no outlined text');
+  });
+  await it('on a wide screen the ocean panel sits straight under the score and chart, sites beside it', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const areas = [...css.matchAll(/\.deck\.ocean \{[^}]*grid-template-areas: ([^;]+);/g)].map(m => m[1]);
+    assert(
+      areas.includes("'a b' 'p p' 'c c' 'g g' 'f f'"),
+      'mid width: panel under score and chart, then sites'
+    );
+    assert(areas.includes("'a b c' 'p p c' 'g g g' 'f f f'"), 'wide: sites run down beside the panel');
+    ['col-a', 'col-b', 'advsec', 'col-c', 'grid'].forEach(c =>
+      assert(css.includes(`.deck.ocean > .${c} {`), c)
+    );
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    assert(nodes.app.innerHTML.includes('<div class="deck ocean">'), 'ocean deck marked');
+  });
   await it('the sections bar names all three sections, with the open one marked', () => {
     state.tab = 'log';
     ui.render();

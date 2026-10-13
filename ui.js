@@ -426,10 +426,14 @@ function cautionPanel(day, zone) {
   return advisoryHTML(rows, 'Caution and advisory panel for ' + zone.z.name);
 }
 
+/** The four screws in the corners of the annunciator panel's bezel. */
+const SCREWS = ['tl', 'tr', 'bl', 'br'].map(c => `<i class="screw ${c}" aria-hidden="true"></i>`).join('');
+
 /**
  * A caution and advisory panel: rows of [label, 'go' | 'hold' | 'nogo', value],
- * under a heading that totals the calls. Each station is a tile with its own lamp;
- * `layout` 'rows' lists them one per line instead.
+ * under a heading that totals the calls. 'tiles' draws an annunciator: a bezel
+ * holding a glass key per station, its legend lit in the lamp's colour (the CSS
+ * puts the call above the station name). `layout` 'rows' lists them one per line instead.
  */
 function advisoryHTML(rows, label, layout = 'tiles') {
   const count = st => rows.filter(r => r[1] === st).length;
@@ -437,8 +441,7 @@ function advisoryHTML(rows, label, layout = 'tiles') {
     .filter(count)
     .map(st => count(st) + ' ' + STATUS[st])
     .join(' · ');
-  return `${sect('Caution and advisory panel', tally)}
-  <div class="adv ${layout}" role="list" aria-label="${esc(label)}">
+  const list = `<div class="adv ${layout}" role="list" aria-label="${esc(label)}">
     ${rows
       .map(
         ([k, st, v]) => `<div class="adv-row" role="listitem" data-st="${st}">
@@ -447,6 +450,8 @@ function advisoryHTML(rows, label, layout = 'tiles') {
       )
       .join('')}
   </div>`;
+  const head = sect('Caution and advisory panel', tally);
+  return layout === 'tiles' ? `<div class="annun">${SCREWS}${head}${list}</div>` : head + list;
 }
 
 /** Earliest launch window still ahead (or open now) across the whole week. */
@@ -873,7 +878,7 @@ function renderOcean() {
       : '';
 
   return `${banners(day)}${freshGoBanner()}
-  <div class="deck">
+  <div class="deck ocean">
     <div class="col col-a">
       ${countdown()}
       <section class="panel hero">${dailyScore(day.overall, 'Daily score', LINES.ocean)}
