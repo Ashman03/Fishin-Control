@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.2.1
+
+- **Launch sites and the caution panel quote the same hours.** The panel shows a ramp's
+  figures for its launch window, but the launch sites list showed the whole day's range
+  in red, so the same ramp read "3–8 kn, GO" in the panel and "11–21 kn" in red below.
+  Each ramp's tags now show its window's figures, with the window's times ("window
+  09:00–11:00"). A ramp with no window still shows the whole day, marked "no window".
+  Display only: scores, windows and calls are unchanged.
+- Tests: 238.
+
 ## 6.2.0
 
 Safety fixes from the independent audit of 13 October. A GO now always means there is a
