@@ -3,7 +3,7 @@
  * to fish, which marks suit them, what to throw, and what your own catch log
  * says. Pure: everything comes in as arguments.
  */
-import { SEASON, MARK_PREF, TUNING } from './config.js';
+import { SEASON, RIVER_SEASON, MARK_PREF, TUNING } from './config.js';
 import { mean, clamp, dirOf, fromNewOrFull, HOUR } from './util.js';
 
 /** Up to two marks for this ramp that suit this part of the tide and light. */
@@ -238,8 +238,9 @@ export function sessions(day, zone, marks, river = null) {
   });
 }
 
-export function techniques(day) {
-  const m = SEASON[day.d0.getMonth()],
+/** What's biting this month, plus notes for the day. `river` uses the rivers and creeks list. */
+export function techniques(day, river = false) {
+  const m = (river ? RIVER_SEASON : SEASON)[day.d0.getMonth()],
     mods = [];
   if (day.range != null && day.range > 2.6)
     mods.push(
@@ -247,7 +248,9 @@ export function techniques(day) {
     );
   if (day.range != null && day.range < 1.6)
     mods.push(
-      'Neaps — less run and cleaner water outside. Good day to go wide, sit on a mark and work plastics and live baits.'
+      river
+        ? 'Neaps — less run and cleaner water. Good day to work the flats and snags up the river with plastics and live baits.'
+        : 'Neaps — less run and cleaner water outside. Good day to go wide, sit on a mark and work plastics and live baits.'
     );
   if (day.rain > 4)
     mods.push(
@@ -269,7 +272,9 @@ export function techniques(day) {
     mods.push(
       'Water around ' +
         day.sst.toFixed(1) +
-        '°C and warm. Jacks and pelagics are on, and the light changes do the damage.'
+        (river
+          ? '°C and warm. Jacks and threadfin are on, and the light changes do the damage.'
+          : '°C and warm. Jacks and pelagics are on, and the light changes do the damage.')
     );
   const nf = fromNewOrFull(day.moon.phase);
   if (nf < 0.06)

@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+The Rivers page now has its own "What's biting" list. It used to show the ocean list, so
+spanish mackerel, coral trout and red emperor turned up on the rivers. Scores, limits and
+the GO / NO GO calls are unchanged: on four test forecasts every score, verdict, limit
+check, window, session and launch note is byte-for-byte the same as 6.0.4.
+
+- **River and creek fish only on the Rivers page,** month by month, for Baffle Creek, the
+  Kolan, Burnett, Elliott, Gregory and Burrum: mangrove jack, barramundi, king threadfin,
+  blue salmon, grunter, flathead, whiting, bream, estuary cod, trevally, queenfish,
+  mulloway, mud crabs and prawns, with river baits, lures and a note for each month.
+  Built from the Bundaberg fishing reports and the Queensland rules.
+- **Barramundi are off the river list from November to January,** while the east coast
+  closure is on, since the rule is not to target them at all. The month notes say so.
+- **The day's notes on the Rivers page talk about the river.** Neap tides suggest the
+  flats and snags instead of going wide, and warm water mentions jacks and threadfin
+  instead of pelagics.
+- **The Ocean page is unchanged.**
+- **The catch log** offers the river fish as well as the ocean ones.
+- Estuary cod, trevally, queenfish, mulloway and prawns have no painting yet, so their
+  cards show a faint fish silhouette until the artwork arrives.
+- Tests: 209.
+
 ## 6.0.4
 
 New names, and the week moves up so the page reads from the top: today's score, then the

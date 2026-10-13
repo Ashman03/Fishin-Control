@@ -298,6 +298,7 @@ export const ESTUARIES = [
   }
 ];
 
+/** What's biting on the ocean page, by month (0 = January). The rivers page uses RIVER_SEASON. */
 export const SEASON = {
   0: {
     t: 'Peak summer',
@@ -424,6 +425,217 @@ export const SEASON = {
     bait: ['Live baits', 'Fresh prawn', 'Gar'],
     lure: ['Topwater', 'Trolled hardbodies', 'Plastics and jigs on the wider ground'],
     note: 'Take the wide trip on the neaps when the water is clean.'
+  }
+};
+
+/**
+ * What's biting in the rivers and creeks, by month (0 = January): Baffle Creek,
+ * the Kolan, Burnett, Elliott, Gregory and Burrum. Estuary fish only, best
+ * first. No reef or offshore fish: those are on the ocean page (SEASON).
+ *
+ * Barramundi are left off from November to January. The east coast closure
+ * (closures.js) says not to target them at all, even for catch and release.
+ */
+export const RIVER_SEASON = {
+  0: {
+    t: 'Peak summer',
+    sp: [
+      'Mangrove jack',
+      'Threadfin',
+      'Grunter',
+      'Estuary cod',
+      'Trevally',
+      'Queenfish',
+      'Whiting',
+      'Mud crab'
+    ],
+    bait: ['Live poddy mullet and herring', 'Live and fresh prawn', 'Yabbies for whiting', 'Mullet fillet'],
+    lure: [
+      'Paddle tails slow-rolled past the snags',
+      'Shallow hardbodies cast tight to the rock bars',
+      'Topwater on the flats at first light',
+      'Soft vibes for threadfin in the deep holes'
+    ],
+    note: 'Barramundi are closed until 1 February, so leave them alone. Jacks fire on the rock bars at first and last light, and the crabs are moving.'
+  },
+  1: {
+    t: 'Late wet',
+    sp: ['Barramundi', 'Mangrove jack', 'Threadfin', 'Grunter', 'Prawns', 'Mud crab', 'Estuary cod'],
+    bait: ['Live mullet and prawn', 'Mullet fillet', 'Fresh prawn'],
+    lure: [
+      'Paddle tails along the dirty-water line',
+      'Suspending hardbodies on the snags',
+      'Vibes along the ledges'
+    ],
+    note: 'Barramundi open again from 1 February. Run-off colours the rivers, so fish the line where dirty meets clean and the drains on the run-out. Prawns and crabs move hard after rain. Bucks only, 15 cm across the shell.'
+  },
+  2: {
+    t: 'Warm and wet',
+    sp: [
+      'Barramundi',
+      'Mangrove jack',
+      'Grunter',
+      'Threadfin',
+      'Flathead',
+      'Queenfish',
+      'Trevally',
+      'Prawns',
+      'Mud crab'
+    ],
+    bait: ['Live poddy mullet', 'Whole prawn', 'Mullet chunks and whole sprat'],
+    lure: [
+      '3–4" plastics on the flats',
+      'Hardbodies on the rock bars',
+      'Small poppers for queenies at the mouths'
+    ],
+    note: 'The best prawn and crab month. Barra and jacks sit on the rock bars and snags, and grunter and flathead push onto the flats.'
+  },
+  3: {
+    t: 'First cool change',
+    sp: [
+      'Grunter',
+      'Flathead',
+      'Barramundi',
+      'Mangrove jack',
+      'Threadfin',
+      'Bream',
+      'Whiting',
+      'Prawns',
+      'Mud crab'
+    ],
+    bait: ['Mullet fillet and whole sprat', 'Fresh prawn', 'Yabbies and worms'],
+    lure: ['Prawn-imitation plastics', 'Soft vibes in the deeper holes', 'Small hardbodies on the drop-offs'],
+    note: 'The water starts cooling. Grunter and flathead go well over the sand on the run-in, and the last of the jacks and barra are on the snags.'
+  },
+  4: {
+    t: 'Early winter',
+    sp: ['Bream', 'Flathead', 'Grunter', 'Blue salmon', 'Threadfin', 'Estuary cod', 'Whiting', 'Mulloway'],
+    bait: ['Mullet fillet strips', 'Whole sprat', 'Prawn', 'Yabbies for whiting'],
+    lure: [
+      'Small crab and prawn plastics on the rock walls',
+      'Blades and vibes',
+      'Deep-diving hardbodies along the walls'
+    ],
+    note: 'Bream school up on the rock walls and rubble ahead of the spawn, and blue salmon start to show in the Burnett.'
+  },
+  5: {
+    t: 'Winter',
+    sp: [
+      'Bream',
+      'Flathead',
+      'Blue salmon',
+      'Grunter',
+      'Mulloway',
+      'Estuary cod',
+      'Whiting',
+      'Mangrove jack'
+    ],
+    bait: [
+      'Unweighted whole sprat and mullet strips',
+      'Live bait for mulloway and cod',
+      'Yabbies, worms and pippies'
+    ],
+    lure: [
+      'Deep hardbodies slow-rolled along the walls',
+      'Blades and vibes mid-water',
+      'Light prawn and crab plastics'
+    ],
+    note: 'Bream are the main event on the walls and rubble. Fish light and slow, and work the flats on the low-light run-in for whiting.'
+  },
+  6: {
+    t: 'Deep winter',
+    sp: ['Flathead', 'Bream', 'Grunter', 'Blue salmon', 'Mulloway', 'Whiting', 'Queenfish', 'Trevally'],
+    bait: ['Mullet fillet', 'Whole sprat and prawn', 'Fresh yabbies', 'Live bait for mulloway'],
+    lure: [
+      'Small prawn plastics hopped on the bottom',
+      'Soft vibes through the schools',
+      'Shallow hardbodies on the flats'
+    ],
+    note: 'Rivers fish well in the middle of the day once the sun has warmed the flats. Big blue salmon school on the tide turns in the Burnett.'
+  },
+  7: {
+    t: 'Late winter',
+    sp: ['Flathead', 'Whiting', 'Bream', 'Grunter', 'Blue salmon', 'Mulloway'],
+    bait: ['Live worms and yabbies', 'Whole sprat', 'Prawn'],
+    lure: ['Vibes and plastics on the sand drop-offs', 'Surface poppers for whiting on warm afternoons'],
+    note: 'Flathead school up to spawn on the drop-offs near the mouths. Let the big girls go: the slot is 40 to 75 cm.'
+  },
+  8: {
+    t: 'Spring warm-up',
+    sp: [
+      'Flathead',
+      'Whiting',
+      'Grunter',
+      'Mangrove jack',
+      'Threadfin',
+      'Barramundi',
+      'Estuary cod',
+      'Blue salmon',
+      'Mud crab'
+    ],
+    bait: ['Yabbies and worms for whiting', 'Live herring and poddy mullet', 'Fresh prawn'],
+    lure: [
+      'Vibes and 3" plastics on the sand edges',
+      'Surface poppers on the flats on the run-in',
+      'Paddle tails past the snags as the water warms'
+    ],
+    note: 'Everything is waking up. Whiting and flathead on the flats on the run-in, and the first jacks on the snags as the water warms.'
+  },
+  9: {
+    t: 'Building',
+    sp: [
+      'Mangrove jack',
+      'Grunter',
+      'Flathead',
+      'Whiting',
+      'Barramundi',
+      'Estuary cod',
+      'Threadfin',
+      'Mud crab'
+    ],
+    bait: ['Live poddy mullet and prawn', 'Fresh yabbies', 'Whole sprat'],
+    lure: [
+      'Slow-rolled paddle tails past heavy cover',
+      'Prawn-imitation plastics',
+      'Small hardbodies trolled over the flats'
+    ],
+    note: 'Barramundi close from 1 November, so get your barra fix in now. Jacks switch on once the water pushes past about 24°C.'
+  },
+  10: {
+    t: 'Early summer',
+    sp: [
+      'Mangrove jack',
+      'Threadfin',
+      'Grunter',
+      'Estuary cod',
+      'Whiting',
+      'Flathead',
+      'Queenfish',
+      'Mud crab'
+    ],
+    bait: ['Live mullet and prawn', 'Fresh prawn', 'Yabbies'],
+    lure: ['Hardbodies tight to the snags', 'Paddle tails', 'Topwater on the flats at dawn'],
+    note: "Barramundi are closed until 1 February. Don't target them, even for catch and release. Jacks are the main game on the rock bars and snags."
+  },
+  11: {
+    t: 'Summer',
+    sp: [
+      'Mangrove jack',
+      'Threadfin',
+      'Grunter',
+      'Estuary cod',
+      'Trevally',
+      'Queenfish',
+      'Whiting',
+      'Mud crab'
+    ],
+    bait: ['Live baits', 'Fresh prawn', 'Yabbies'],
+    lure: [
+      'Topwater at first and last light',
+      'Hardbodies on the rock bars',
+      'Soft vibes for threadfin in the holes'
+    ],
+    note: 'Barramundi are closed until 1 February. Storm run-off fires up the crabs and the jacks, so get the pots in after rain.'
   }
 };
 

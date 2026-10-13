@@ -110,7 +110,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 202 tests, no dependencies, clock pinned to Queensland time
+npm test             # 209 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
@@ -150,6 +150,12 @@ numpy and scipy). It removes the background haze and stray bits of neighbouring 
 centres each one on the same 600 × 320 canvas and writes WebP. Later folders override
 earlier ones. To replace one picture, run it again, then bump the version so phones fetch
 the new image.
+
+What's biting comes from `SEASON` (Ocean page) and `RIVER_SEASON` (Rivers page) in
+`config.js`. Species still waiting on a painting are listed in `ART_PENDING` in `art.js` and show a
+faint fish silhouette until then. To add one: name the PNG after the species (for example
+`estuary_cod.png`), run the tool, add the file to `SPECIES_IMAGES` in `art.js` and to the
+offline list in `sw.js`, and take the species off `ART_PENDING`. The tests check each step.
 
 The tests pin `TZ=Australia/Brisbane`. The app shows Queensland local time against the
 device clock, so a test machine on UTC sees "midnight" ten hours late.
