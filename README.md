@@ -100,7 +100,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 181 tests, no dependencies, clock pinned to Queensland time
+npm test             # 182 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
@@ -119,6 +119,10 @@ link in `SOURCES`, and reports:
   if the problem changes, and closes it when the check passes again.
 - **Not reachable:** a service busy (429), down (5xx) or slow. Retried, then reported on
   the run page only, because these fix themselves and the app says so at the time.
+
+DPI's website turns away GitHub's machines (HTTP 403), so the check notes that and moves
+on; a monthly Claude routine in the project reads the page and compares its "Last
+updated" date with `CLOSURES_CHECKED` instead.
 
 Run it by hand from Actions → Data feed check → Run workflow, or locally with
 `node tools/check-feeds.js`. The app itself does the field check on every load too

@@ -421,7 +421,7 @@ await describe('feed check', async () => {
       ...p,
       hourly: Object.fromEntries(Object.entries(p.hourly).filter(([k]) => k !== name))
     }));
-  const DPI = '<html><body><h1>Closed seasons</h1><p>Last updated: 25 September 2026</p></body></html>';
+  const DPI = '<html><body><h1>Closed seasons</h1><p><b>Last updated:</b> 25 Sep 2026</p></body></html>';
   /** Answers like the real services, with `over` replacing any answer by URL. */
   const serve =
     (over = () => null) =>
@@ -510,11 +510,17 @@ await describe('feed check', async () => {
   await it('the closed seasons page updated after the app copied it is a change', async () => {
     globalThis.fetch = serve(url =>
       url.includes('dpi.qld')
-        ? { ...http(200), ok: true, text: async () => DPI.replace('25 September 2026', '3 March 2027') }
+        ? { ...http(200), ok: true, text: async () => DPI.replace('25 Sep 2026', '3 Mar 2027') }
         : null
     );
     const f = (await feeds.checkClosures()).find(x => x.source === 'DPI closed seasons page');
     assert(f.kind === 'changed' && f.detail.includes('2027-03-03'), JSON.stringify(f));
+  });
+
+  await it('DPI turning the check away is a note, not a daily "not reachable"', async () => {
+    globalThis.fetch = serve(url => (url.includes('dpi.qld') ? http(403) : null));
+    const f = (await feeds.checkClosures()).find(x => x.source === 'DPI closed seasons page');
+    assert(f.kind === 'note', JSON.stringify(f));
   });
 
   await it('closure dates running out are flagged the year before, then as a change', async () => {
@@ -548,6 +554,7 @@ await describe('feed check', async () => {
 
   await it('isoDate reads the dates DPI writes', () => {
     assert(feeds.isoDate(': 5 September 2026 ') === '2026-09-05');
+    assert(feeds.isoDate(' 25 Sep 2026') === '2026-09-25', 'DPI writes the month short');
     assert(feeds.isoDate('no date here') === null);
   });
 });

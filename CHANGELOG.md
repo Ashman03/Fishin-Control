@@ -22,6 +22,8 @@ Scores, limits and fishing logic are unchanged.
   changed (a model renamed, a field dropped, the DPI page updated, a link gone), it opens
   an issue on the repository and GitHub emails you. It closes the issue itself once
   things are back to normal. A busy or briefly down service does not raise an alert.
+- DPI's website turns away GitHub's machines, so a monthly Claude check reads the closed
+  seasons page instead and reports in the project only if DPI has updated it.
 
 **Fixes**
 
@@ -30,7 +32,7 @@ Scores, limits and fishing logic are unchanged.
 
 **Tests**
 
-- 181 tests (17 new): the app flagging a dropped field, new units, missing tide heights
+- 182 tests (18 new): the app flagging a dropped field, new units, missing tide heights
   and sunrise times, the backup wave model not being faulted for what it has never sent,
   the warning on screen, and the daily check telling a change from an outage.
 

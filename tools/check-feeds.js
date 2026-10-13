@@ -164,14 +164,12 @@ export async function checkOpenMeteo({ now = Date.now(), wait } = {}) {
   return out;
 }
 
-const MONTHS = 'january february march april may june july august september october november december'.split(
-  ' '
-);
+const MONTHS = 'jan feb mar apr may jun jul aug sep oct nov dec'.split(' ');
 
-/** "25 September 2026" as 2026-09-25, or null. */
+/** "25 September 2026" or "25 Sep 2026" (as DPI writes it) as 2026-09-25, or null. */
 export function isoDate(text) {
-  const m = /(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(text || '');
-  const mon = m && MONTHS.indexOf(m[2].toLowerCase());
+  const m = /(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/.exec(text || '');
+  const mon = m && MONTHS.indexOf(m[2].slice(0, 3).toLowerCase());
   if (!m || mon < 0) return null;
   return `${m[3]}-${String(mon + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 }
@@ -223,6 +221,15 @@ export async function checkClosures({ now = Date.now() } = {}) {
   const r = await page(CLOSURES_SOURCE);
   if (r.status === 404 || r.status === 410) {
     out.push({ source, kind: 'changed', detail: `page gone (HTTP ${r.status}); the app links to it` });
+    return out;
+  }
+  if (r.status === 403) {
+    // DPI's website turns away GitHub's machines every time, so this is not an outage
+    out.push({
+      source,
+      kind: 'note',
+      detail: 'DPI turns away automated checks from GitHub; a monthly Claude check reads this page instead'
+    });
     return out;
   }
   if (!r.text) {
