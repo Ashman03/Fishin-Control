@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.1.2
+
+- **The top card is a summary.** The Ensemble row (the share of forecast runs that give
+  you a usable window, with its bar) leaves the daily score card. The same figure stays
+  in Pre-launch checks, coloured like the Models lamp, and the Models key still lights
+  from it. On a phone about 50 px more of the 7-day forecast shows on the first screen.
+  On a computer the score card is shorter, so the gap under the chart beside it roughly
+  halves.
+- Tests: 224.
+
 ## 6.1.1
 
 - **One name for the area.** The header and the browser tab now say "Wide Bay", to match

@@ -924,14 +924,6 @@ function renderOcean() {
     ln = launchNotes(zone, cfg);
   const bom = BOM_ZONES[zone.z.bom];
 
-  const ensemble =
-    day.prob != null
-      ? `<div class="ens" role="img" aria-label="${day.prob}% of ${day.ensembleMembers} forecast runs give you a usable window at ${esc(short(best.z.name))}">
-        <div class="ens-h"><span>Ensemble</span><b class="num"><em style="color:${LAMP_COLOUR[modelsLamp(day)[0]]}">${day.prob}%</em> of ${day.ensembleMembers} runs</b></div>
-        <div class="segs" aria-hidden="true">${Array.from({ length: 10 }, (_, i) => `<i${i < Math.round(day.prob / 10) ? ' class="on"' : ''}></i>`).join('')}</div>
-      </div>`
-      : '';
-
   // the best ramp's figures for the day, beside the call: the hero's empty half
   // was the best spot on the screen. The ramp is only coloured when it is a go
   // or a maybe; on a no-go day a red "best ramp" would read as "launch here".
@@ -958,7 +950,7 @@ function renderOcean() {
           ["Flight director's call", esc(shortDate(day.d0))],
           word,
           why + (day.caps.length ? ' Capped: ' + esc(day.caps.join('; ')) + '.' : ''),
-          readout + ensemble
+          readout
         )}
       </section>
       ${dayStrip(

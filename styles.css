@@ -113,7 +113,6 @@ h2.sect,
 .alert h3,
 .kick,
 .dscore .cap,
-.ens-h,
 .tm-head,
 .adv-k,
 .adv-s,
@@ -750,43 +749,6 @@ ul.tight li {
   line-height: 1.4;
   color: var(--mute);
 }
-.ens {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-.ens-h {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-}
-.ens-h span {
-  color: var(--mute);
-}
-.ens-h b {
-  font-weight: 500;
-}
-.ens-h em {
-  font-style: normal;
-  font-weight: 700;
-}
-.segs {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 3px;
-}
-.segs i {
-  height: 8px;
-  background: rgba(122, 211, 245, 0.15);
-}
-.segs i.on {
-  background: var(--sky);
-}
-
 /* ── The caution and advisory panel ─────────────────────────────────
    Each station a tile with its own lamp; on the rivers page, one row each. */
 .adv-row[data-st='hold'] {
