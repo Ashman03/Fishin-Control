@@ -25,7 +25,7 @@ import { getData } from './data.js';
 import { build } from './model.js';
 import { goDays, newlyGo, alertText, readShared, writeShared, SYNC_TAG, STATE_CACHE } from './alerts.js';
 
-const VERSION = 'v6.0.0';
+const VERSION = 'v6.0.1';
 const SHELL = 'fishin-shell-' + VERSION;
 const DATA = 'fishin-data';
 

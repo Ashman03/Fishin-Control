@@ -100,10 +100,30 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 164 tests, no dependencies, clock pinned to Queensland time
+npm test             # 179 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
+
+### Daily data feed check
+
+`.github/workflows/feed-check.yml` runs `tools/check-feeds.js` every morning at 6 am
+Queensland time (and on any pull request that touches the data code). It makes the same
+Open-Meteo requests the app makes, reads the DPI closed seasons page and tries every
+link in `SOURCES`, and reports:
+
+- **Changed:** a model renamed or retired, a request refused, a field dropped or in new
+  units, a forecast that stops short of the week, the DPI page updated since
+  `CLOSURES_CHECKED`, closure dates running out, or a linked page gone (404). The
+  workflow opens an issue labelled `feed-check` (GitHub emails the owner), comments only
+  if the problem changes, and closes it when the check passes again.
+- **Not reachable:** a service busy (429), down (5xx) or slow. Retried, then reported on
+  the run page only, because these fix themselves and the app says so at the time.
+
+Run it by hand from Actions → Data feed check → Run workflow, or locally with
+`node tools/check-feeds.js`. The app itself does the field check on every load too
+(`fieldGaps()` in `data.js`): anything missing shows as "Forecast data incomplete" on the
+forecast and in Data sources.
 
 ### Species illustrations
 

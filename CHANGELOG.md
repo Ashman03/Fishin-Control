@@ -1,5 +1,34 @@
 # Changelog
 
+## 6.0.1
+
+Checks that the forecast and other sources are still coming through the way the app
+expects, so a change at their end is caught rather than quietly giving wrong calls.
+Scores, limits and fishing logic are unchanged.
+
+**In the app**
+
+- If a forecast answers but leaves something out (gusts, storm codes, tide heights,
+  sunrise times and so on) or sends it in different units, the forecast screen shows a red
+  **Forecast data incomplete** panel naming what is missing. Before, a missing figure
+  quietly read as zero: with no gust figures, gusts could never stop a GO.
+- Data sources has a new **Forecast details** line: "all fields present", or what is
+  missing.
+
+**Daily check (on GitHub, not in the app)**
+
+- Every morning at 6 am a check on GitHub makes the same forecast requests the app makes,
+  reads the DPI closed seasons page and tries every link in the app. If something has
+  changed (a model renamed, a field dropped, the DPI page updated, a link gone), it opens
+  an issue on the repository and GitHub emails you. It closes the issue itself once
+  things are back to normal. A busy or briefly down service does not raise an alert.
+
+**Tests**
+
+- 179 tests (15 new): the app flagging a dropped field, new units, missing tide heights
+  and sunrise times, the backup wave model not being faulted for what it was never asked
+  for, the warning on screen, and the daily check telling a change from an outage.
+
 ## 6.0.0
 
 The "Flight Deck" redesign: every screen rebuilt as a launch-control console, and a
