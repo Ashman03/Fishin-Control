@@ -7,8 +7,9 @@
  * because GitHub's web upload can't send folders.
  *
  * Until v4.8 this file also held a 1,900-line SVG drawing kit as a fallback.
- * Every species now has a picture (a test makes sure of it), so a species added
- * later without one simply gets an empty frame of the same shape.
+ * A species without a picture yet must be listed in ART_PENDING (a test makes
+ * sure of it). Its card shows a faint fish silhouette in a frame of the same shape
+ * until the painting arrives.
  */
 
 export const SPECIES_IMAGES = {
@@ -35,6 +36,14 @@ export const SPECIES_IMAGES = {
   Whiting: 'species-whiting.webp'
 };
 
+/** River species still waiting on a painting. Remove each one as its picture lands. */
+export const ART_PENDING = ['Estuary cod', 'Mulloway', 'Prawns', 'Queenfish', 'Trevally'];
+
+// A plain fish shape, filled faintly, standing in for a missing painting.
+const PLACEHOLDER =
+  '<svg viewBox="0 0 150 80"><path d="M22 40c14-17 40-24 64-20 13 2 24 9 32 20-8 11-19 18-32 20-24 4-50-3-64-20z' +
+  'M118 40l20-16-5 16 5 16z"/><circle cx="40" cy="36" r="3"/></svg>';
+
 const BY_NAME = new Map(Object.entries(SPECIES_IMAGES).map(([k, v]) => [k.toLowerCase(), v]));
 
 /** True if the species has a picture. */
@@ -48,5 +57,5 @@ export function speciesArt(name) {
   const src = BY_NAME.get(String(name).toLowerCase());
   return src
     ? `<img class="sp" src="${src}" alt="" width="600" height="320" loading="lazy" decoding="async">`
-    : '<span class="sp sp-none" aria-hidden="true"></span>';
+    : `<span class="sp sp-none" aria-hidden="true">${PLACEHOLDER}</span>`;
 }

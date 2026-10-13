@@ -21,7 +21,8 @@ import {
   MARK_TYPES,
   RATINGS,
   TUNING,
-  SEASON
+  SEASON,
+  RIVER_SEASON
 } from './config.js';
 import { state, save, validLimits } from './store.js';
 import { build, seaWord, conditionsFor } from './model.js';
@@ -669,7 +670,7 @@ function tideSection(day) {
 /** Sessions, then what's biting. `river` swaps the marks note for the river one. */
 function flightPlan(day, zone, ss, river = false) {
   const shut = closedSpecies(day.d0, zone.z);
-  const t = techniques(day);
+  const t = techniques(day, river);
   const month = day.d0.toLocaleDateString('en-AU', { month: 'long' });
   return `<section class="plan">
     ${sect('Flight plan', 'when to go, and what to throw')}
@@ -1091,9 +1092,10 @@ function renderLog() {
     rating: 2,
     notes: ''
   };
-  // this month's species first, then the rest of the year's
-  const month = SEASON[new Date().getMonth()].sp;
-  const allSpecies = [...new Set([...month, ...Object.values(SEASON).flatMap(m => m.sp)])];
+  // this month's species first, ocean then rivers, then the rest of the year's
+  const mo = new Date().getMonth();
+  const year = [SEASON, RIVER_SEASON].flatMap(t => Object.values(t).flatMap(m => m.sp));
+  const allSpecies = [...new Set([...SEASON[mo].sp, ...RIVER_SEASON[mo].sp, ...year])];
   const pat = patterns(state.log);
   const cap = k => k.charAt(0).toUpperCase() + k.slice(1);
   const rampName = id => (ZONES.find(z => z.id === id) || { name: id }).name;

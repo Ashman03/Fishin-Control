@@ -988,6 +988,76 @@ await describe('closures', async () => {
     assert(!cl.closureDatesStale(new Date('2033-06-01')) && cl.closureDatesStale(new Date('2034-01-01'))));
 });
 
+/* ── river species ──────────────────────────────────────────────────────── */
+
+await describe('river species', async () => {
+  const cl = await imp('closures');
+  // reef and offshore fish: never caught in the rivers and creeks
+  const OFFSHORE = [
+    'Spanish mackerel',
+    'Spotted mackerel',
+    'School mackerel',
+    'Coral trout',
+    'Red emperor',
+    'Grass sweetlip',
+    'Snapper',
+    'Tuskfish',
+    'Longtail tuna',
+    'Mac tuna',
+    'Squid'
+  ];
+  const dayIn = (m, extra = {}) => ({
+    d0: new Date(2027, m, 15, 12),
+    range: 2,
+    rain: 0,
+    presTrend: 0,
+    sst: 23,
+    moon: { phase: 0.25 },
+    ...extra
+  });
+  await it('the rivers page lists only estuary fish, every month', () => {
+    for (let m = 0; m < 12; m++) {
+      const sp = advice.techniques(dayIn(m), true).m.sp;
+      const bad = sp.filter(n => OFFSHORE.includes(n));
+      assert(!bad.length, 'month ' + m + ': ' + bad.join(', '));
+      assert(sp.length >= 6, 'month ' + m + ': only ' + sp.length);
+    }
+  });
+  await it('the ocean page keeps its own list', () => {
+    for (let m = 0; m < 12; m++) assert(advice.techniques(dayIn(m)).m === config.SEASON[m], 'month ' + m);
+    assert(advice.techniques(dayIn(2)).m.sp.includes('Spanish mackerel'), 'ocean lost its spanish');
+  });
+  await it('a fish closed for the whole month is left off the river list (barra Nov to Jan)', () => {
+    for (let m = 0; m < 12; m++) {
+      const days = new Date(2027, m + 1, 0).getDate();
+      for (const z of ZONES) {
+        const all = new Set(cl.closedSpecies(new Date(2027, m, 1, 12), z));
+        for (let d = 2; d <= days; d++) {
+          const shut = cl.closedSpecies(new Date(2027, m, d, 12), z);
+          all.forEach(n => shut.has(n) || all.delete(n));
+        }
+        const listed = config.RIVER_SEASON[m].sp.filter(n => all.has(n));
+        assert(!listed.length, 'month ' + m + ' ' + z.id + ': ' + listed.join(', '));
+      }
+    }
+    assert(!config.RIVER_SEASON[11].sp.includes('Barramundi'), 'barra in December');
+    assert(config.RIVER_SEASON[1].sp.includes('Barramundi'), 'barra missing once open in February');
+  });
+  await it('every river month has a title, species, bait, lures and a note', () => {
+    assert(Object.keys(config.RIVER_SEASON).length === 12);
+    Object.values(config.RIVER_SEASON).forEach((m, i) => {
+      assert(m.t && m.note && m.sp.length && m.bait.length && m.lure.length, 'month ' + i);
+      assert(new Set(m.sp).size === m.sp.length, 'month ' + i + ' repeats a species');
+    });
+  });
+  await it('river notes for the day talk about the river, not going wide or pelagics', () => {
+    const r = advice.techniques(dayIn(0, { range: 1.2, sst: 27 }), true).mods.join(' ');
+    assert(!/go wide|pelagic/i.test(r), r);
+    const o = advice.techniques(dayIn(0, { range: 1.2, sst: 27 })).mods.join(' ');
+    assert(/go wide/.test(o) && /pelagics/.test(o), 'ocean notes changed: ' + o);
+  });
+});
+
 /* ── alerts ─────────────────────────────────────────────────────────────── */
 
 await describe('alerts', async () => {
@@ -1076,13 +1146,20 @@ await describe('geography', async () => {
 
 await describe('art', async () => {
   const art = await imp('art');
-  const all = [...new Set(Object.values(config.SEASON).flatMap(m => m.sp))];
+  const all = [
+    ...new Set([config.SEASON, config.RIVER_SEASON].flatMap(t => Object.values(t).flatMap(m => m.sp)))
+  ];
   const fs = await import('fs');
   const file = f => new URL('../' + f, import.meta.url);
-  await it('every species in the seasonal lists has a painted illustration', () => {
-    const missing = all.filter(n => !art.hasImage(n));
+  await it('every species in the seasonal lists has a painted illustration, or is waiting on one', () => {
+    const missing = all.filter(n => !art.hasImage(n) && !art.ART_PENDING.includes(n));
     assert(!missing.length, 'no image: ' + missing.join(', '));
   });
+  await it('species waiting on art are in use and have no picture yet', () =>
+    art.ART_PENDING.forEach(n => {
+      assert(all.includes(n), n + ' is not in any list');
+      assert(!art.hasImage(n), n + ' has its picture now: take it off ART_PENDING');
+    }));
   await it('no illustration is mapped to a species the app does not use', () => {
     const extra = Object.keys(art.SPECIES_IMAGES).filter(n => !all.includes(n));
     assert(!extra.length, 'unused: ' + extra.join(', '));
@@ -1107,9 +1184,10 @@ await describe('art', async () => {
     assert(img.startsWith('<img class="sp" src="species-mangrove-jack.webp"'), img);
     assert(/ width="600" height="320"/.test(img) && / alt=""/.test(img), 'size/alt');
     assert(art.speciesArt('mangrove JACK') === img, 'names match regardless of case');
+    const none = art.speciesArt('Some new fish');
     assert(
-      art.speciesArt('Some new fish') === '<span class="sp sp-none" aria-hidden="true"></span>',
-      'fallback'
+      /^<span class="sp sp-none" aria-hidden="true"><svg viewBox="0 0 150 80">.*<\/svg><\/span>$/.test(none),
+      none
     );
   });
   await it('the service worker stores every illustration for offline use', () => {
@@ -1530,6 +1608,26 @@ await describe('ui', async () => {
     assert(heads.slice(0, 3).join('|') === want.join('|'), heads.join('|'));
     assert(html.indexOf('class="dial"') < html.indexOf('class="panel week"'), 'score before the week');
     state.view = 'ocean';
+  });
+  await it("the rivers page's what's biting has no reef or offshore fish", () => {
+    state.tab = 'plan';
+    state.view = 'river';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const biting = html.slice(html.indexOf('class="biting"'));
+    const names = [...biting.matchAll(/<div class="n">([^<]+)/g)].map(m => m[1]);
+    assert(names.length >= 6, 'names: ' + names.join(', '));
+    const month = state.days[state.sel].d0.getMonth();
+    assert(names.join() === config.RIVER_SEASON[month].sp.join(), names.join());
+    assert(
+      !/Spanish mackerel|Coral trout|Red emperor|Snapper/.test(biting),
+      'offshore fish on the rivers page'
+    );
+    state.view = 'ocean';
+    ui.render();
+    const o = nodes.app.innerHTML;
+    const on = [...o.slice(o.indexOf('class="biting"')).matchAll(/<div class="n">([^<]+)/g)].map(m => m[1]);
+    assert(on.join() === config.SEASON[month].sp.join(), 'ocean: ' + on.join());
   });
   await it('the week sits with the daily score and the panel comes after both, ocean and river', async () => {
     state.tab = 'plan';
@@ -2090,6 +2188,7 @@ await describe('ui', async () => {
     state.logDraft = null;
     ui.render();
     assert(/data-act="logSp" data-name="Grunter"/.test(nodes.app.innerHTML), 'species chips');
+    assert(/data-act="logSp" data-name="Estuary cod"/.test(nodes.app.innerHTML), 'river species chips');
     ui.ACTIONS.logSp({ dataset: { name: 'Grunter' } });
     ui.ACTIONS.logSp({ dataset: { name: 'Flathead' } });
     ui.ACTIONS.logSp({ dataset: { name: 'Grunter' } }); // second tap un-picks

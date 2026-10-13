@@ -6,7 +6,7 @@ Prepare species illustrations for the app (development tool, not deployed).
 Each SOURCE_DIR holds PNGs named after a species (snapper.png, mangrove_jack.png,
 yellowfin_bream.png ...). Later folders win, so a folder of redrawn images can
 be passed after the original set. Writes species-<name>.webp to the repo root,
-named after the app's own species names (config.js SEASON), e.g.
+named after the app's own species names (config.js SEASON and RIVER_SEASON), e.g.
 species-mangrove-jack.webp.
 
 For each image:
@@ -46,6 +46,11 @@ ALIASES = {
     'dusky flathead': 'Flathead',
     'sand whiting': 'Whiting',
     'king threadfin': 'Threadfin',
+    'goldspot estuary cod': 'Estuary cod',
+    'giant trevally': 'Trevally',
+    'banana prawn': 'Prawns',
+    'banana prawns': 'Prawns',
+    'jewfish': 'Mulloway',
 }
 
 
