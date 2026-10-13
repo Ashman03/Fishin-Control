@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## 6.1.0
+
+Everything since 6.0.4 in one release: the new Caution and advisory panel, the Rivers
+page's own fish list with five new paintings, the ten design-critique fixes, and a fix
+for a spacing bug on wide screens. Scores, limits, windows and the GO / HOLD / NO GO calls
+are unchanged: on four test forecasts every score, verdict, limit check, window, session
+and launch note is byte-for-byte the same as 6.0.4.
+
+- **No gaps on a day with a bar warning or a closed season coming up.** Those cards sat
+  at the foot of the launch sites column. On a computer that column runs beside the
+  score, countdown and panel, so a longer column opened gaps of up to 160 px above and
+  below the countdown (every day from 18 October, with the barramundi closure coming
+  up). The Rivers page had the same gap under its score card. The cards now sit in a row
+  of their own: under the launch sites on the Ocean page, under the panel on the Rivers
+  page. When a site brief runs long, the panel's bezel grows to meet the foot of the
+  sites instead. On a phone the order is unchanged.
+- Tests: 223.
 
 A design tidy-up from the design critique of 13 October: all ten fixes. Scores, limits,
 windows, sessions and the GO / HOLD / NO GO calls are unchanged. On four test forecasts

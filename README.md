@@ -107,8 +107,11 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   spreads into columns (`.deck`, `.col-a/b/c`, `.tmsec`, `.advsec`, `.grid`). The Ocean
   page is a grid (`.deck.ocean`) so nothing leaves a hole: the countdown runs as a strip
   under the score and chart, then the panel, with the launch sites after it, or beside it
-  in a third column from 1180 px. The cards below pair up so neighbours end level
-  (`.deck > .grid`; on the Ocean page from 1180 px, `.gstack` and `.gmain`).
+  in a third column from 1180 px. The day's bar and closed-season cards sit in a row of
+  their own (`.notes`) under the sites (Ocean) or the panel (Rivers), so a long day never
+  stretches the sites column and spreads the score, countdown and panel apart. The cards
+  below pair up so neighbours end level (`.deck > .grid`; on the Ocean page from
+  1180 px, `.gstack` and `.gmain`).
 - **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
   damaged entry can't break a render.
 
@@ -117,7 +120,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 222 tests, no dependencies, clock pinned to Queensland time
+npm test             # 223 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
