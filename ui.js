@@ -156,6 +156,17 @@ const alertBox = (kind, title, body, extra = '') =>
 
 const notice = (title, body) => alertBox('no', title, `<p class="sub">${body}</p>`);
 
+/**
+ * The day's cautions (bar, closed seasons) in a row of their own under the
+ * sites, not at the foot of the sites column: they come and go by the day, and
+ * a column that grows with them pushed the panel and countdown apart on a
+ * wide screen. Nothing at all when there are none.
+ */
+const notes = (...cards) => {
+  const html = cards.filter(Boolean).join('');
+  return html ? `<div class="notes">${html}</div>` : '';
+};
+
 /** Banners for anything that makes the forecast less trustworthy than it looks. */
 function banners(day) {
   const out = [];
@@ -892,8 +903,8 @@ function renderRiver() {
           </div>
         </div>
       </section>
-      ${closuresCard(day, zone)}
     </div>
+    ${notes(closuresCard(day, zone))}
     <div class="grid">
       ${tideSection(day)}
       ${flightPlan(sessions(day, zone, state.marks, est), true)}
@@ -1008,9 +1019,8 @@ function renderOcean() {
           </div>
         </div>
       </section>
-      ${barCard(zone)}
-      ${closuresCard(day, zone)}
     </div>
+    ${notes(barCard(zone), closuresCard(day, zone))}
 
     <div class="grid">
   <div class="gstack">

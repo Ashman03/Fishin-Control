@@ -1746,11 +1746,11 @@ await describe('ui', async () => {
     const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
     const areas = [...css.matchAll(/\.deck\.ocean \{[^}]*grid-template-areas: ([^;]+);/g)].map(m => m[1]);
     assert(
-      areas.includes("'a b' 't t' 'p p' 'c c' 'g g' 'f f'"),
+      areas.includes("'a b' 't t' 'p p' 'c c' 'n n' 'g g' 'f f'"),
       'mid width: countdown and panel under score and chart, then sites'
     );
     assert(
-      areas.includes("'a b c' 't t c' 'p p c' 'g g g' 'f f f'"),
+      areas.includes("'a b c' 't t c' 'p p c' 'n n n' 'g g g' 'f f f'"),
       'wide: sites run down beside the countdown and panel'
     );
     ['col-a', 'col-b', 'advsec', 'col-c', 'grid'].forEach(c =>
@@ -1760,6 +1760,50 @@ await describe('ui', async () => {
     state.view = 'ocean';
     ui.render();
     assert(nodes.app.innerHTML.includes('<div class="deck ocean">'), 'ocean deck marked');
+  });
+  await it('a day with bar or closed-season cards keeps the wide layout packed (no gap above the countdown)', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const day = state.days[state.sel],
+      d0 = day.d0;
+    const zone = day.zones.find(z => z.z.id === state.zsel) || day.zones[0];
+    const barWin = zone.barWin;
+    // a bar warning, and a date two weeks before a closed season starts
+    zone.barWin = [{ a: new Date(+d0 + 11 * 36e5), b: new Date(+d0 + 15 * 36e5), max: 3 }];
+    day.d0 = new Date(d0.getFullYear(), 9, 25);
+    state.zsel = zone.z.id;
+    state.tab = 'plan';
+    try {
+      for (const view of ['ocean', 'river']) {
+        state.view = view;
+        ui.render();
+        const html = nodes.app.innerHTML;
+        const colC = html.slice(html.indexOf('class="col col-c"'), html.indexOf('class="notes"'));
+        assert(html.includes('class="notes"'), view + ': no cautions row');
+        assert(!/class="alert /.test(colC), view + ': a caution card still sits in the sites column');
+        const notes = html.slice(html.indexOf('class="notes"'), html.indexOf('class="grid"'));
+        assert(notes.includes('Closed season coming up'), view + ': closed season card missing');
+        if (view === 'ocean') assert(notes.includes('Bar · stay off it'), 'bar card missing');
+      }
+    } finally {
+      zone.barWin = barWin;
+      day.d0 = d0;
+      state.view = 'ocean';
+    }
+    // a day with nothing to say leaves no empty row behind
+    ui.render();
+    if (!zone.barWin.length && !/Closed season/.test(nodes.app.innerHTML))
+      assert(!nodes.app.innerHTML.includes('class="notes"'), 'empty cautions row');
+    const wide = css.slice(css.indexOf('@media (min-width: 1180px)'));
+    assert(
+      /grid-template-rows: auto auto 1fr;/.test(wide),
+      'a long sites column still spreads the rows apart'
+    );
+    assert(/\.deck\.ocean > \.advsec \{\s*align-self: stretch;/.test(wide), 'panel does not meet the sites');
+    assert(
+      /\.deck > \.notes \{\s*flex: 1 1 100%;\s*order: 4;/.test(css),
+      'rivers: cautions not a row of their own'
+    );
   });
   /* ── design critique fixes (13 Oct 2026) ── */
   const readCss = async () =>
