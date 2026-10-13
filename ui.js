@@ -37,7 +37,7 @@ import {
   closureDatesStale,
   CLOSURES_SOURCE
 } from './closures.js';
-import { SYNC_TAG, SYNC_INTERVAL_MS } from './alerts.js';
+import { GO_SCORE, SYNC_TAG, SYNC_INTERVAL_MS } from './alerts.js';
 import {
   esc,
   hhmm,
@@ -582,13 +582,15 @@ function alertsPanel() {
   const msg =
     {
       background:
-        'On. Your phone checks in the background — Android decides how often, usually every several hours — and notifies you when a day newly scores 70 or more.',
+        'On. Your phone checks in the background — Android decides how often, usually every several hours — and notifies you when a day newly turns Go (' +
+        GO_SCORE +
+        ' or more).',
       open: 'On, but this phone will not run background checks: install the app from Chrome for that. Until then, new go days are flagged whenever you open it.',
       denied:
         'Notifications are blocked for this site. Allow them in Chrome under the site settings, then try again.',
       unsupported: 'This browser cannot show notifications.'
     }[a.on ? a.mode : a.mode === 'denied' || a.mode === 'unsupported' ? a.mode : ''] ||
-    'Get a notification when a day newly scores 70 or more, without opening the app.';
+    'Get a notification when a day newly turns Go (' + GO_SCORE + ' or more), without opening the app.';
   return `<details data-key="alerts"><summary><span>Go-day alerts</span>
       <b style="color:${a.on ? 'var(--go)' : 'var(--mute)'}">${a.on ? 'Armed' : 'Off'}</b></summary>
     <p class="sub">${msg}</p>
@@ -1388,11 +1390,15 @@ export const ACTIONS = {
     scrollTop();
   },
   day(el) {
+    // stay put: the panels above the week change height from day to day, so
+    // scroll by that change to keep the tapped day under the finger
+    const before = el.getBoundingClientRect && el.getBoundingClientRect().top;
     state.sel = +el.dataset.i;
     state.zsel = null;
     state.logDraft = null;
     render();
-    scrollTop();
+    const now = before != null && $('app').querySelector(`.day[data-i="${state.sel}"]`);
+    if (now) window.scrollBy(0, now.getBoundingClientRect().top - before);
   },
   zone(el) {
     state.zsel = el.dataset.z;
