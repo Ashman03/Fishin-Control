@@ -99,9 +99,13 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   (`LINES` in `util.js`): ocean scores at the verdict's 75 / 42, river scores at 70 / 40,
   Bite at its lamp's 60 / 45, and the Models % takes its Models lamp's colour. Nothing
   uses outlined text. The page reads from the top: the daily score, then the 7-day
-  forecast, then the caution and advisory panel and the detail below it. Phones get a
+  forecast, then the caution and advisory panel and the detail below it. On the Ocean
+  page the panel is an annunciator (`.annun`): a navy bezel with corner screws holding a
+  glowing glass key per station, the call small above the station name. Phones get a
   bottom sections bar; from 900 px wide the layout spreads into columns (`.deck`,
-  `.col-a/b/c`, `.advsec`, `.grid`).
+  `.col-a/b/c`, `.advsec`, `.grid`). The Ocean page is a grid (`.deck.ocean`) so nothing
+  leaves a hole: the panel sits straight under the score and chart, with the launch sites
+  after it, or beside it in a third column from 1180 px.
 - **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
   damaged entry can't break a render.
 

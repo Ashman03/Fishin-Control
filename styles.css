@@ -720,11 +720,6 @@ button.inline {
 .adv-row[data-st='nogo'] {
   --st: var(--no);
 }
-.adv.tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
 .adv-row {
   --st: var(--go);
   display: grid;
@@ -770,6 +765,120 @@ button.inline {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* On the ocean page the panel is an annunciator, like the advisory panel in a
+   cockpit: a navy bezel with a screw in each corner holds a glass key per
+   station. Each legend glows in its lamp's colour: the call small on top, the
+   station large, the figure underneath. Glow only, never an outline. */
+.annun {
+  position: relative;
+  padding: 8px 18px 10px;
+  background: linear-gradient(#0d2536, #08192a);
+  border: 1px solid var(--line2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 20px rgba(0, 0, 0, 0.45);
+}
+.annun h2.sect {
+  margin: 0 0 6px;
+  padding: 0 2px;
+  color: var(--sky2);
+  letter-spacing: 0.2em;
+}
+.screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #a9cfe2, #24465a 70%);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+.screw::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 4px;
+  height: 1.5px;
+  background: #0b2231;
+  transform: rotate(35deg);
+}
+.screw.tl,
+.screw.tr {
+  top: 7px;
+}
+.screw.bl,
+.screw.br {
+  bottom: 7px;
+}
+.screw.tl,
+.screw.bl {
+  left: 7px;
+}
+.screw.tr,
+.screw.br {
+  right: 7px;
+}
+.adv.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.adv.tiles .adv-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 62px;
+  padding: 5px 6px;
+  text-align: center;
+  color: var(--st);
+  background: #050d13;
+  background: linear-gradient(color-mix(in srgb, var(--st) 9%, #0a141b), #03080c);
+  border: 1px solid #000;
+  box-shadow:
+    inset 0 0 0 2px rgba(122, 211, 245, 0.16),
+    inset 0 10px 16px rgba(0, 0, 0, 0.65);
+  text-shadow: 0 0 6px var(--st);
+  text-shadow:
+    0 0 6px color-mix(in srgb, var(--st) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--st) 35%, transparent);
+}
+.adv.tiles .adv-s {
+  order: 1;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  line-height: 1.25;
+}
+.adv.tiles .adv-k {
+  order: 2;
+  display: block;
+  max-width: 100%;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  color: inherit;
+}
+.adv.tiles .adv-k::before {
+  content: none;
+}
+.adv.tiles .adv-v {
+  order: 3;
+  max-width: 100%;
+  font-family: var(--disp);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+@media (min-width: 560px) {
+  .adv.tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 .adv.rows {
   background: var(--panel);
@@ -1682,9 +1791,24 @@ label.filebtn:focus-within {
     flex: 1 1 100%;
     order: 4;
   }
-  /* full width: the ocean stations four to a row, the river rows in two columns */
+  /* the ocean keys four to a row, the river rows in two columns */
+  .annun {
+    padding: 10px 30px 12px;
+  }
   .adv.tiles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .adv.tiles .adv-row {
+    min-height: 84px;
+  }
+  .adv.tiles .adv-s {
+    font-size: 14px;
+  }
+  .adv.tiles .adv-k {
+    font-size: 24px;
+  }
+  .adv.tiles .adv-v {
+    font-size: 13px;
   }
   .adv.rows {
     columns: 2;
@@ -1693,6 +1817,34 @@ label.filebtn:focus-within {
   }
   .adv.rows .adv-row {
     break-inside: avoid;
+  }
+  /* The ocean page is a grid, so nothing leaves a hole: the score and week
+     beside the chart, the panel straight under them, then the launch sites.
+     From 1180 px the sites take a third column that runs down beside the
+     panel, so the panel fills the space under the score and chart. */
+  .deck.ocean {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas: 'a b' 'p p' 'c c' 'g g' 'f f';
+    align-items: start;
+  }
+  .deck.ocean > .col-a {
+    grid-area: a;
+  }
+  .deck.ocean > .col-b {
+    grid-area: b;
+  }
+  .deck.ocean > .advsec {
+    grid-area: p;
+  }
+  .deck.ocean > .col-c {
+    grid-area: c;
+  }
+  .deck.ocean > .grid {
+    grid-area: g;
+  }
+  .deck.ocean > footer {
+    grid-area: f;
   }
   /* cards of different heights flow down three columns instead of leaving gaps */
   .deck > .grid {
@@ -1960,6 +2112,12 @@ label.filebtn:focus-within {
 @keyframes splash-creep {
   to {
     width: 35%;
+  }
+}
+@media (min-width: 1180px) {
+  .deck.ocean {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr) minmax(0, 1fr);
+    grid-template-areas: 'a b c' 'p p c' 'g g g' 'f f f';
   }
 }
 @media (prefers-reduced-motion: no-preference) {

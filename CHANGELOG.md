@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+The Caution and advisory panel on the Ocean page is redrawn as a cockpit annunciator
+panel, and the wide-screen layout no longer leaves gaps. Scores, limits and the GO /
+HOLD / NO GO calls are unchanged: the same eight lamps, worked out the same way.
+
+- **The panel looks like the advisory panel in a cockpit.** A navy bezel with a screw in
+  each corner holds eight glass keys. Each key glows green, amber or red, with the call
+  in small letters on top, the station name large (WIND, SWELL…) and its figure
+  underneath. The heading and the tally (for example 3 GO · 1 HOLD · 4 NO GO) sit on the
+  bezel. Two keys to a row on a phone, four on a tablet or computer.
+- **No more gaps on a wide screen.** The panel now sits straight under the daily score,
+  the week and the chart, with the launch sites after it. From 1180 px wide the launch
+  sites run down a third column beside the panel, so the panel fills the space under the
+  score and the chart that used to sit empty.
+- The Rivers page keeps its panel as a list, as its readings are longer.
+- Tests: 205.
+
 ## 6.0.4
 
 New names, and the week moves up so the page reads from the top: today's score, then the
