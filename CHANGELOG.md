@@ -1,6 +1,6 @@
 # Changelog
 
-## 6.0.5
+## Unreleased
 
 The Rivers page now has its own "What's biting" list. It used to show the ocean list, so
 spanish mackerel, coral trout and red emperor turned up on the rivers. Scores, limits and
