@@ -253,16 +253,17 @@ export const BOM_ZONES = {
   herveyBay: ['BOM Hervey Bay Waters', 'https://www.bom.gov.au/qld/forecasts/hervey-bay-waters.shtml']
 };
 
+/** Links under Pre-launch checks. The first TOP_SOURCES show; the rest sit under "More links". */
 export const SOURCES = [
   ['BOM Capricornia Coast', BOM_ZONES.capricornia[1]],
   ['BOM Hervey Bay Waters', BOM_ZONES.herveyBay[1]],
+  ['BOM radar', 'https://www.bom.gov.au/australia/radar/'],
+  ['MSQ tide tables', 'https://www.msq.qld.gov.au/Tides/Tide-tables'],
   [
     'BOM all southern zones',
     'https://www.bom.gov.au/marine/lite/forecast/south-queensland-coastal-waters.shtml'
   ],
-  ['BOM radar', 'https://www.bom.gov.au/australia/radar/'],
   ['Windy', 'https://www.windy.com/-Waves-waves?waves,-24.800,152.400,9'],
-  ['MSQ tide tables', 'https://www.msq.qld.gov.au/Tides/Tide-tables'],
   ['Willyweather Burnett Heads', 'https://tides.willyweather.com.au/qld/wide-bay/burnett-heads.html'],
   ['Seabreeze Bundaberg', 'https://www.seabreeze.com.au/weather/wind-forecast/bundaberg'],
   ['Tackle World Bundaberg', 'https://tackleworldbundy.com.au/'],
@@ -273,6 +274,7 @@ export const SOURCES = [
   ],
   ['Marine safety', 'https://www.msq.qld.gov.au/Safety']
 ];
+export const TOP_SOURCES = 4;
 
 export const ESTUARIES = [
   {
