@@ -65,12 +65,12 @@ export function circularMean(degrees, weights) {
 
 /**
  * Green and amber lines for each reading, the same lines its words use, so a
- * colour never disagrees with the verdict or poll lamp beside it.
+ * colour never disagrees with the verdict or advisory lamp beside it.
  *   ocean  Go from 75; Worth a look and Marginal from 42; River day below
  *   river  Good river day from 70; Worth a fish and Steady from 40; Slow below
- *   bite   the launch poll's Bite lamp: GO from 60, HOLD from 45
+ *   bite   the caution and advisory panel's Bite lamp: GO from 60, HOLD from 45
  * The verdict words keep their own numbers in ui.js; a test holds the two together.
- * (The Models % takes the colour of its poll lamp; see modelsLamp() in ui.js.)
+ * (The Models % takes the colour of its Models lamp; see modelsLamp() in ui.js.)
  */
 export const LINES = { ocean: [75, 42], river: [70, 40], bite: [60, 45] };
 

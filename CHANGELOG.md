@@ -1,5 +1,24 @@
 # Changelog
 
+## 6.0.4
+
+New names, and the week moves up so the page reads from the top: today's score, then the
+week's scores, then the detail. Scores, limits and the GO / NO GO calls are unchanged: on
+the sample forecast every day, ramp and figure on the page is the same as 6.0.3, only
+the headings and their order differ.
+
+- **New names.** 7-day telemetry is now the **7-day forecast** (7-day river forecast on
+  the Rivers page). The score tank is now the **Daily score** (Daily river score). The
+  launch poll is now the **Caution and advisory panel** on both pages. The chart heading
+  "Launch control · chart" is now just **Launch control**. Screen readers hear the new
+  names too.
+- **The 7-day forecast sits straight under the daily score,** where the launch poll was,
+  and the Caution and advisory panel follows it, on the Ocean and Rivers pages. On a wide
+  screen the week sits in the first column under the score, and the panel runs across
+  the full width under the three columns, where the week was: four stations to a row on
+  the Ocean page, the river stations in two columns.
+- Tests: 202.
+
 ## 6.0.3
 
 - **Tapping a day in the 7-day telemetry keeps you where you are.** It used to scroll

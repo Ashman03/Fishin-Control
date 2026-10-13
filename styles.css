@@ -112,11 +112,11 @@ h2.sect,
 .panel h3,
 .alert h3,
 .kick,
-.tank .cap,
+.dscore .cap,
 .ens-h,
 .tm-head,
-.poll-k,
-.poll-s,
+.adv-k,
+.adv-s,
 .pill,
 .dow,
 .legend,
@@ -289,8 +289,13 @@ h2.sect span {
   color: var(--mute);
   text-align: right;
 }
-.telem h2.sect {
+.week h2.sect {
   margin-bottom: 10px;
+}
+/* the panel's long name keeps to one line; on a phone its tally drops below it */
+.advsec h2.sect {
+  flex-wrap: wrap;
+  row-gap: 3px;
 }
 
 /* the square panel everything sits in */
@@ -600,14 +605,14 @@ button.inline {
   margin-top: 4px;
 }
 
-/* ── Hero: the score tank and the flight director's call ───────────── */
+/* ── Hero: the daily score and the flight director's call ───────────── */
 
 .hero {
   display: flex;
   gap: 16px;
   padding: 16px 14px;
 }
-.tank {
+.dscore {
   flex: none;
   display: flex;
   flex-direction: column;
@@ -626,7 +631,7 @@ button.inline {
   font-family: var(--body);
   font-weight: 400;
 }
-.tank .cap {
+.dscore .cap {
   font-size: 10px;
   letter-spacing: 0.18em;
   color: var(--mute);
@@ -707,20 +712,20 @@ button.inline {
   background: var(--sky);
 }
 
-/* ── The go / no-go poll ────────────────────────────────────────────
+/* ── The caution and advisory panel ─────────────────────────────────
    Each station a tile with its own lamp; on the rivers page, one row each. */
-.poll-row[data-st='hold'] {
+.adv-row[data-st='hold'] {
   --st: var(--mid);
 }
-.poll-row[data-st='nogo'] {
+.adv-row[data-st='nogo'] {
   --st: var(--no);
 }
-.poll.tiles {
+.adv.tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
-.poll-row {
+.adv-row {
   --st: var(--go);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -731,7 +736,7 @@ button.inline {
   border: 1px solid var(--line);
   min-width: 0;
 }
-.poll-k {
+.adv-k {
   grid-row: 1;
   grid-column: 1;
   display: flex;
@@ -741,7 +746,7 @@ button.inline {
   letter-spacing: 0.16em;
   color: var(--sky2);
 }
-.poll-k::before {
+.adv-k::before {
   content: '';
   flex: none;
   width: 9px;
@@ -749,7 +754,7 @@ button.inline {
   background: var(--st);
   box-shadow: 0 0 8px var(--st);
 }
-.poll-s {
+.adv-s {
   grid-row: 1;
   grid-column: 2;
   font-size: 11px;
@@ -758,7 +763,7 @@ button.inline {
   white-space: nowrap;
   color: var(--st);
 }
-.poll-v {
+.adv-v {
   grid-row: 2;
   grid-column: 1 / -1;
   font-size: 13px;
@@ -766,11 +771,11 @@ button.inline {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.poll.rows {
+.adv.rows {
   background: var(--panel);
   border: 1px solid var(--line);
 }
-.poll.rows .poll-row {
+.adv.rows .adv-row {
   grid-template-columns: 84px minmax(0, 1fr) auto;
   gap: 10px;
   padding: 10px 12px;
@@ -778,15 +783,15 @@ button.inline {
   border: 0;
   border-bottom: 1px solid var(--rule);
 }
-.poll.rows .poll-row:last-child {
+.adv.rows .adv-row:last-child {
   border-bottom: 0;
 }
-.poll.rows .poll-v {
+.adv.rows .adv-v {
   grid-row: 1;
   grid-column: 2;
   white-space: normal;
 }
-.poll.rows .poll-s {
+.adv.rows .adv-s {
   grid-column: 3;
 }
 .pills {
@@ -825,9 +830,9 @@ button.inline {
   color: var(--no);
 }
 
-/* ── 7-day telemetry: one bar per day, dashed lines at its green and amber lines ── */
+/* ── 7-day forecast: one bar per day, dashed lines at its green and amber lines ── */
 
-.telem {
+.week {
   padding: 12px 12px 10px;
 }
 .strip {
@@ -1654,7 +1659,8 @@ label.filebtn:focus-within {
   .pages {
     gap: 18px;
   }
-  /* three columns that wrap as the window narrows, then the week, then a grid of cards */
+  /* three columns that wrap as the window narrows (the score and the week in the
+     first), then the caution and advisory panel, then a grid of cards */
   .deck {
     flex-flow: row wrap;
     align-items: flex-start;
@@ -1672,9 +1678,21 @@ label.filebtn:focus-within {
     flex: 1 1 300px;
     order: 3;
   }
-  .view-plan .telem {
+  .deck > .advsec {
     flex: 1 1 100%;
     order: 4;
+  }
+  /* full width: the ocean stations four to a row, the river rows in two columns */
+  .adv.tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .adv.rows {
+    columns: 2;
+    column-gap: 0;
+    column-rule: 1px solid var(--rule);
+  }
+  .adv.rows .adv-row {
+    break-inside: avoid;
   }
   /* cards of different heights flow down three columns instead of leaving gaps */
   .deck > .grid {

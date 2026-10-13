@@ -79,7 +79,8 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   not touch the DOM or localStorage.
 - **Soft adjustments never move the line.** Northerlies, wind against the tidal current
   and storm risk (`softPenalties()` in `model.js`) lower the ranking score by a few points;
-  only `passes()` decides GO / NO GO. Storms show as a HOLD on the launch poll at most.
+  only `passes()` decides GO / NO GO. Storms show as a HOLD on the caution and advisory panel at
+  most.
 - **Fishing hours** run from an hour before sunrise to an hour after sunset
   (`fishBeforeSunrise` / `fishAfterSunset` in `TUNING`).
 - **Rivers are scored separately** (`riverScore()`): tide, moon and rain first; wind only
@@ -96,9 +97,11 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   amber and red mean go, marginal and no-go and nothing else; light blue is the
   interface. Each reading turns green and amber at the same lines as its own words
   (`LINES` in `util.js`): ocean scores at the verdict's 75 / 42, river scores at 70 / 40,
-  Bite at the poll's 60 / 45, and the Models % takes its poll lamp's colour. Nothing uses
-  outlined text. Phones get a bottom sections bar; from 900 px
-  wide the layout spreads into columns (`.deck`, `.col-a/b/c`, `.grid`).
+  Bite at its lamp's 60 / 45, and the Models % takes its Models lamp's colour. Nothing
+  uses outlined text. The page reads from the top: the daily score, then the 7-day
+  forecast, then the caution and advisory panel and the detail below it. Phones get a
+  bottom sections bar; from 900 px wide the layout spreads into columns (`.deck`,
+  `.col-a/b/c`, `.advsec`, `.grid`).
 - **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
   damaged entry can't break a render.
 
@@ -107,7 +110,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 199 tests, no dependencies, clock pinned to Queensland time
+npm test             # 202 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
