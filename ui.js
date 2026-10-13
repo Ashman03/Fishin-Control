@@ -163,6 +163,18 @@ function banners(day) {
         'The wave models did not respond, so scores here are wind-only and capped. Check BOM or Windy for swell before you decide.'
       )
     );
+  // a feed answered but left something out: the app reads the gap as zero
+  if (!state.demo && state.raw && state.raw.gaps && state.raw.gaps.length)
+    out.push(
+      notice(
+        'Forecast data incomplete',
+        'The forecast came back incomplete: <b>' +
+          esc(state.raw.gaps.join(', ')) +
+          '</b>. The app cannot allow for what is missing, so the calls here may look better than they are. ' +
+          'Check BOM before you decide. If this stays after a refresh, the forecast service has ' +
+          'probably changed and the app needs updating.'
+      )
+    );
   const off = -new Date().getTimezoneOffset();
   if (off !== 600)
     out.push(

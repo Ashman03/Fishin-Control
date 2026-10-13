@@ -36,6 +36,13 @@ export function goDays(days) {
     });
 }
 
+/**
+ * Whether a forecast may raise a go-day alert: never from the phone's saved
+ * copy, and never from one that came back with fields missing, where a
+ * missing gust or storm figure reads as calm.
+ */
+export const canAlert = raw => !!raw && !raw.cached && !(raw.gaps && raw.gaps.length);
+
 /** Go days in `now` that were not go days in `seen`. A first run (no history) alerts nothing. */
 export function newlyGo(seen, now) {
   if (!Array.isArray(seen)) return [];

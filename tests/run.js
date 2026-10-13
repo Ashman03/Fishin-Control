@@ -330,6 +330,299 @@ await describe('data', async () => {
     );
     assert(seen.at(-1)[0] === total, 'never reached the end');
   });
+
+  /* A feed that drifts: answers 200, but with a field renamed, dropped or in new units. */
+  const drop = (sets, name) =>
+    sets.map(p => ({
+      ...p,
+      hourly: Object.fromEntries(Object.entries(p.hourly).filter(([k]) => k !== name))
+    }));
+
+  await it('fieldGaps names a dropped field and a change of units, in plain words', () => {
+    const s = data.sampleData();
+    assert(data.fieldGaps(s.fc, data.FORECAST_VARS).length === 0, 'sample forecast is complete');
+    assert(
+      data.fieldGaps(drop(s.fc, 'wind_gusts_10m'), data.FORECAST_VARS).join() === 'gusts missing',
+      'dropped gusts'
+    );
+    const mph = s.fc.map(p => ({ ...p, hourly_units: { wind_speed_10m: 'mph', wind_gusts_10m: 'kn' } }));
+    assert(data.fieldGaps(mph, data.FORECAST_VARS).join() === 'wind in mph, not kn', 'wind units');
+    const suffixed = s.mar.map(p => ({ ...p, hourly_units: { ocean_current_velocity_ecmwf_wam: 'm/s' } }));
+    assert(
+      data.fieldGaps(suffixed, data.MARINE_VARS).join() === 'currents in m/s, not km/h',
+      'suffixed unit key'
+    );
+  });
+
+  await it('a forecast that answers without gusts is flagged, not passed off as complete', async () => {
+    const s = data.sampleData();
+    globalThis.fetch = async url =>
+      ok(url.includes('api.open-meteo.com/v1/forecast') ? drop(s.fc, 'wind_gusts_10m') : answer(s, url));
+    const raw = await data.getData();
+    const row = raw.status.find(x => x.label === 'Forecast details');
+    assert(row && row.ok === false && /gusts missing/.test(row.detail), JSON.stringify(row));
+    assert(raw.gaps.join() === 'gusts missing', raw.gaps.join());
+  });
+
+  await it('missing tide heights and sunrise times are flagged too', async () => {
+    const s = data.sampleData();
+    const noSun = s.fc.map(p => ({ hourly: p.hourly }));
+    globalThis.fetch = async url =>
+      ok(
+        url.includes('marine-api')
+          ? drop(s.mar, 'sea_level_height_msl')
+          : url.includes('ensemble-api')
+            ? answer(s, url)
+            : noSun
+      );
+    const raw = await data.getData();
+    assert(raw.gaps.join() === 'sunrise times missing,tide heights missing', raw.gaps.join());
+  });
+
+  await it('a complete forecast reports every field present', async () => {
+    const s = data.sampleData();
+    globalThis.fetch = async url => ok(answer(s, url));
+    const raw = await data.getData();
+    const row = raw.status.find(x => x.label === 'Forecast details');
+    assert(row && row.ok && raw.gaps.length === 0, JSON.stringify(row));
+  });
+
+  await it('the backup wave model is not faulted for tide heights it has never sent', async () => {
+    const s = data.sampleData();
+    globalThis.fetch = async url => {
+      const best = url.includes('marine-api') && !url.includes('models=');
+      return best
+        ? refuse(503, '')
+        : ok(url.includes('marine-api') ? drop(s.mar, 'sea_level_height_msl') : answer(s, url));
+    };
+    const raw = await data.getData();
+    assert(raw.gaps.length === 0, raw.gaps.join());
+  });
+
+  await it('the backup wave model is not faulted for the currents it was never asked for', async () => {
+    const s = data.sampleData();
+    const waves = drop(drop(s.mar, 'ocean_current_velocity'), 'sea_surface_temperature');
+    globalThis.fetch = async url => {
+      const best = url.includes('marine-api') && !url.includes('models=');
+      return best ? refuse(503, '') : ok(url.includes('marine-api') ? waves : answer(s, url));
+    };
+    const raw = await data.getData();
+    assert(raw.gaps.length === 0, raw.gaps.join());
+  });
+});
+
+/* ── feed check (tools/check-feeds.js) ──────────────────────────────────── */
+
+await describe('feed check', async () => {
+  const feeds = await import('../tools/check-feeds.js');
+  const s = data.sampleData();
+  const strip = (sets, name) =>
+    sets.map(p => ({
+      ...p,
+      hourly: Object.fromEntries(Object.entries(p.hourly).filter(([k]) => k !== name))
+    }));
+  const DPI = '<html><body><h1>Closed seasons</h1><p><b>Last updated:</b> 25 Sep 2026</p></body></html>';
+  /** Answers like the real services, with `over` replacing any answer by URL. */
+  const serve =
+    (over = () => null) =>
+    async url => {
+      const o = over(url);
+      if (o) return o;
+      const body = url.includes('ensemble-api')
+        ? { hourly: ensembleHourly(s.fc[0].hourly.time, 7, 'suffixed') }
+        : url.includes('marine-api')
+          ? s.mar
+          : url.includes('open-meteo')
+            ? s.fc
+            : null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+        text: async () => (url.includes('dpi.qld') ? DPI : '<html>ok</html>'),
+        headers: { get: () => null }
+      };
+    };
+  const http = (status, reason = '') => ({
+    ok: false,
+    status,
+    json: async () => ({ error: true, reason }),
+    text: async () => '',
+    headers: { get: () => null }
+  });
+  const kinds = list => Object.fromEntries(list.map(f => [f.source, f.kind]));
+
+  await it('every source answering as expected finds nothing changed', async () => {
+    globalThis.fetch = serve();
+    const r = await feeds.run({ wait: 0 });
+    const bad = r.findings.filter(f => f.kind !== 'ok');
+    assert(r.state === 'ok' && bad.length === 0, JSON.stringify(bad));
+    assert(/✅ All data sources/.test(feeds.report(r.findings)), 'headline');
+  });
+
+  await it('a renamed model is a change; a rate limit is only an outage', async () => {
+    let busy = 0;
+    globalThis.fetch = serve(url => {
+      if (url.includes('models=' + MODELS.ensemble[0] + '&')) return http(400, 'Invalid model');
+      if (url.includes('models=' + MODELS.windCheck[0] + '&')) return (busy++, http(429));
+      return null;
+    });
+    const k = kinds(await feeds.checkOpenMeteo({ wait: 0 }));
+    assert(k[`Wind ensemble (${MODELS.ensemble[0]})`] === 'changed', JSON.stringify(k));
+    assert(k[`Wind cross-check (${MODELS.windCheck[0]})`] === 'outage', JSON.stringify(k));
+    assert(busy === 3, 'a busy service is tried three times, got ' + busy);
+  });
+
+  await it('the backup swell model is not faulted for tide heights it has never sent', async () => {
+    globalThis.fetch = serve(url =>
+      url.includes('models=' + MODELS.waveFallback) && url.includes('sea_level')
+        ? { ...http(200), ok: true, json: async () => strip(s.mar, 'sea_level_height_msl') }
+        : null
+    );
+    const f = (await feeds.checkOpenMeteo({ wait: 0 })).find(x => x.source.startsWith('Backup swell'));
+    assert(f.kind === 'ok', JSON.stringify(f));
+  });
+
+  await it('a field dropped from an answer that is otherwise fine is a change', async () => {
+    globalThis.fetch = serve(url =>
+      url.includes('marine-api') && !url.includes('models=')
+        ? { ...http(200), ok: true, json: async () => strip(s.mar, 'ocean_current_velocity') }
+        : null
+    );
+    const f = (await feeds.checkOpenMeteo({ wait: 0 })).find(x => x.source === 'Swell forecast (primary)');
+    assert(f.kind === 'changed' && f.detail === 'currents missing', JSON.stringify(f));
+  });
+
+  await it('a forecast that stops short of the week is a change', async () => {
+    const short = s.fc.map(p => ({
+      ...p,
+      hourly: { ...p.hourly, wind_speed_10m: p.hourly.wind_speed_10m.map((v, k) => (k < 72 ? v : null)) }
+    }));
+    globalThis.fetch = serve(url =>
+      url.includes('/v1/forecast') && !url.includes('models=')
+        ? { ...http(200), ok: true, json: async () => short }
+        : null
+    );
+    const f = (await feeds.checkOpenMeteo({ wait: 0 })).find(x => x.source === 'Wind forecast (primary)');
+    assert(f.kind === 'changed' && /wind only reaches/.test(f.detail), JSON.stringify(f));
+  });
+
+  await it('the closed seasons page updated after the app copied it is a change', async () => {
+    globalThis.fetch = serve(url =>
+      url.includes('dpi.qld')
+        ? { ...http(200), ok: true, text: async () => DPI.replace('25 Sep 2026', '3 Mar 2027') }
+        : null
+    );
+    const f = (await feeds.checkClosures()).find(x => x.source === 'DPI closed seasons page');
+    assert(f.kind === 'changed' && f.detail.includes('2027-03-03'), JSON.stringify(f));
+  });
+
+  await it('DPI turning the check away is a note, not a daily "not reachable"', async () => {
+    globalThis.fetch = serve(url => (url.includes('dpi.qld') ? http(403) : null));
+    const f = (await feeds.checkClosures()).find(x => x.source === 'DPI closed seasons page');
+    assert(f.kind === 'note', JSON.stringify(f));
+  });
+
+  await it('closure dates running out are flagged the year before, then as a change', async () => {
+    globalThis.fetch = serve();
+    const last = (await import('../closures.js')).CRFF_LAST_YEAR;
+    const at = y => feeds.checkClosures({ now: Date.parse(y + '-06-01') });
+    const pick = list => list.find(f => f.source === 'Coral reef fin fish dates');
+    assert(!pick(await at(last - 2)), 'too early');
+    assert(pick(await at(last - 1)).kind === 'note', 'year before');
+    assert(pick(await at(last)).kind === 'changed', 'final year');
+  });
+
+  await it('a link that is gone is a change; a site turning the check away is not', async () => {
+    globalThis.fetch = serve(url =>
+      url.includes('msq.qld') ? http(404) : url.includes('bom.gov') ? http(403) : null
+    );
+    const found = await feeds.checkLinks();
+    const gone = found.filter(f => f.kind === 'changed').map(f => f.source);
+    assert(gone.join() === 'Link: MSQ tide tables,Link: Marine safety', JSON.stringify(found));
+  });
+
+  await it('the same problem keeps the same signature, so it is reported once', () => {
+    const a = [
+      { source: 'B', kind: 'changed' },
+      { source: 'A', kind: 'changed' },
+      { source: 'C', kind: 'outage' }
+    ];
+    assert(feeds.signature(a) === 'A + B', feeds.signature(a));
+    assert(/❌ Something the app relies on has changed/.test(feeds.report(a)), 'headline');
+  });
+
+  await it('a run with only outages reads "outage", so it never closes a reported problem', async () => {
+    globalThis.fetch = serve(url => (url.includes('models=' + MODELS.windCheck[0] + '&') ? http(503) : null));
+    const r = await feeds.run({ wait: 0 });
+    assert(r.state === 'outage', r.state);
+    assert(
+      feeds.overall([{ kind: 'outage' }, { kind: 'changed' }]) === 'changed',
+      'a change outranks an outage'
+    );
+    assert(feeds.overall([{ kind: 'ok' }, { kind: 'note' }]) === 'ok', 'notes are fine');
+  });
+
+  await it('a busy service is retried for one request, then each other request is tried once', async () => {
+    let calls = 0;
+    globalThis.fetch = serve(url => (url.includes('open-meteo') ? (calls++, http(429)) : null));
+    const found = await feeds.checkOpenMeteo({ wait: 0 });
+    assert(
+      found.every(f => f.kind === 'outage'),
+      JSON.stringify(found)
+    );
+    assert(calls === 3 + (found.length - 1), calls + ' requests for ' + found.length + ' sources');
+  });
+
+  await it('the links are checked without downloading their pages', async () => {
+    let reads = 0;
+    globalThis.fetch = serve(url =>
+      url.includes('open-meteo')
+        ? null
+        : {
+            ...http(200),
+            ok: true,
+            text: async () => (reads++, url.includes('dpi.qld') ? DPI : 'page')
+          }
+    );
+    await feeds.checkLinks();
+    assert(reads === 0, reads + ' link pages downloaded');
+    await feeds.checkClosures();
+    assert(reads === 1, 'the DPI page is the one page read');
+  });
+
+  await it('a detail with a line break stays on its own row of the report', () => {
+    const text = feeds.report([{ source: 'A', kind: 'changed', detail: 'line one\nline two' }]);
+    assert(text.includes('| A | ❌ Changed | line one line two |'), text);
+  });
+
+  await it('the check can be imported without a script path (as the workflow may)', async () => {
+    const { execFileSync } = await import('child_process');
+    const out = execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `const m = await import(${JSON.stringify(new URL('../tools/check-feeds.js', import.meta.url).href)}); console.log(typeof m.run)`
+    ]).toString();
+    assert(out.trim() === 'function', out);
+  });
+
+  await it('the daily workflow closes an issue only on a clean run and keeps its schedule alive', async () => {
+    const fs = await import('fs');
+    const yml = fs.readFileSync(new URL('../.github/workflows/feed-check.yml', import.meta.url), 'utf8');
+    assert(/issue && result\.state === 'ok'/.test(yml), 'an outage could close a real problem');
+    assert(/open\.find\(i => !i\.pull_request\)/.test(yml), 'a pull request could be taken for the issue');
+    assert(
+      /if: always\(\) && github\.event_name == 'schedule'/.test(yml),
+      'keep-alive skipped after a failure'
+    );
+    assert(/"state":"changed"/.test(yml), 'a crashed check must still raise the alert');
+  });
+
+  await it('isoDate reads the dates DPI writes', () => {
+    assert(feeds.isoDate(': 5 September 2026 ') === '2026-09-05');
+    assert(feeds.isoDate(' 25 Sep 2026') === '2026-09-25', 'DPI writes the month short');
+    assert(feeds.isoDate('no date here') === null);
+  });
 });
 
 /* ── model ──────────────────────────────────────────────────────────────── */
@@ -699,6 +992,16 @@ await describe('closures', async () => {
 
 await describe('alerts', async () => {
   const al = await imp('alerts');
+  await it('no go-day alert from a saved copy or a forecast with fields missing', async () => {
+    assert(al.canAlert({ cached: false, gaps: [] }), 'a clean live forecast may alert');
+    assert(!al.canAlert({ cached: true, gaps: [] }), 'saved copy');
+    assert(!al.canAlert({ cached: false, gaps: ['gusts missing'] }), 'gusts missing reads as calm');
+    assert(!al.canAlert(null), 'nothing at all');
+    const fs = await import('fs');
+    const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+    assert(/if \(!canAlert\(raw\)\) return \{ checked: false \}/.test(read('sw.js')), 'background check');
+    assert(/!demo && canAlert\(raw\)\) await checkGoDays\(\)/.test(read('app.js')), 'page check');
+  });
   const day = (ds, overall) => ({
     ds,
     overall,
@@ -1339,6 +1642,17 @@ await describe('ui', async () => {
     assert(a !== b, 'species chips share a key: ' + a);
     const odd = ui.controlKey(el('BUTTON', { act: 'delMark', id: 'm1\nx"y' }));
     assert(!/\n/.test(odd) && odd.includes('\\a ') && odd.includes('\\"'), 'unsafe key: ' + odd);
+  });
+  await it('a forecast with fields missing says so on the forecast screen', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.raw.gaps = ['gusts missing'];
+    ui.render();
+    assert(/Forecast data incomplete[\s\S]*gusts missing/.test(nodes.app.innerHTML), 'no warning');
+    state.raw.gaps = [];
+    ui.render();
+    assert(!/Forecast data incomplete/.test(nodes.app.innerHTML), 'warning with nothing missing');
+    delete state.raw.gaps;
   });
   await it('data sources read red when nothing answered', () => {
     const saved = state.raw.status;

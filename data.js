@@ -27,16 +27,80 @@ const REF_POINT = POINTS[ZONES.find(z => z.id === REFERENCE_ZONE).ptMid];
 
 // Open-Meteo counts more than ten variables as extra calls, so each list stays at ten or fewer.
 // weather_code (95–99 = thunderstorm) and cape (atmospheric instability) feed the storm risk.
-const FORECAST_VARS =
+export const FORECAST_VARS =
   'wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,pressure_msl,weather_code,cape';
 // The fallback wave model is asked only for what it is the fallback FOR, so a
 // model without currents or sea temperature can't turn a swell rescue into an error.
-const WAVE_VARS =
+export const WAVE_VARS =
   'wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_level_height_msl';
+// What the backup wave model is held to. NOAA GFS-Wave has never sent tide
+// heights, so their absence there is expected, not a change worth a warning.
+export const BACKUP_CHECKED = WAVE_VARS.replace(',sea_level_height_msl', '');
 // ocean_current_* include the tidal stream (direction is where the water is going)
-const MARINE_VARS =
+export const MARINE_VARS =
   'wave_height,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,' +
   'wind_wave_height,sea_level_height_msl,sea_surface_temperature,ocean_current_velocity,ocean_current_direction';
+
+/**
+ * Every hourly field the app reads: the unit its sums assume (null: any unit
+ * will do) and the plain name used on screen when it goes missing. A feed can
+ * answer HTTP 200 with a field renamed, dropped or in new units; each of those
+ * reads as zero or as a wrong number downstream, so they are checked by name.
+ */
+export const FIELDS = Object.freeze({
+  wind_speed_10m: ['kn', 'wind'],
+  wind_gusts_10m: ['kn', 'gusts'],
+  wind_direction_10m: [null, 'wind direction'],
+  precipitation: ['mm', 'rain'],
+  pressure_msl: [null, 'pressure'],
+  weather_code: [null, 'storm codes'],
+  cape: [null, 'storm instability'],
+  wave_height: ['m', 'wave height'],
+  wave_period: [null, 'wave period'],
+  swell_wave_height: ['m', 'swell height'],
+  swell_wave_period: [null, 'swell period'],
+  swell_wave_direction: [null, 'swell direction'],
+  wind_wave_height: ['m', 'chop'],
+  sea_level_height_msl: ['m', 'tide heights'],
+  sea_surface_temperature: [null, 'sea temperature'],
+  ocean_current_velocity: ['km/h', 'currents'],
+  ocean_current_direction: [null, 'current direction']
+});
+
+/** The unit a response gives for a field, model-suffixed or not; null when it gives none. */
+function unitOf(sets, name) {
+  const u = sets[0] && sets[0].hourly_units;
+  if (!u) return null;
+  if (typeof u[name] === 'string') return u[name];
+  const key = Object.keys(u).find(k => k.startsWith(name + '_') && /^[a-z]/.test(k.slice(name.length + 1)));
+  return key ? u[key] : null;
+}
+
+/**
+ * What a response is missing, in plain words: each requested field with no
+ * value at any point ("gusts missing"), or in units the sums don't expect
+ * ("wind in mph, not kn"). Empty when the response has everything asked for.
+ */
+export function fieldGaps(sets, vars) {
+  const gaps = [];
+  for (const name of vars.split(',')) {
+    const [unit, label] = FIELDS[name] || [null, name];
+    if (!sets.some(o => hasData(pickVar(o && o.hourly, name)))) gaps.push(label + ' missing');
+    else {
+      const got = unitOf(sets, name);
+      if (unit && got && got !== unit) gaps.push(label + ' in ' + got + ', not ' + unit);
+    }
+  }
+  return gaps;
+}
+
+/** Sunrise and sunset, which set the fishing hours; without them the app guesses. */
+export const hasSunTimes = sets =>
+  Array.isArray(sets) &&
+  sets[0] &&
+  sets[0].daily &&
+  hasData(sets[0].daily.sunrise) &&
+  hasData(sets[0].daily.sunset);
 
 function query(params) {
   return Object.entries(params)
@@ -248,6 +312,20 @@ export async function getData(onProgress = () => {}) {
       : mar.error || 'no wave values'
   );
 
+  // A feed can answer with a field renamed, dropped or in new units. The app
+  // reads a missing figure as zero, so say so rather than let it look calm.
+  const gaps = [
+    ...fieldGaps(fc.json, FORECAST_VARS),
+    ...(hasSunTimes(fc.json) ? [] : ['sunrise times missing']),
+    ...(wave ? fieldGaps(wave.json, backup ? BACKUP_CHECKED : MARINE_VARS) : [])
+  ];
+  record(
+    'Forecast details',
+    'fields',
+    gaps.length === 0,
+    gaps.length ? gaps.join(', ') : 'all fields present'
+  );
+
   const windAlt = [];
   MODELS.windCheck.forEach((model, i) => {
     const r = windSets[i],
@@ -296,6 +374,7 @@ export async function getData(onProgress = () => {}) {
     waveAlt,
     ensemble,
     status,
+    gaps, // fields the feeds should have sent but didn't, in plain words
     cached: saved.length > 0,
     saved, // which primaries are saved copies: 'wind', 'swell'
     savedAt: savedAts.length ? Math.min(...savedAts) : null, // the older of the two

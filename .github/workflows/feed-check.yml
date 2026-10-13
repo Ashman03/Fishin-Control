@@ -1,0 +1,111 @@
+# Daily check that the forecast feeds, the closed seasons page and the app's
+# links still answer the way the app expects. See tools/check-feeds.js.
+#
+# When something has changed, it opens an issue on this repository (GitHub
+# emails the owner) and closes it again once the check passes. The same
+# problem is reported once, not every day.
+#
+# Run it by hand: Actions → Data feed check → Run workflow.
+
+name: Data feed check
+
+on:
+  schedule:
+    - cron: '7 20 * * *' # 6:07 am in Queensland (on the hour, GitHub runs late)
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - config.js
+      - data.js
+      - closures.js
+      - util.js
+      - tools/check-feeds.js
+      - .github/workflows/feed-check.yml
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+concurrency:
+  group: feed-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Check every data source
+        id: check
+        continue-on-error: true
+        run: node tools/check-feeds.js --report report.md --json result.json
+
+      - name: Show the report on the run page
+        if: always()
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY" || echo "The check could not run; see the step above." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open, update or close the alert issue
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            // a check that crashed before writing its results is reported too
+            const read = (f, fallback) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : fallback);
+            const result = JSON.parse(read('result.json', '{"state":"changed","signature":"the check could not run"}'));
+            const report = read('report.md', '## ❌ The data feed check could not run\n\nThe check itself stopped with an error; the run details say where.');
+            const repo = context.repo;
+            const owner = repo.owner;
+            const runUrl = `${context.serverUrl}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
+            const LABEL = 'feed-check';
+            const marker = sig => `<!-- feed-check: ${sig} -->`;
+
+            try {
+              await github.rest.issues.getLabel({ ...repo, name: LABEL });
+            } catch (e) {
+              await github.rest.issues.createLabel({ ...repo, name: LABEL, color: 'd93f0b',
+                description: 'Raised by the daily data feed check' });
+            }
+            const { data: open } = await github.rest.issues.listForRepo({
+              ...repo, state: 'open', labels: LABEL, per_page: 5 });
+            const issue = open.find(i => !i.pull_request);
+
+            if (result.state === 'changed') {
+              const body = `@${owner} the daily check found that something the app relies on has changed.\n\n` +
+                `${report}\n\n[Full run details](${runUrl})\n\n${marker(result.signature)}`;
+              if (!issue) {
+                await github.rest.issues.create({ ...repo, labels: [LABEL],
+                  title: 'Data feed check: the app may need updating', body });
+              } else if (!issue.body || !issue.body.includes(marker(result.signature))) {
+                // a different problem from the one already reported: say so once
+                await github.rest.issues.createComment({ ...repo, issue_number: issue.number,
+                  body: `@${owner} the problem has changed since this was opened.\n\n${report}\n\n[Full run details](${runUrl})` });
+                await github.rest.issues.update({ ...repo, issue_number: issue.number, body });
+              }
+            } else if (issue && result.state === 'ok') {
+              // only a clean run closes it: a source that could not be reached proves nothing
+              await github.rest.issues.createComment({ ...repo, issue_number: issue.number,
+                body: `✅ Back to normal: every source is coming through as the app expects.\n\n[Run details](${runUrl})` });
+              await github.rest.issues.update({ ...repo, issue_number: issue.number,
+                state: 'closed', state_reason: 'completed' });
+            }
+
+      # GitHub pauses scheduled checks on a repository with no commits for 60
+      # days. Re-enabling the workflow on each run keeps it going.
+      - name: Keep the daily schedule switched on
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/feed-check.yml/enable"
+
+      - name: Mark the run failed when something changed
+        if: always() && steps.check.outcome == 'failure'
+        run: exit 1
