@@ -7,31 +7,41 @@
  *
  * Persistence is localStorage, wrapped as {v, data} so a future change of
  * shape can be migrated rather than silently misread. Corrupt values are
- * discarded with a console warning rather than thrown: losing one mark beats
- * a blank screen.
+ * discarded with a console warning rather than thrown: losing one log entry
+ * beats a blank screen.
  */
-import { DEFAULTS, DEFAULT_MARKS, MARK_TYPES, RATINGS } from './config.js';
+import { DEFAULTS, RATINGS } from './config.js';
 import { writeShared } from './alerts.js';
 
 export const state = {
   cfg: { ...DEFAULTS }, // the user's limits
-  marks: [], // the user's fishing marks
   log: [], // the user's catch log
   raw: null, // last fetched payload (see data.js)
   days: [], // built forecast days, today onward (see model.js)
   past: [], // built days before today, used only for logging
   sel: 0, // selected day index into `days`
   zsel: null, // selected ramp id
-  tab: 'plan', // 'plan' | 'marks' | 'log'
+  tab: 'plan', // 'plan' | 'history' | 'log'
   view: 'ocean', // Forecast tab: 'ocean' | 'river'
   logDraft: null, // unsaved log form values, kept across re-renders
   demo: false, // true when showing sample data
   loadError: null, // why the live forecast failed, shown on screen
   alerts: { on: false, mode: null }, // go-day alerts: mode is 'background' | 'open' | 'denied' | 'unsupported'
   freshGo: [], // days that turned green since the last look
-  markInfo: null, // id of the mark tapped on the map
-  importMsg: null, // result of the last mark import
-  savingLog: false, // a catch-log save is waiting on the phone's location
+  // the Flight log tab (history.js): what is showing, and what has loaded this session
+  hist: {
+    view: 'month', // 'day' | 'week' | 'month' | 'year'
+    ds: null, // the day the view is built around (YYYY-MM-DD)
+    ramp: '', // a ramp id, or '' for the best ramp each day
+    status: 'idle', // 'idle' | 'loading' | 'ready' | 'error'
+    data: null, // readSummary() of summary.json, plus byDs
+    error: null,
+    cached: false, // the phone's saved copy, not a fresh one
+    first: null,
+    last: null,
+    at: 0, // when the summary was fetched
+    months: {} // YYYY-MM → hours file, 'loading' or 'error'
+  },
   loadSeq: 0 // guards against an older refresh overwriting a newer one
 };
 
@@ -54,6 +64,16 @@ function parse(key, raw) {
 function migrate(key, payload) {
   console.warn('[store] no migration for', key, 'version', payload.v);
   return payload.data;
+}
+
+/** Delete a stored value, under the current name and the old one. */
+function forget(key) {
+  try {
+    localStorage.removeItem(PREFIX + key);
+    localStorage.removeItem(LEGACY_PREFIX + key);
+  } catch (e) {
+    /* storage disabled or private mode */
+  }
 }
 
 function read(key) {
@@ -102,36 +122,15 @@ const num = (v, lo, hi, d) =>
   v != null && v !== '' && Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d;
 const str = (v, len = 200) => (v == null ? '' : String(v).slice(0, len));
 
-/** {lat, lon} if both are real coordinates, else nothing. */
-function position(x) {
-  const lat = num(x.lat, -90, 90, null),
-    lon = num(x.lon, -180, 180, null);
-  return lat != null && lon != null ? { lat, lon } : {};
-}
-
-export function cleanMark(x, i) {
-  return {
-    id: str(x.id, 40) || 'm' + i,
-    name: str(x.name, 80),
-    ramp: str(x.ramp, 20),
-    km: num(x.km, 0, 60, 0),
-    depth: num(x.depth, 0, 200, 0),
-    type: MARK_TYPES.includes(x.type) ? x.type : 'reef',
-    // position, for marks imported from the sounder: shown on the map
-    ...position(x),
-    ...(x.imported ? { imported: true } : {})
-  };
-}
-
 export function cleanLogEntry(x, i) {
+  const { mark, ...rest } = x; // marks were retired for the Flight log; an old entry's mark name is dropped
   return {
-    ...x,
+    ...rest,
     id: str(x.id, 40) || 'e' + i,
     date: str(x.date, 10),
     ramp: str(x.ramp, 20),
     species: str(x.species),
     notes: str(x.notes, 500),
-    mark: x.mark ? str(x.mark, 80) : null,
     rating: Math.round(num(x.rating, 0, RATINGS.length - 1, 2)),
     wind: num(x.wind, 0, 200, null),
     swell: num(x.swell, 0, 20, null),
@@ -144,10 +143,7 @@ export function cleanLogEntry(x, i) {
 export function loadStored() {
   const lim = validLimits(read('limits'));
   if (lim) state.cfg = lim;
-  const m = read('marks');
-  state.marks = Array.isArray(m)
-    ? m.filter(x => x && x.name && x.ramp).map(cleanMark)
-    : DEFAULT_MARKS.map((x, i) => ({ ...x, id: 'd' + i }));
+  forget('marks'); // the marks list was retired for the Flight log: free the space it took
   state.view = read('view') === 'river' ? 'river' : 'ocean';
   const a = read('alerts');
   if (a && typeof a === 'object') state.alerts = { on: !!a.on, mode: a.mode || null };

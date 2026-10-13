@@ -122,9 +122,7 @@ h2.sect,
 .links button,
 .save,
 .ghost,
-.danger,
 .del,
-.mk button,
 .tabs button,
 .switch button,
 .rate button,
@@ -358,8 +356,7 @@ ul.tight li {
 /* ── Buttons ────────────────────────────────────────────────────────── */
 
 .save,
-.ghost,
-.danger {
+.ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -389,13 +386,6 @@ ul.tight li {
 .ghost:hover {
   border-color: var(--sky);
   color: var(--sky);
-}
-.danger {
-  min-height: 40px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  border-color: rgba(255, 99, 99, 0.5);
-  color: #ff8a8a;
 }
 .wide {
   width: 100%;
@@ -1046,9 +1036,6 @@ ul.tight li {
   font-weight: 500;
   letter-spacing: 0.16em;
 }
-.mark-info {
-  margin-top: 8px;
-}
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -1092,6 +1079,10 @@ ul.tight li {
 .key i.gu {
   height: 0;
   border-top: 2px dashed var(--no);
+}
+.key i.lim {
+  height: 0;
+  border-top: 2px dotted var(--sky2);
 }
 .key i.bx.ok {
   width: 10px;
@@ -1484,7 +1475,7 @@ footer {
   padding: 4px 0 8px;
 }
 
-/* ── My marks and catch log ─────────────────────────────────────────── */
+/* ── Catch log ─────────────────────────────────────────── */
 
 .form {
   display: grid;
@@ -1502,31 +1493,7 @@ footer {
   letter-spacing: 0.16em;
   color: var(--mute);
 }
-.steps {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--sky2);
-}
-.note {
-  padding: 9px 10px;
-  border: 1px solid var(--line2);
-  background: rgba(122, 211, 245, 0.06);
-  font-size: 13.5px;
-}
-label.filebtn {
-  position: relative;
-  cursor: pointer;
-}
-label.filebtn:focus-within {
-  outline: 2px solid var(--sky);
-  outline-offset: 2px;
-}
-/* visually hidden but still focusable, so the file picker works from a keyboard */
+/* visually hidden, but still read out by screen readers */
 .vh {
   position: absolute;
   width: 1px;
@@ -1549,13 +1516,6 @@ label.filebtn:focus-within {
 .mk:last-child {
   border-bottom: 0;
 }
-.mk .km {
-  flex: none;
-  width: 52px;
-  font-family: var(--disp);
-  font-size: 13px;
-  color: var(--sky2);
-}
 .mk .g {
   flex: 1;
   min-width: 0;
@@ -1563,34 +1523,9 @@ label.filebtn:focus-within {
   flex-direction: column;
   gap: 1px;
 }
-.mk .g b {
-  font-size: 14px;
-  font-weight: 500;
-}
 .mk .ty {
   font-size: 12px;
   color: var(--mute);
-}
-.mk button {
-  flex: none;
-  min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid rgba(122, 211, 245, 0.25);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--mute);
-}
-.mk button:hover {
-  border-color: rgba(255, 99, 99, 0.5);
-  color: #ff8a8a;
-}
-.fold > summary {
-  justify-content: center;
-  padding: 10px 12px;
-  color: var(--sky);
-}
-.fold[open] > summary {
-  border-bottom: 1px solid var(--rule);
 }
 .chips {
   display: flex;
@@ -1703,6 +1638,329 @@ label.filebtn:focus-within {
 .del:hover {
   border-color: rgba(255, 99, 99, 0.5);
   color: #ff8a8a;
+}
+
+/* ── Flight log: the last three years ──────────────────────────────── */
+
+.hist,
+.hbody,
+.hctl {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hctl {
+  gap: 10px;
+}
+/* one column on a phone: each view's parts take their place by CSS order */
+.hcol {
+  display: contents;
+}
+.switch.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.hnav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hnav h2 {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+}
+.hnav .ghost {
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+.hnav .ghost:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.hramp {
+  min-height: 44px;
+  font-family: var(--disp);
+  font-size: 14px;
+}
+.hlink {
+  padding: 0;
+  font-family: var(--disp);
+  font-size: 13px;
+  color: var(--sky);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hnote {
+  font-size: 12.5px;
+}
+
+/* the period at a glance: its colour (the average score) and its days split three ways */
+.hsum {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: color-mix(in srgb, var(--c) 13%, var(--panel));
+  border-left: 3px solid var(--c);
+}
+.hsum-avg {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+}
+.hsum-avg b {
+  font-family: var(--disp);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--c);
+}
+.hsum-avg span {
+  margin-top: 4px;
+  font-family: var(--disp);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.hsum-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+.split {
+  display: flex;
+  align-self: stretch;
+  height: 12px;
+  background: rgba(122, 211, 245, 0.1);
+}
+.split i {
+  display: block;
+  height: 100%;
+}
+.hsum-k {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-family: var(--disp);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* a session in the catch log on that day: a small fish */
+.logged {
+  display: inline-block;
+  width: 14px;
+  height: 9px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 12'%3E%3Cpath d='M1 6c3-5 9-6.5 13-2.2L19 1l-1.2 5 1.2 5-5-2.8C10 12.5 4 11 1 6z' fill='%23bde9fb'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.legend .logged {
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.day .logged {
+  margin-top: 2px;
+}
+.day.none {
+  opacity: 0.35;
+}
+
+/* the month as a calendar, each day coloured like the forecast's score */
+.cal-g {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+.cal-h {
+  padding-bottom: 2px;
+  font-family: var(--disp);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: var(--mute);
+}
+.cal-c {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  background: rgba(122, 211, 245, 0.15);
+  background: color-mix(in srgb, var(--c) 20%, transparent);
+  border-top: 2px solid var(--c);
+}
+.cal-c.blank {
+  background: none;
+  border: 0;
+}
+/* a day the archive could not fill is outlined; a day still to come is just its date */
+.cal-c.none {
+  background: none;
+  border: 1px dashed var(--rule);
+}
+.cal-c.future {
+  background: none;
+  border: 0;
+  opacity: 0.45;
+}
+.cal-c b {
+  font-family: var(--disp);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--c);
+}
+.cal-d {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-family: var(--disp);
+  font-size: 10px;
+  color: var(--mute);
+}
+.cal-c b + .logged,
+.cal-c .cal-d + b + .logged {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  width: 14px;
+  height: 9px;
+}
+
+/* the year: a chart of each month's Go, Hold and No go days, and a tile per month in its colour */
+.ytiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.ytile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 8px 9px;
+  background: var(--panel);
+  background: color-mix(in srgb, var(--c) 14%, var(--ink));
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--c);
+  text-align: left;
+}
+.ytile.none {
+  border-top-color: var(--rule);
+  opacity: 0.4;
+}
+.ytile .caps {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--mute);
+}
+.ytile b {
+  font-family: var(--disp);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--c);
+}
+.yk {
+  font-size: 11px;
+  color: var(--mute);
+}
+.ybars {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+}
+.ybar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.yplot {
+  position: relative;
+  align-self: stretch;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+.yn {
+  font-family: var(--disp);
+  font-size: 11px;
+  color: var(--sky2);
+}
+.ystack {
+  display: flex;
+  flex-direction: column;
+  width: 70%;
+  max-width: 26px;
+}
+.ystack i {
+  display: block;
+  min-height: 0;
+}
+.ytiles + .hnote {
+  margin-top: 8px;
+}
+
+@media (min-width: 900px) {
+  .hist {
+    gap: 18px;
+  }
+  /* the view switch, the period and the ramp on one line */
+  .hctl {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr) 260px;
+    gap: 18px;
+    align-items: center;
+  }
+  /* the arrows sit either side of the period's name */
+  .hnav {
+    justify-content: center;
+  }
+  .hnav h2 {
+    flex: 0 1 300px;
+  }
+  .hbody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+  .hcol {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+  }
+  .cal-c {
+    height: 56px;
+  }
+  .cal-c b {
+    font-size: 19px;
+  }
+  .ytiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .yplot {
+    height: 120px;
+  }
 }
 
 /* ── Wide screens: the console spreads out ─────────────────────────── */

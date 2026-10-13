@@ -2,7 +2,7 @@
 
 Go / no-go fishing windows for a small boat between Baffle Creek and Walkers Point,
 Queensland. Static site: no build step, no runtime dependencies, no third-party requests
-besides the forecast itself.
+besides the forecast itself and the Flight log's history files (on this repository).
 
 ## Deploy (GitHub Pages)
 
@@ -13,7 +13,8 @@ only; the site works without them.
 
 Settings → Pages → Deploy from a branch → `main` → `/ (root)`.
 
-The hidden `.github` folder (the daily data feed check and the test run) cannot go
+The hidden `.github` folder (the daily data feed check, the daily history update and the
+test run) cannot go
 through the web uploader. Changes to it come through a pull request: open it on GitHub
 and press **Merge pull request**. Uploading the site files never touches it.
 
@@ -38,7 +39,8 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 | `config.js`   | Limits, tuning weights, **every upstream model ID**, ramps, sample points, links |
 | `data.js`     | Network requests (all sea grid cells, all in parallel), parsing, sample data     |
 | `model.js`    | The go / no-go rule (`passes`), scoring, windows, tides, probability. Pure       |
-| `advice.js`   | Sessions, techniques, marks, catch-log patterns. Pure                            |
+| `advice.js`   | Sessions, techniques, catch-log patterns. Pure                                   |
+| `history.js`  | The Flight log's stored days: how a day is stored, read back and summed. Pure    |
 | `astro.js`    | Sun and moon. Pure                                                               |
 | `ui.js`       | Rendering and click handlers (the "Flight Deck" screens)                         |
 | `store.js`    | The single `state` object and localStorage                                       |
@@ -47,7 +49,6 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 | `alerts.js`   | Go-day detection and the state shared with the background worker                 |
 | `map.js`      | The chart: coastline, your 20 km range, ramps, rings                             |
 | `art.js`      | Species pictures: maps each species to its `species-*.webp`                      |
-| `importer.js` | Reads Humminbird DATA.HWR and GPX waypoints into marks, on the phone             |
 | `sw.js`       | Offline support; flags saved forecasts so they are never shown as live           |
 
 Assets, all at the top level: `species-*.webp` (26 pictures), `logo-128.webp` (header), `logo-448.webp` (loading screen),
@@ -89,8 +90,20 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   (`fishBeforeSunrise` / `fishAfterSunset` in `TUNING`).
 - **Rivers are scored separately** (`riverScore()`): tide, moon and rain first; wind only
   when it is strong close in. The Forecast tab switches between Ocean and Rivers.
-- **Marks with a position never leave the phone.** Imported marks live in localStorage
-  only; never put real marks in the code, because the site is public.
+- **Never put real fishing marks in the code**: the site is public. (The My marks tab was
+  retired for the Flight log; the app deletes any marks list a phone still holds.)
+- **The Flight log is built on GitHub, not on the phone.** `tools/history.js`, run each
+  morning by `.github/workflows/history.yml`, fetches yesterday from Open-Meteo's archive,
+  scores it with the app's own `build()` at the standard limits, and saves
+  `summary.json` (one row per day, about 115 KB for three years) and
+  `hours/YYYY-MM.json` (each ramp's hours, for the Day view) to the `history-data`
+  branch. Nothing older than three years is kept. The app reads them from
+  `raw.githubusercontent.com` only when the Flight log tab opens, and the service worker
+  keeps a copy for offline. The first run fills all three years (about ten minutes);
+  run it by hand from Actions → History update → Run workflow. A day with holes in its
+  wind, gusts or swell is left out, not guessed. The run saves only when it ends with
+  about as many days as it started with, and shows red when the newest day is more than
+  three days old.
 - **`rebuild()`** recomputes the model and repaints; **`render()`** only repaints, and
   keeps open panels and keyboard focus where they were.
 - **Releasing:** bump `APP_VERSION` in `config.js`, `VERSION` in `sw.js` and `version` in

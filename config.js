@@ -642,33 +642,4 @@ export const RIVER_SEASON = {
   }
 };
 
-export const DEFAULT_MARKS = [
-  { ramp: 'burnett', name: 'The Leads', km: 2, depth: 8, type: 'channel' },
-  { ramp: 'burnett', name: 'Bargara inshore reefs', km: 6, depth: 9, type: 'reef' },
-  { ramp: 'burnett', name: 'The Four Mile', km: 12, depth: 15, type: 'reef' },
-  { ramp: 'burnett', name: 'Burnett rock walls', km: 1, depth: 4, type: 'rock' },
-  { ramp: 'elliott', name: 'Elliott artificial reef', km: 6, depth: 12, type: 'reef' },
-  { ramp: 'elliott', name: 'Elliott mouth gutters', km: 1, depth: 3, type: 'sand' },
-  { ramp: 'elliott', name: 'Close rubble ground', km: 9, depth: 11, type: 'rubble' },
-  { ramp: 'baffle', name: 'Baffle deep bends', km: 1, depth: 6, type: 'snags' },
-  { ramp: 'baffle', name: 'Rules Beach reef', km: 10, depth: 13, type: 'reef' },
-  { ramp: 'baffle', name: 'Bar gutters', km: 2, depth: 3, type: 'sand' },
-  { ramp: 'miara', name: 'Kolan mouth flats', km: 1, depth: 2, type: 'flats' },
-  { ramp: 'miara', name: 'Close reefs NE', km: 10, depth: 11, type: 'reef' },
-  { ramp: 'woodgate', name: 'Woodgate flats', km: 3, depth: 3, type: 'flats' },
-  { ramp: 'woodgate', name: 'Bay wrecks', km: 12, depth: 12, type: 'wreck' },
-  { ramp: 'woodgate', name: 'Gregory River snags', km: 1, depth: 5, type: 'snags' }
-];
-
-export const MARK_TYPES = ['reef', 'rubble', 'wreck', 'rock', 'channel', 'sand', 'flats', 'snags'];
-
-/** Which ground suits which part of the tide and light, best first. */
-export const MARK_PREF = {
-  dawn: ['flats', 'snags', 'reef', 'sand'],
-  high: ['flats', 'snags', 'rock', 'sand'],
-  low: ['reef', 'rubble', 'channel', 'rock', 'wreck'],
-  dusk: ['reef', 'snags', 'rock', 'flats'],
-  run: ['reef', 'wreck', 'rubble', 'channel']
-};
-
 export const RATINGS = ['Nothing', 'Slow', 'Steady', 'On fire'];

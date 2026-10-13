@@ -5,7 +5,8 @@
  *   config.js  limits, tuning, model IDs, ramps and sample points
  *   data.js    network requests and sample data
  *   model.js   scoring and day-building (pure)
- *   advice.js  sessions, techniques, marks, catch-log patterns (pure)
+ *   advice.js  sessions, techniques, catch-log patterns (pure)
+ *   history.js the Flight log's stored days and their sums (pure)
  *   astro.js   sun and moon (pure)
  *   ui.js      rendering and click handlers
  *   store.js   state and localStorage

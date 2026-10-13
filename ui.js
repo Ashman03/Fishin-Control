@@ -19,19 +19,32 @@ import {
   SOURCES,
   TOP_SOURCES,
   BOM_ZONES,
-  MARK_TYPES,
   RATINGS,
+  DEFAULTS,
   TUNING,
   SEASON,
   RIVER_SEASON
 } from './config.js';
 import { state, save, validLimits } from './store.js';
+import { attempt } from './data.js';
 import { build, seaWord, conditionsFor } from './model.js';
+import {
+  summaryUrl,
+  hoursUrl,
+  readSummary,
+  rampHours,
+  dayTides,
+  rampOf,
+  scoreOf,
+  tally,
+  yearMonths,
+  weekStart,
+  addDays
+} from './history.js';
 import { sessions, techniques, launchNotes, patterns, tidePhaseAt, moonBucket, moonLabel } from './advice.js';
 import { moonIllum } from './astro.js';
 import { speciesArt } from './art.js';
 import { mapSVG } from './map.js';
-import { parseHWR, parseGPX, toMarks, nearestMark } from './importer.js';
 import {
   activeClosures,
   upcomingClosures,
@@ -50,6 +63,7 @@ import {
   LINES,
   dirOf,
   isoDay,
+  localDate,
   span,
   fromNewOrFull,
   circularMean,
@@ -332,7 +346,7 @@ function tideSVG(day) {
 
 const ICONS = {
   plan: '<path d="M3 15c2 0 2-2 4.5-2s2.5 2 4.5 2 2-2 4.5-2 2.5 2 4.5 2"/><path d="M3 19c2 0 2-2 4.5-2s2.5 2 4.5 2 2-2 4.5-2 2.5 2 4.5 2"/><path d="M12 3v7M9 7l3 3 3-3"/>',
-  marks: '<path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/>',
   log: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h6"/>'
 };
 
@@ -343,7 +357,7 @@ function tabs() {
   return `<nav class="tabs" aria-label="Sections">
     ${[
       ['plan', 'Forecast'],
-      ['marks', 'My marks'],
+      ['history', 'Flight log'],
       ['log', 'Catch log']
     ]
       .map(
@@ -746,7 +760,7 @@ function tideSection(day) {
   </section>`;
 }
 
-/** The sessions. `river` swaps the marks note for the river one. */
+/** The sessions. `river` adds a note on how river sessions are chosen. */
 function flightPlan(ss, river = false) {
   return `<section class="plan">
     ${sect('Flight plan', 'when to go, and what to throw')}
@@ -761,16 +775,11 @@ function flightPlan(ss, river = false) {
         <div class="when"><b class="num">${hhmm(s.a)}–${hhmm(s.b)}</b><i>${s.hrs} h · ${s.tide}</i></div>
         <div class="what"><div class="t">${s.title}${s.bar >= 2 ? ' <span class="risk">· bar risk</span>' : ''}</div>
           <div class="d">${s.how}</div>
-          ${s.marks.length ? `<div class="bars">${s.marks.map(m => `<span>${esc(m.name)} · ${esc(m.km)} km · ${esc(m.depth)} m</span>`).join('')}</div>` : ''}
         </div>
       </div>`
       )
       .join('')}
-      <p class="sub foot">${
-        river
-          ? 'Sessions are built on the tide turns and the moon, inside your fishing hours.'
-          : 'Spots come from your marks list. Add your own on the My marks tab and they will be picked here by tide and swell.'
-      }</p>
+      ${river ? '<p class="sub foot">Sessions are built on the tide turns and the moon, inside your fishing hours.</p>' : ''}
     </div>
   </section>`;
 }
@@ -797,15 +806,6 @@ function whatsBiting(day, zone, river = false) {
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
-
-/** Details of the mark tapped on the map, under it. */
-function markCaption(zone) {
-  const m = state.markInfo && state.marks.find(x => x.id === state.markInfo && x.ramp === zone.z.id);
-  if (!m) return '';
-  return `<p class="sub mark-info"><b>${esc(m.name)}</b> · ${esc(m.km)} km from ${esc(short(zone.z.name))}${
-    m.depth ? ' · ' + esc(m.depth) + ' m' : ''
-  } · ${esc(m.type)}</p>`;
-}
 
 /** Ocean or rivers: one switch at the top of the Forecast tab swaps the whole page. */
 function renderPlan() {
@@ -951,20 +951,20 @@ function renderRiver() {
     ${notes(closuresCard(day, zone))}
     <div class="grid">
       ${tideSection(day)}
-      ${flightPlan(sessions(day, zone, state.marks, est), true)}
+      ${flightPlan(sessions(day, zone, est), true)}
       ${whatsBiting(day, zone, true)}
     </div>
   </div>`;
 }
 
 function renderOcean() {
-  const { cfg, days, marks } = state;
+  const { cfg, days } = state;
   const day = days[state.sel];
   if (!state.zsel || !day.zones.some(z => z.z.id === state.zsel)) state.zsel = day.zones[0].z.id;
   const zone = day.zones.find(z => z.z.id === state.zsel);
   const best = day.zones[0];
   const [word, why] = verdict(day.overall, day.river);
-  const ss = sessions(day, zone, marks),
+  const ss = sessions(day, zone),
     ln = launchNotes(zone, cfg);
   const bom = BOM_ZONES[zone.z.bom];
 
@@ -1013,8 +1013,7 @@ function renderOcean() {
 
     <section class="col col-b mapsec">
       ${sect('Launch control', esc(shortDate(day.d0)))}
-      <div class="mapwrap">${mapSVG(day, state.zsel, state.marks, state.markInfo)}</div>
-      ${markCaption(zone)}
+      <div class="mapwrap">${mapSVG(day, state.zsel)}</div>
       <div class="legend">
         <span><i style="background:var(--go)"></i>Go</span>
         <span><i style="background:var(--mid)"></i>Hold</span>
@@ -1137,63 +1136,6 @@ function renderOcean() {
   </div>`;
 }
 
-function renderMarks() {
-  const byRamp = {};
-  state.marks.forEach(m => (byRamp[m.ramp] = byRamp[m.ramp] || []).push(m));
-  const imported = state.marks.filter(m => m.imported).length;
-  const row = m => `
-          <div class="mk">
-            <span class="km num">${esc(m.km)} km</span>
-            <span class="g"><b>${esc(m.name)}</b>
-              <span class="ty">${esc(m.depth)} m · ${esc(m.type)}</span></span>
-            <button data-act="delMark" data-id="${esc(m.id)}" aria-label="Remove ${esc(m.name)}">Remove</button>
-          </div>`;
-  return `<div class="pages">
-  <section>
-    ${sect('Your marks', state.marks.length + ' on this phone')}
-    <div class="panel bracket stack">
-      <h3>Uplink · import from your Helix</h3>
-      <ol class="steps">
-        <li>On the Helix: Menu twice → Nav → Waypoints, Routes, Tracks → Options → Select All → Export
-        (older software: Nav → Export All Nav Data).</li>
-        <li>Put the SD card in your phone with the adapter.</li>
-        <li>Choose <b>DATA.HWR</b> from the <b>matrix</b> folder. A GPX file works too.</li>
-      </ol>
-      <label class="save solid wide filebtn">Choose file<input type="file" id="importFile" class="vh"></label>
-      ${state.importMsg ? `<p class="note">${esc(state.importMsg)}</p>` : ''}
-      ${imported ? `<button class="danger wide" data-act="clearImported">Remove all ${imported} imported marks</button>` : ''}
-      <p class="sub">Each mark is matched to its nearest ramp with its real distance, and they stay on this phone only.</p>
-    </div>
-  </section>
-  <section>
-    ${sect('Add a mark by hand')}
-    <div class="panel stack">
-      <div class="form">
-        <div class="wide"><label for="mn">Name</label><input id="mn" placeholder="Four Mile lump"></div>
-        <div class="wide"><label for="mr">Ramp</label><select id="mr">${ZONES.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('')}</select></div>
-        <div><label for="mk">Distance out (km)</label><input id="mk" type="number" inputmode="decimal" step="0.5" min="0" max="20" value="8"></div>
-        <div><label for="md">Depth (m)</label><input id="md" type="number" inputmode="numeric" min="0" max="200" value="10"></div>
-        <div class="wide"><label for="mt">Ground</label><select id="mt">${MARK_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select></div>
-        <div class="wide"><button class="save wide" data-act="addMark">Add mark</button></div>
-      </div>
-      <p class="sub">These feed the flight plan, which picks the ground that suits the tide, the light and the
-      swell. Distances are from the ramp, so keep everything inside your 20 km line.</p>
-    </div>
-  </section>
-    ${ZONES.filter(z => byRamp[z.id])
-      .map(z => {
-        const list = byRamp[z.id].sort((a, b) => a.km - b.km);
-        // a long imported list folds away so the page stays usable
-        return `<section>${sect(esc(z.name), list.length + (list.length === 1 ? ' mark' : ' marks'))}${
-          list.length > 8
-            ? `<div class="panel list"><details data-key="marks-${z.id}" class="fold"><summary><span>Show all ${list.length} marks</span></summary>${list.map(row).join('')}</details></div>`
-            : `<div class="panel list">${list.map(row).join('')}</div>`
-        }</section>`;
-      })
-      .join('')}
-  </div>`;
-}
-
 function renderLog() {
   const today = isoDay(new Date());
   const d = state.logDraft || {
@@ -1235,8 +1177,7 @@ function renderLog() {
         <div class="wide"><button class="save solid wide" data-act="addLog">Save session</button></div>
       </div>
       <p class="sub">Conditions are stamped on the entry automatically for today and the
-      two days before — tide phase, moon, wind and swell. Older sessions get the moon only. Save while you're
-      out and the nearest of your marks is added from the phone's location (it asks once).</p>
+      two days before — tide phase, moon, wind and swell. Older sessions get the moon only.</p>
     </div>
   </section>
 
@@ -1280,13 +1221,22 @@ function renderLog() {
 
     ${
       state.log.length
-        ? `<section class="span">${sect('History', state.log.length + (state.log.length === 1 ? ' session' : ' sessions'))}
+        ? `<section class="span">${sect('Your sessions', state.log.length + (state.log.length === 1 ? ' session' : ' sessions'))}
     <div class="panel list">${state.log
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 40)
-      .map(
-        e => `
+      .map(e => logRow(e))
+      .join('')}</div></section>`
+        : ''
+    }
+  </div>`;
+}
+
+/** One catch-log entry, with its stamped conditions; `del` adds its Delete button. */
+function logRow(e, del = true) {
+  const rampName = id => (ZONES.find(z => z.id === id) || { name: id }).name;
+  return `
       <div class="entry" style="--c:${light((e.rating / 3) * 100)}">
         <div class="h"><b class="num">${esc(e.date)}</b>
           <span class="r">${RATINGS[e.rating] || ''}</span>
@@ -1301,17 +1251,501 @@ function renderLog() {
             : e.sea != null
               ? 'sea ' + (+e.sea).toFixed(1) + ' m'
               : null,
-          e.mark ? 'at ' + esc(e.mark) : null,
           e.notes ? esc(e.notes) : null
         ]
           .filter(Boolean)
           .join(' · ')}</div>
-        <button data-act="delLog" data-id="${esc(e.id)}" class="del">Delete</button>
-      </div>`
-      )
-      .join('')}</div></section>`
-        : ''
+        ${del ? `<button data-act="delLog" data-id="${esc(e.id)}" class="del">Delete</button>` : ''}
+      </div>`;
+}
+
+/* ── Flight log: the last three years ─────────────────────────────────── */
+
+const DATA_CACHE = 'fishin-data'; // the service worker's store for fetched data (DATA in sw.js)
+const HISTORY_STALE_MS = 6 * HOUR;
+
+/**
+ * The stored history, fetched the first time the tab opens in a session.
+ * Offline, the service worker answers with the phone's saved copy.
+ */
+export async function loadHistory() {
+  const h = state.hist;
+  if (h.status === 'loading') return;
+  h.status = 'loading';
+  const res = await attempt(summaryUrl());
+  const data = res.ok ? readSummary(res.json[0]) : null;
+  if (data && data.days.length) {
+    data.byDs = new Map(data.days.map(d => [d.ds, d]));
+    const first = data.days[0].ds,
+      last = data.days[data.days.length - 1].ds;
+    // a top-up adds days: the hours already loaded for those months are out of date
+    if (h.last && last > h.last)
+      for (const ym of Object.keys(h.months)) if (ym >= h.last.slice(0, 7)) delete h.months[ym];
+    Object.assign(h, {
+      status: 'ready',
+      data,
+      error: null,
+      cached: !!res.cached,
+      first,
+      last,
+      at: Date.now()
+    });
+    if (!h.ds || h.ds > last || h.ds < first) h.ds = last;
+    forgetOldMonths(first);
+  } else if (h.data) {
+    h.status = 'ready'; // a failed top-up keeps what is already showing
+  } else {
+    h.status = 'error';
+    h.error = res.ok ? 'the history file could not be read' : res.error;
+  }
+  if (state.tab === 'history') render();
+}
+
+/** One month's hours, for the Day view; fetched once and kept for the session. */
+async function loadMonth(ym) {
+  const h = state.hist;
+  if (h.months[ym]) return;
+  h.months[ym] = 'loading';
+  const res = await attempt(hoursUrl(ym));
+  h.months[ym] = res.ok && res.json[0] && res.json[0].days ? res.json[0] : 'error';
+  if (state.tab === 'history') render();
+}
+
+/** Month files saved on the phone that the history no longer reaches are deleted. */
+async function forgetOldMonths(first) {
+  try {
+    if (typeof caches === 'undefined') return;
+    const c = await caches.open(DATA_CACHE);
+    for (const req of await c.keys()) {
+      const m = /\/hours\/(\d{4}-\d\d)\.json$/.exec(req.url);
+      if (m && m[1] < first.slice(0, 7)) await c.delete(req);
     }
+  } catch (e) {
+    /* storage unavailable: nothing to tidy */
+  }
+}
+
+const monthName = (ym, style = 'long') =>
+  localDate(ym + '-01').toLocaleDateString('en-AU', { month: style, year: 'numeric' });
+const dayMonth = ds => localDate(ds).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+/** "6–12 Oct 2026", or across a month "29 Sep – 5 Oct 2026". */
+const weekLabel = (a, b) =>
+  (a.slice(0, 7) === b.slice(0, 7) ? +a.slice(8) + '–' + dayMonth(b) : dayMonth(a) + ' – ' + dayMonth(b)) +
+  ' ' +
+  b.slice(0, 4);
+const rampShort = id => short((ZONES.find(z => z.id === id) || { name: id }).name);
+
+/** The word for a past score: the daily verdict, or Go / Hold / No go for one ramp. */
+function pastWord(score, rampId, river) {
+  if (!rampId) return verdict(score, river)[0];
+  return score >= LINES.ocean[0] ? 'Go' : score >= LINES.ocean[1] ? 'Hold' : 'No go';
+}
+
+/** What the day came to, in one line. */
+function pastWhy(d, rampId) {
+  const z = rampOf(d, rampId);
+  return z.win
+    ? `Longest window ${z.win.toFixed(1)} hours at ${esc(rampShort(z.id))}, inside the standard limits.`
+    : `No ${TUNING.minWindowHours}-hour window inside the standard limits at ${rampId ? esc(rampShort(z.id)) : 'any ramp'}.`;
+}
+
+/** A small marker for a day with a session in the catch log. */
+const LOGGED = '<i class="logged" aria-hidden="true"></i>';
+
+/*
+ * On a phone the Flight log is one column, its parts placed by their CSS
+ * order; on a wide screen each view's parts sit in two columns (.hcol), so the
+ * calendar can stand beside the month's summary and chart.
+ */
+
+/**
+ * The period at a glance: its average score (the period's colour, on the
+ * forecast's own lines, which also tints the card), and a bar split into
+ * Go, Hold and No go days.
+ */
+function periodHead(t, rampId, label) {
+  if (!t.n)
+    return '<div class="panel" style="order:1"><p class="sub">Nothing stored for this stretch.</p></div>';
+  const c = light(t.avg, LINES.ocean);
+  const w = n => ((100 * n) / t.n).toFixed(1) + '%';
+  return `<div class="panel hsum" style="--c:${c};order:1">
+    <div class="hsum-avg"><b class="num">${t.avg}</b><span>${label}</span></div>
+    <div class="hsum-main">
+      <div class="split" role="img" aria-label="${t.go} go days, ${t.amber} hold, ${t.red} no go, of ${t.n}">
+        <i style="width:${w(t.go)};background:var(--go)"></i><i style="width:${w(t.amber)};background:var(--mid)"></i><i style="width:${w(t.red)};background:var(--no)"></i>
+      </div>
+      <p class="hsum-k num"><span style="color:var(--go)">${t.go} go</span><span style="color:var(--mid)">${t.amber} hold</span><span style="color:var(--no)">${t.red} no go</span></p>
+      ${t.n > 1 ? `<button class="hlink" data-act="histDay" data-id="${t.best.ds}">Best: ${esc(shortDate(t.best.d0))} · ${scoreOf(t.best, rampId)}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+/**
+ * A run of days as a chart: the strongest gust, the average wind and the
+ * highest swell each day, against the standard limits (dotted, their figures
+ * in the margins), with green behind every day that had a launch window.
+ * Drawn like the forecast's hourly chart.
+ */
+function daysChart(list, rampId, tick) {
+  const W = 420,
+    H = 170,
+    P = 24;
+  const n = list.length;
+  const x = i => P + ((W - P * 2) * (i + 0.5)) / n;
+  const bw = (W - P * 2) / n;
+  const figs = list.map(({ d }) => (d ? rampOf(d, rampId) : null));
+  const maxS = Math.max(1.2, ...figs.filter(Boolean).map(f => f.swellMax / 100));
+  const maxW = Math.max(18, ...figs.filter(Boolean).map(f => f.gust));
+  const sy = v => H - 16 - (H - 44) * clamp(v / maxS, 0, 1),
+    wy = v => H - 16 - (H - 44) * clamp(v / maxW, 0, 1);
+  // a line through the days that have figures, broken where a day is missing
+  const line = (f, y) => {
+    let out = '',
+      pen = false;
+    figs.forEach((g, i) => {
+      if (!g) return (pen = false);
+      out += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(f(g)).toFixed(1) + ' ';
+      pen = true;
+    });
+    return out;
+  };
+  const bands = figs
+    .map((g, i) =>
+      g && g.win
+        ? `<rect x="${(P + i * bw).toFixed(1)}" y="8" width="${bw.toFixed(1)}" height="${H - 24}" fill="var(--go)" opacity=".11"/>`
+        : ''
+    )
+    .join('');
+  const dots = figs
+    .map((g, i) =>
+      g && n <= 7 ? `<circle cx="${x(i)}" cy="${sy(g.swellMax / 100)}" r="2.6" fill="var(--sky)"/>` : ''
+    )
+    .join('');
+  const txt = (xx, y, anchor, colour, s) =>
+    `<text x="${xx}" y="${y}" text-anchor="${anchor}" font-size="10.5" fill="${colour}" font-family="Space Grotesk,sans-serif">${s}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Swell, wind and gusts each day">
+   <rect x="${P}" y="8" width="${W - P * 2}" height="${H - 24}" fill="rgba(0,0,0,.22)"/>
+   ${bands}
+   ${txt(P + 3, 22, 'start', 'var(--sky)', maxS.toFixed(1) + ' m')}${txt(W - P - 3, 22, 'end', 'var(--mid)', Math.round(maxW) + ' kn')}
+   <line x1="${P}" x2="${W - P}" y1="${sy(DEFAULTS.maxSwell)}" y2="${sy(DEFAULTS.maxSwell)}" stroke="var(--sky)" stroke-opacity=".5" stroke-dasharray="2 4"/>
+   <line x1="${P}" x2="${W - P}" y1="${wy(DEFAULTS.maxWind)}" y2="${wy(DEFAULTS.maxWind)}" stroke="var(--mid)" stroke-opacity=".5" stroke-dasharray="2 4"/>
+   ${txt(P - 3, sy(DEFAULTS.maxSwell) + 4, 'end', 'var(--sky)', DEFAULTS.maxSwell)}${txt(W - P + 3, wy(DEFAULTS.maxWind) + 4, 'start', 'var(--mid)', DEFAULTS.maxWind)}
+   <path d="${line(g => g.gust, wy)}" fill="none" stroke="var(--no)" stroke-width="1.4" stroke-dasharray="4 3" opacity=".75"/>
+   <path d="${line(g => g.wind, wy)}" fill="none" stroke="var(--mid)" stroke-width="2"/>
+   <path d="${line(g => g.swellMax / 100, sy)}" fill="none" stroke="var(--sky)" stroke-width="2.4"/>
+   ${dots}
+   ${list.map(({ ds }, i) => (tick(ds, i) ? txt(x(i), H - 2, 'middle', '#95b8cd', tick(ds, i)) : '')).join('')}
+  </svg>`;
+}
+
+/** The legend under a chart of days. */
+const DAYS_KEY = `<div class="legend key">
+    <span><i class="ln sw"></i>Highest swell</span>
+    <span><i class="ln wd"></i>Average wind</span>
+    <span><i class="ln gu"></i>Strongest gust</span>
+    <span><i class="ln lim"></i>Limits (${DEFAULTS.maxSwell} m, ${DEFAULTS.maxWind} kn)</span>
+    <span><i class="bx ok"></i>Had a window</span>
+  </div>`;
+
+function histDay(d, rampId) {
+  const h = state.hist;
+  if (!d)
+    return `<div class="hcol"><div class="panel"><p class="sub">Nothing stored for this day: the archive had holes in its figures, so it is left out rather than guessed.</p></div></div>`;
+  const ym = d.ds.slice(0, 7);
+  const month = h.months[ym];
+  if (!month) queueMicrotask(() => loadMonth(ym));
+  const zid = rampId || d.bestId;
+  const zi = ZONES.findIndex(z => z.id === zid);
+  const ready = month && typeof month === 'object';
+  const zh = ready ? rampHours(month, d.ds, zi) : null;
+  const day = ready ? dayTides(month, d.ds) : null;
+  const f = rampOf(d, rampId);
+  const score = scoreOf(d, rampId);
+  const word = pastWord(score, rampId, d.river);
+  const best = rampOf(d, null);
+  const win = zh && zh.win.length ? zh.win.map(w => hhmm(w.a) + '–' + hhmm(w.b)).join(', ') : null;
+  const sessions = state.log.filter(e => e.date === d.ds);
+
+  return `<div class="hcol"><section class="panel hero">${dailyScore(
+    score,
+    rampId ? 'Launch score' : 'Daily score',
+    LINES.ocean,
+    rampId
+      ? []
+      : [
+          ['Launch', best.score, LINES.ocean],
+          ['Bite', d.bite, LINES.bite]
+        ]
+  )}
+      ${call(
+        ['Looking back', esc(shortDate(d.d0)) + ' ' + d.ds.slice(0, 4)],
+        word,
+        pastWhy(d, rampId),
+        `<dl class="readout">
+          <div class="wide"><dt>${rampId ? 'Ramp' : 'Best ramp'}</dt><dd>${esc(rampShort(zid))}</dd></div>
+          <div><dt>Swell</dt><dd class="num">${zid === d.bestId ? span(d.swell / 100, f.swellMax / 100) : 'to ' + (f.swellMax / 100).toFixed(1)} m${d.period && zid === d.bestId ? ` · ${d.period} s` : ''}</dd></div>
+          <div><dt>Wind</dt><dd class="num">${f.wind} kn${zid === d.bestId && d.wdir != null ? ' ' + dirOf(d.wdir) : ''}</dd></div>
+          <div><dt>Gusts</dt><dd class="num">${f.gust} kn</dd></div>
+          ${win ? `<div class="wide"><dt>Window</dt><dd class="g num">${win}</dd></div>` : ''}
+        </dl>`
+      )}
+    </section>
+
+    <section class="cond">
+      ${sect('Conditions', '10–20 km off ' + esc(rampShort(zid)))}
+      <div class="panel chartwrap">${
+        zh
+          ? condChart(zh, DEFAULTS) +
+            `<div class="legend key">
+          <span><i class="ln sw"></i>Swell</span>
+          <span><i class="ln wd"></i>Wind</span>
+          <span><i class="ln gu"></i>Gusts</span>
+          <span><i class="bx ok"></i>In limits</span>
+          <span><i class="bx st"></i>Storm</span>
+        </div>`
+          : `<p class="sub">${
+              month === 'error'
+                ? 'The hours for this day could not be loaded. <button class="hlink" data-act="histRetry">Try again</button>'
+                : ready
+                  ? 'No hours are stored for this day.'
+                  : 'Loading the hours…'
+            }</p>`
+      }</div>
+    </section></div>
+
+    <div class="hcol"><section>
+      ${sect('Launch sites', 'tap one to look at it')}
+      <div class="panel list">${ZONES.map((z, i) => {
+        const r = d.ramps[i];
+        const on = z.id === zid;
+        return `<button class="zone ${on ? 'on' : ''}" data-act="histRamp" data-z="${z.id}" aria-pressed="${on}">
+          <span class="zsc num" style="color:${light(r.score, LINES.ocean)}">${r.score}</span>
+          <span class="zb"><span class="t">${esc(z.name)}</span>
+            <span class="tags">${r.win ? `<span class="tag ok">window ${r.win.toFixed(1)} h</span>` : '<span class="tag">no window</span>'}<span class="tag">${r.wind} kn · gusts ${r.gust}</span><span class="tag">swell to ${(r.swellMax / 100).toFixed(1)} m</span></span></span>
+        </button>`;
+      }).join('')}</div>
+    </section>
+
+    <section class="tide">
+      ${sect('Tide, moon and rivers')}
+      <div class="panel">
+        <div class="kv">
+          <div><div class="k">Range</div><div class="v num">${d.range != null ? (d.range / 100).toFixed(1) + ' m' : '—'}</div></div>
+          <div><div class="k">Moon</div><div class="v small">${moonPhase(d.moon / 100)}</div></div>
+          <div><div class="k">Sunrise</div><div class="v num">${(day && day.sr) || '—'}</div></div>
+          <div><div class="k">Sunset</div><div class="v num">${(day && day.ss) || '—'}</div></div>
+          <div><div class="k">Water</div><div class="v num">${d.sst != null ? (d.sst / 10).toFixed(1) + '°' : '—'}</div></div>
+          <div><div class="k">Rain</div><div class="v num">${(d.rain / 10).toFixed(1)} mm</div></div>
+          <div><div class="k">Rivers</div><div class="v num" style="color:${light(d.river, LINES.river)}">${d.river}</div></div>
+          <div><div class="k">Bite</div><div class="v num" style="color:${light(d.bite, LINES.bite)}">${d.bite}</div></div>
+        </div>
+        ${day && day.tides.length ? `<p class="sub">${day.tides.map(t => `${t.hi ? 'High' : 'Low'} ${t.t} · ${t.v.toFixed(1)} m`).join('&ensp;')}</p>` : ''}
+      </div>
+    </section>
+
+    ${
+      sessions.length
+        ? `<section>${sect('Your sessions this day')}
+      <div class="panel list">${sessions.map(e => logRow(e, false)).join('')}</div></section>`
+        : ''
+    }</div>`;
+}
+
+function histWeek(from, rampId, logged) {
+  const h = state.hist;
+  const list = Array.from({ length: 7 }, (_, i) => addDays(from, i)).map(ds => ({
+    ds,
+    d: h.data.byDs.get(ds)
+  }));
+  const t = tally(list.map(x => x.d).filter(Boolean), rampId);
+  const dow = ds => localDate(ds).toLocaleDateString('en-AU', { weekday: 'short' });
+  return `<div class="hcol">${periodHead(t, rampId, 'week avg')}
+  <section class="panel week" style="order:2">${sect('The week', 'Tap a day')}
+    <div class="strip" style="--n:7;--line-go:${LINES.ocean[0]};--line-amber:${LINES.ocean[1]}">${list
+      .map(({ ds, d }) => {
+        const dd = localDate(ds);
+        if (!d)
+          return `<span class="day none"><span class="plot"></span><span class="dow">${dow(ds)}</span><span class="dd num">${dd.getDate()}/${dd.getMonth() + 1}</span></span>`;
+        const s = scoreOf(d, rampId);
+        return `<button class="day" data-act="histDay" data-id="${ds}" aria-label="${longDate(dd)}, score ${s} of 100${logged.has(ds) ? ', session logged' : ''}">
+          <span class="plot" aria-hidden="true"><span class="sc num" style="color:${light(s, LINES.ocean)}">${s}</span>
+            <span class="bar" style="--s:${s};--c:${light(s, LINES.ocean)}"></span></span>
+          <span class="dow">${dow(ds)}</span>
+          <span class="dd num">${dd.getDate()}/${dd.getMonth() + 1}</span>
+          ${logged.has(ds) ? LOGGED : ''}
+        </button>`;
+      })
+      .join('')}</div>
+  </section></div>
+  <div class="hcol"><section class="cond" style="order:3">${sect('Conditions', rampId ? esc(rampShort(rampId)) : 'best ramp each day')}
+    <div class="panel chartwrap">${daysChart(list, rampId, ds => dow(ds))}${DAYS_KEY}</div>
+  </section></div>`;
+}
+
+function histMonth(ym, rampId, logged) {
+  const h = state.hist;
+  const first = localDate(ym + '-01');
+  const lead = (first.getDay() + 6) % 7; // Monday first
+  const n = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const list = Array.from({ length: n }, (_, k) => {
+    const ds = ym + '-' + pad(k + 1);
+    return { ds, d: h.data.byDs.get(ds) };
+  });
+  const t = tally(list.map(x => x.d).filter(Boolean), rampId);
+  const cells = Array.from({ length: lead }, () => '<span class="cal-c blank"></span>');
+  list.forEach(({ ds, d }, k) => {
+    // a day still to come is faint; a day the archive could not fill is marked as empty
+    if (!d)
+      return cells.push(
+        `<span class="cal-c ${ds > h.last ? 'future' : 'none'}"><span class="cal-d num">${k + 1}</span></span>`
+      );
+    const s = scoreOf(d, rampId);
+    cells.push(`<button class="cal-c" style="--c:${light(s, LINES.ocean)}" data-act="histDay" data-id="${ds}"
+      aria-label="${longDate(d.d0)}, score ${s}${logged.has(ds) ? ', session logged' : ''}">
+      <span class="cal-d num">${k + 1}</span><b class="num">${s}</b>${logged.has(ds) ? LOGGED : ''}</button>`);
+  });
+  return `<div class="hcol"><section class="panel cal" style="order:2">
+    <div class="cal-g">
+      ${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span class="cal-h" aria-hidden="true">${x}</span>`).join('')}
+      ${cells.join('')}
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--go)"></i>Go</span>
+      <span><i style="background:var(--mid)"></i>Hold</span>
+      <span><i style="background:var(--no)"></i>No go</span>
+      <span>${LOGGED}Session logged</span>
+    </div>
+  </section></div>
+  <div class="hcol">${periodHead(t, rampId, 'month avg')}
+  <section class="cond" style="order:3">${sect('Conditions', rampId ? esc(rampShort(rampId)) : 'best ramp each day')}
+    <div class="panel chartwrap">${daysChart(list, rampId, (ds, i) => ([0, 7, 14, 21, 28].includes(i) ? String(i + 1) : ''))}${DAYS_KEY}</div>
+  </section></div>`;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function histYear(year, rampId) {
+  const h = state.hist;
+  const months = yearMonths(h.data.days, year, rampId);
+  const t = tally(
+    h.data.days.filter(d => d.ds.startsWith(year)),
+    rampId
+  );
+  const top = Math.max(1, ...months.map(m => m.n));
+  const mon = ym => MONTHS[+ym.slice(5) - 1];
+  return `<div class="hcol">${periodHead(t, rampId, 'year avg')}
+  <section class="panel week" style="order:2">${sect('Go, hold and no go', 'number = go days')}
+    <div class="ybars" role="img" aria-label="Go, hold and no go days each month">${months
+      .map(
+        m => `<span class="ybar">
+        <span class="yplot"><span class="yn num">${m.n ? m.go : ''}</span>
+          <span class="ystack" style="height:${(100 * m.n) / top}%"><i style="flex:${m.go};background:var(--go)"></i><i style="flex:${m.amber};background:var(--mid)"></i><i style="flex:${m.red};background:var(--no)"></i></span></span>
+        <span class="dow">${mon(m.ym)[0]}</span>
+      </span>`
+      )
+      .join('')}</div>
+    <div class="legend">
+      <span><i style="background:var(--go)"></i>Go</span>
+      <span><i style="background:var(--mid)"></i>Hold</span>
+      <span><i style="background:var(--no)"></i>No go</span>
+    </div>
+  </section></div>
+  <div class="hcol"><section style="order:3">${sect('Month by month', 'Tap a month')}
+    <div class="ytiles">${months
+      .map(m => {
+        if (!m.n) return `<span class="ytile none"><span class="caps">${mon(m.ym)}</span></span>`;
+        return `<button class="ytile" style="--c:${light(m.avg, LINES.ocean)}" data-act="histMonth" data-id="${m.ym}"
+          aria-label="${monthName(m.ym)}: average ${m.avg}, ${m.go} go days of ${m.n}">
+          <span class="caps">${mon(m.ym)}</span>
+          <b class="num">${m.go}</b><span class="yk">go days · avg ${m.avg}</span>
+        </button>`;
+      })
+      .join('')}</div>
+    <p class="sub hnote">Each month's colour is its average score.</p>
+  </section></div>`;
+}
+
+const HVIEWS = [
+  ['day', 'Day'],
+  ['week', 'Week'],
+  ['month', 'Month'],
+  ['year', 'Year']
+];
+
+/** The stretch shown: its title, and its first and last days, for the arrows. */
+export function histPeriod(view, ds) {
+  if (view === 'day') return { title: longDate(localDate(ds)) + ' ' + ds.slice(0, 4), a: ds, b: ds };
+  if (view === 'week') {
+    const a = weekStart(ds),
+      b = addDays(a, 6);
+    return { title: weekLabel(a, b), a, b };
+  }
+  if (view === 'month')
+    return { title: monthName(ds.slice(0, 7)), a: ds.slice(0, 7) + '-01', b: ds.slice(0, 7) + '-31' };
+  return { title: ds.slice(0, 4), a: ds.slice(0, 4) + '-01-01', b: ds.slice(0, 4) + '-12-31' };
+}
+
+/** The day `n` steps of `view` away from `ds`, kept inside [first, last]. */
+export function histStep(view, ds, n, first, last) {
+  const d = localDate(ds);
+  const to =
+    view === 'day'
+      ? addDays(ds, n)
+      : view === 'week'
+        ? addDays(ds, 7 * n)
+        : view === 'month'
+          ? isoDay(new Date(d.getFullYear(), d.getMonth() + n, 1))
+          : isoDay(new Date(d.getFullYear() + n, d.getMonth(), Math.min(d.getDate(), 28)));
+  return to < first ? first : to > last ? last : to;
+}
+
+function renderHistory() {
+  const h = state.hist;
+  if (h.status === 'idle') queueMicrotask(loadHistory);
+  if (!h.data)
+    return `<div class="hist">${
+      h.status === 'error'
+        ? notice(
+            'Flight log could not load',
+            `${esc(h.error || 'no connection')}. It needs a connection the first time; after that the phone keeps a copy.`
+          ) + '<button class="save wide" data-act="histRetry">Try again</button>'
+        : '<div class="panel"><p class="sub">Loading three years of conditions…</p></div>'
+    }</div>`;
+
+  const rampId = h.ramp || null;
+  const logged = new Set(state.log.map(e => e.date));
+  const p = histPeriod(h.view, h.ds);
+  const body =
+    h.view === 'day'
+      ? histDay(h.data.byDs.get(h.ds), rampId)
+      : h.view === 'week'
+        ? histWeek(p.a, rampId, logged)
+        : h.view === 'month'
+          ? histMonth(h.ds.slice(0, 7), rampId, logged)
+          : histYear(h.ds.slice(0, 4), rampId);
+
+  return `<div class="hist">
+    <div class="hctl">
+      <div class="switch four" role="group" aria-label="Look back by">${HVIEWS.map(
+        ([k, l]) =>
+          `<button data-act="histView" data-view="${k}" class="${h.view === k ? 'on' : ''}" aria-pressed="${h.view === k}">${l}</button>`
+      ).join('')}</div>
+      <div class="hnav">
+        <button class="ghost" data-act="histStep" data-i="-1" ${p.a <= h.first ? 'disabled' : ''} aria-label="Earlier">‹</button>
+        <h2 class="num">${esc(p.title)}</h2>
+        <button class="ghost" data-act="histStep" data-i="1" ${p.b >= h.last ? 'disabled' : ''} aria-label="Later">›</button>
+      </div>
+      <select class="hramp" data-act="histRamp" aria-label="Ramp">
+        <option value="">Best ramp each day</option>
+        ${ZONES.map(z => `<option value="${z.id}" ${rampId === z.id ? 'selected' : ''}>${esc(z.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="hbody hb-${h.view}">${body}</div>
+    <p class="sub hnote">Each day is judged by the standard limits (${DEFAULTS.maxSwell} m swell, ${DEFAULTS.maxWind} kn wind,
+    ${DEFAULTS.maxGust} kn gusts, a ${TUNING.minWindowHours}-hour window), from Open-Meteo's archive of the same
+    forecast models: the models' picture of the day, not a measurement.
+    ${rampId ? "Scores are this ramp's launch score." : 'Scores are the daily score, at the best ramp each day.'}
+    Kept from ${esc(longDate(localDate(h.first)))} ${h.first.slice(0, 4)} and updated each morning${h.cached ? '; this is the copy saved on the phone' : ''}.</p>
   </div>`;
 }
 
@@ -1350,7 +1784,7 @@ export function render() {
     active && app.contains && app.contains(active) && active.matches && active.matches(':focus-visible')
       ? controlKey(active)
       : null;
-  const body = state.tab === 'plan' ? renderPlan() : state.tab === 'marks' ? renderMarks() : renderLog();
+  const body = state.tab === 'plan' ? renderPlan() : state.tab === 'history' ? renderHistory() : renderLog();
   app.innerHTML = tabs() + `<div class="view view-${state.tab}">${body}</div>`;
   open.forEach(k => {
     const d = app.querySelector(`details[data-key="${k}"]`);
@@ -1406,20 +1840,8 @@ function draftNow() {
   return { ...formValues(), picked: prev.picked || [], rating: prev.rating };
 }
 
-/** The phone's position, or null if it can't or won't say within a few seconds. */
-function whereAmI() {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null);
-  return new Promise(res =>
-    navigator.geolocation.getCurrentPosition(
-      p => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      () => res(null),
-      { timeout: 8000, maximumAge: 10 * 60e3, enableHighAccuracy: true }
-    )
-  );
-}
-
 /** Build a catch-log entry, stamped with that day's conditions when we have them. */
-export function logEntry(f, rating, built, mark = null) {
+export function logEntry(f, rating, built) {
   const c = conditionsFor(built, f.date, f.ramp);
   const noon = new Date(f.date + 'T12:00');
   const entry = {
@@ -1427,7 +1849,6 @@ export function logEntry(f, rating, built, mark = null) {
     date: f.date,
     ramp: f.ramp,
     species: Array.isArray(f.picked) ? f.picked.join(', ') : (f.species || '').trim(),
-    mark,
     notes: f.notes.trim(),
     rating,
     moon: moonBucket(moonIllum(isNaN(noon) ? new Date() : noon).phase),
@@ -1497,6 +1918,10 @@ export const ACTIONS = {
   },
   tab(el) {
     state.tab = el.dataset.tab;
+    // a new day lands each morning: an app left open picks it up on the next visit
+    const h = state.hist;
+    if (state.tab === 'history' && h.status === 'ready' && Date.now() - h.at > HISTORY_STALE_MS)
+      loadHistory();
     render();
     scrollTop();
   },
@@ -1528,45 +1953,6 @@ export const ACTIONS = {
     save('limits', state.cfg);
     rebuild();
   },
-  addMark() {
-    const g = id => ($(id) || {}).value;
-    const name = (g('mn') || '').trim();
-    if (!name) {
-      const n = $('mn');
-      if (n) n.focus();
-      return;
-    }
-    state.marks = state.marks.concat([
-      {
-        id: 'm' + Date.now(),
-        name,
-        ramp: g('mr'),
-        km: clamp(+g('mk') || 0, 0, 60),
-        depth: clamp(+g('md') || 0, 0, 200),
-        type: g('mt')
-      }
-    ]);
-    save('marks', state.marks);
-    render();
-  },
-  markInfo(el) {
-    state.markInfo = state.markInfo === el.dataset.id ? null : el.dataset.id;
-    render();
-  },
-  clearImported() {
-    const n = state.marks.filter(m => m.imported).length;
-    if (typeof confirm === 'function' && !confirm('Remove all ' + n + ' imported marks from this phone?'))
-      return;
-    state.marks = state.marks.filter(m => !m.imported);
-    state.importMsg = 'Removed ' + n + ' imported marks.';
-    save('marks', state.marks);
-    render();
-  },
-  delMark(el) {
-    state.marks = state.marks.filter(m => m.id !== el.dataset.id);
-    save('marks', state.marks);
-    render();
-  },
   rate(el) {
     state.logDraft = { ...draftNow(), rating: +el.dataset.rating };
     render();
@@ -1578,79 +1964,64 @@ export const ACTIONS = {
     state.logDraft = d;
     render();
   },
-  async addLog() {
-    // the location lookup can take a few seconds: a second tap must not save twice
-    if (state.savingLog) return;
+  addLog() {
     const f = draftNow();
     if (!f.date) {
       const n = $('ld');
       if (n) n.focus();
       return;
     }
-    state.savingLog = true;
-    try {
-      // logging on the day, probably from the boat: tag the nearest of your marks
-      let mark = null;
-      if (f.date === isoDay(new Date()) && state.marks.some(m => m.lat != null)) {
-        const here = await whereAmI();
-        const m = here && nearestMark(here.lat, here.lon, state.marks);
-        mark = m ? m.name : null;
-      }
-      state.log = state.log.concat([logEntry(f, f.rating, { days: state.days, past: state.past }, mark)]);
-      save('log', state.log);
-      state.logDraft = null;
-    } finally {
-      state.savingLog = false;
-    }
+    state.log = state.log.concat([logEntry(f, f.rating, { days: state.days, past: state.past })]);
+    save('log', state.log);
+    state.logDraft = null;
     rebuild();
   },
   delLog(el) {
     state.log = state.log.filter(e => e.id !== el.dataset.id);
     save('log', state.log);
     rebuild();
+  },
+  histView(el) {
+    state.hist.view = el.dataset.view;
+    render();
+  },
+  histStep(el) {
+    const h = state.hist;
+    h.ds = histStep(h.view, h.ds, +el.dataset.i, h.first, h.last);
+    render();
+  },
+  histDay(el) {
+    Object.assign(state.hist, { view: 'day', ds: el.dataset.id });
+    render();
+    scrollTop();
+  },
+  histMonth(el) {
+    const h = state.hist;
+    h.view = 'month';
+    h.ds = histStep('day', el.dataset.id + '-01', 0, h.first, h.last);
+    render();
+    scrollTop();
+  },
+  /** From a launch site in the Day view, or the ramp picker (a <select>, on change). */
+  histRamp(el) {
+    state.hist.ramp = (el.tagName === 'SELECT' ? el.value : el.dataset.z) || '';
+    render();
+  },
+  histRetry() {
+    const h = state.hist;
+    for (const ym of Object.keys(h.months)) if (h.months[ym] === 'error') delete h.months[ym];
+    if (h.status === 'error') h.status = 'idle';
+    render();
   }
 };
 
-/**
- * Read a sounder export or GPX file into marks. Tries the format the name
- * suggests first, then the other, so a renamed file still works.
- */
-export async function importMarks(file) {
-  const asGPX = async () => parseGPX(await file.text());
-  const asHWR = async () => parseHWR(await file.arrayBuffer());
-  const gpxFirst = /\.gpx$/i.test(file.name);
-  let points;
-  try {
-    points = await (gpxFirst ? asGPX() : asHWR());
-  } catch (first) {
-    try {
-      points = await (gpxFirst ? asHWR() : asGPX());
-    } catch (e) {
-      state.importMsg = "Couldn't read " + file.name + ': ' + first.message;
-      return render();
-    }
-  }
-  const { marks, outside, repeats } = toMarks(points, state.marks);
-  state.marks = state.marks.concat(marks);
-  save('marks', state.marks);
-  state.importMsg =
-    'Imported ' +
-    marks.length +
-    ' mark' +
-    (marks.length === 1 ? '' : 's') +
-    '.' +
-    (outside ? ' ' + outside + ' more than 25 km from your ramps left out.' : '') +
-    (repeats ? ' ' + repeats + ' already here.' : '');
-  render();
-}
-
-/** Form controls that act on change rather than click (the file picker). */
-export function onAppChange(ev) {
-  const t = ev.target;
-  if (t && t.id === 'importFile' && t.files && t.files[0]) importMarks(t.files[0]);
-}
-
 export function onAppClick(ev) {
   const el = ev.target.closest && ev.target.closest('[data-act]');
-  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
+  // a drop-down acts when its choice changes (onAppChange), not when it is opened
+  if (el && el.tagName !== 'SELECT' && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
+}
+
+export function onAppChange(ev) {
+  const el = ev.target;
+  if (el && el.tagName === 'SELECT' && el.dataset && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
 }
