@@ -151,7 +151,7 @@ async function start() {
 }
 
 /**
- * Compare today's green days with the last ones seen (on this phone, by the
+ * Compare today's go days (70 or more) with the last ones seen (on this phone, by the
  * page or the background worker) and flag any that are new. The first run
  * only records a baseline, so installing the app does not fire a burst.
  */

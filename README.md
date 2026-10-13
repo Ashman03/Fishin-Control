@@ -94,7 +94,10 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 - **Look and feel ("Flight Deck", 6.0):** square panels on a chart grid, spaced capital
   headings (`sect()` in `ui.js`), corner brackets (`--brackets` in `styles.css`). Green,
   amber and red mean go, marginal and no-go and nothing else; light blue is the
-  interface. Nothing uses outlined text. Phones get a bottom sections bar; from 900 px
+  interface. Each reading turns green and amber at the same lines as its own words
+  (`LINES` in `util.js`): ocean scores at the verdict's 75 / 42, river scores at 70 / 40,
+  Bite at the poll's 60 / 45, and the Models % takes its poll lamp's colour. Nothing uses
+  outlined text. Phones get a bottom sections bar; from 900 px
   wide the layout spreads into columns (`.deck`, `.col-a/b/c`, `.grid`).
 - **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
   damaged entry can't break a render.
@@ -104,7 +107,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 189 tests, no dependencies, clock pinned to Queensland time
+npm test             # 198 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```

@@ -1008,7 +1008,7 @@ await describe('alerts', async () => {
     past: false,
     zones: [{ z: { name: 'Elliott Heads' }, win: [] }]
   });
-  await it('a green day is one scoring 70 or more', () =>
+  await it('a go day for alerts is one scoring 70 or more', () =>
     assert(
       al
         .goDays([day('a', 69), day('b', 70), day('c', 88)])
@@ -1716,6 +1716,82 @@ await describe('ui', async () => {
     }
     Object.assign(d, { prob: saved.prob, ensembleMembers: saved.members });
     d.agree.level = saved.level;
+  });
+  await it('the verdict words change at their own scores: ocean 75 / 58 / 42, river 70 / 55 / 40', () => {
+    for (const [s, word] of [
+      [75, 'Go'],
+      [74, 'Worth a look'],
+      [58, 'Worth a look'],
+      [57, 'Marginal'],
+      [42, 'Marginal'],
+      [41, 'River day']
+    ])
+      assert(ui.verdict(s, 50)[0] === word, s + ': ' + ui.verdict(s, 50)[0]);
+    for (const [s, word] of [
+      [70, 'Good river day'],
+      [69, 'Worth a fish'],
+      [55, 'Worth a fish'],
+      [54, 'Steady'],
+      [40, 'Steady'],
+      [39, 'Slow']
+    ])
+      assert(ui.riverWord(s) === word, s + ': ' + ui.riverWord(s));
+  });
+  await it('the Models % takes its lamp colour, even when poor agreement holds a high % back', () => {
+    const d = state.days[0],
+      saved = { prob: d.prob, members: d.ensembleMembers, level: d.agree.level };
+    Object.assign(state, { tab: 'plan', view: 'ocean', sel: 0 });
+    d.ensembleMembers = d.ensembleMembers || 30;
+    d.prob = 80;
+    d.agree.level = 'low';
+    ui.render();
+    let html = nodes.app.innerHTML;
+    assert(/data-st="hold">\s*<span class="poll-k">Models</.test(html), 'lamp should be HOLD');
+    assert(/<em style="color:var\(--mid\)">80%<\/em>/.test(html), 'ensemble % not amber with its HOLD lamp');
+    // the pre-launch words switch at the same 35% line as the lamp
+    d.agree.level = 'high';
+    d.prob = 37;
+    ui.render();
+    html = nodes.app.innerHTML;
+    assert(html.includes('Genuinely borderline'), '37% reads as nothing, beside an amber HOLD');
+    Object.assign(d, { prob: saved.prob, ensembleMembers: saved.members });
+    d.agree.level = saved.level;
+  });
+  await it('river scores are coloured at the river verdict lines, on both pages', () => {
+    const d = state.days[0],
+      saved = d.river;
+    Object.assign(state, { tab: 'plan', sel: 0 });
+    d.river = 41; // "Steady": amber, where the old 48 line and the ocean 42 line make it red
+    state.view = 'river';
+    ui.render();
+    assert(/fill="var\(--mid\)" class="dial-num"/.test(nodes.app.innerHTML), 'river tank not amber at 41');
+    state.view = 'ocean';
+    ui.render();
+    assert(
+      /<b style="color:var\(--mid\)">41\/100<\/b>/.test(nodes.app.innerHTML),
+      'site brief river score not amber'
+    );
+    d.river = saved;
+  });
+  await it('the week chart draws its dashed lines where the page puts them', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    assert(/bottom: calc\(var\(--line-go[,)]/.test(css), 'green dashed line is fixed');
+    assert(/bottom: calc\(var\(--line-amber[,)]/.test(css), 'amber dashed line is fixed');
+  });
+  await it('the alerts panel says what sets off an alert, not a colour', () => {
+    for (const alerts of [
+      { on: false, mode: null },
+      { on: true, mode: 'background' }
+    ]) {
+      state.alerts = alerts;
+      Object.assign(state, { tab: 'plan', view: 'ocean' });
+      ui.render();
+      const html = nodes.app.innerHTML;
+      assert(!/turns green/.test(html), 'still says "turns green"');
+      assert(html.includes('70 or more'), 'does not say 70 or more');
+    }
+    state.alerts = { on: false, mode: null };
   });
   await it('loading screen: the feeds line is GO only when every source answered live', () => {
     const st = (...oks) => oks.map(ok => ({ label: 'x', role: 'y', ok }));

@@ -54,8 +54,23 @@ import {
   DAY
 } from './util.js';
 
-// the Models % is coloured at the poll's own Models lamp lines
-const MODEL_LINES = [TUNING.ensembleTrusted, TUNING.lowProbability];
+/** A lamp's colour, for a figure that is coloured by its poll lamp. */
+const LAMP_COLOUR = { go: 'var(--go)', hold: 'var(--mid)', nogo: 'var(--no)' };
+
+/**
+ * The Models lamp: [state, figure]. The ensemble answers "is there a window?"
+ * directly, so it leads; the three-model spread can only downgrade a GO to a
+ * HOLD. The ensemble % elsewhere on the page takes this lamp's colour.
+ */
+function modelsLamp(day) {
+  if (day.prob != null) {
+    const st =
+      day.prob >= TUNING.ensembleTrusted ? 'go' : day.prob >= TUNING.lowProbability ? 'hold' : 'nogo';
+    return [st === 'go' && day.agree.level === 'low' ? 'hold' : st, day.prob + '%'];
+  }
+  const st = { high: 'go', fair: 'hold', low: 'nogo', unknown: 'hold' }[day.agree.level];
+  return [st, day.agree.level === 'unknown' ? 'one model' : day.agree.level + ' agreement'];
+}
 
 const $ = id => document.getElementById(id);
 const short = name => name.split(' /')[0].split(' (')[0];
@@ -100,13 +115,13 @@ const tank = (score, caption, lines) =>
   `<div class="tank">${dial(score, lines)}<span class="cap">${caption}</span></div>`;
 
 export function verdict(score, river) {
-  if (score >= LINES.ocean[0]) return ['Go', 'Inside your limits for a decent stretch of the day.'];
+  if (score >= 75) return ['Go', 'Inside your limits for a decent stretch of the day.'];
   if (score >= 58)
     return [
       'Worth a look',
       'Inside your limits, but the window is not generous. Check the morning obs before you hook up.'
     ];
-  if (score >= LINES.ocean[1])
+  if (score >= 42)
     return [
       'Marginal',
       'Sitting right on the edge of what you fish. In a 4.5 m boat, treat any doubt as a no.'
@@ -380,17 +395,7 @@ function launchPoll(day, zone) {
   const lo = k => Math.min(...inWin.map(h => h[k])),
     hi = k => Math.max(...inWin.map(h => h[k]));
 
-  // Models: the ensemble answers "is there a window?" directly, so it leads.
-  // The three-model spread can only downgrade a GO to a HOLD.
-  let models, modelsVal;
-  if (day.prob != null) {
-    models = day.prob >= MODEL_LINES[0] ? 'go' : day.prob >= MODEL_LINES[1] ? 'hold' : 'nogo';
-    if (models === 'go' && day.agree.level === 'low') models = 'hold';
-    modelsVal = day.prob + '%';
-  } else {
-    models = { high: 'go', fair: 'hold', low: 'nogo', unknown: 'hold' }[day.agree.level];
-    modelsVal = day.agree.level === 'unknown' ? 'one model' : day.agree.level + ' agreement';
-  }
+  const [models, modelsVal] = modelsLamp(day);
 
   const rows = [
     ['Swell', station(hours(h => h.swellEff <= cfg.maxSwell)), span(lo('swell'), hi('swell')) + ' m'],
@@ -577,13 +582,13 @@ function alertsPanel() {
   const msg =
     {
       background:
-        'On. Your phone checks in the background — Android decides how often, usually every several hours — and notifies you when a day turns green.',
+        'On. Your phone checks in the background — Android decides how often, usually every several hours — and notifies you when a day newly scores 70 or more.',
       open: 'On, but this phone will not run background checks: install the app from Chrome for that. Until then, new go days are flagged whenever you open it.',
       denied:
         'Notifications are blocked for this site. Allow them in Chrome under the site settings, then try again.',
       unsupported: 'This browser cannot show notifications.'
     }[a.on ? a.mode : a.mode === 'denied' || a.mode === 'unsupported' ? a.mode : ''] ||
-    'Get a notification when a day newly turns green, without opening the app.';
+    'Get a notification when a day newly scores 70 or more, without opening the app.';
   return `<details data-key="alerts"><summary><span>Go-day alerts</span>
       <b style="color:${a.on ? 'var(--go)' : 'var(--mute)'}">${a.on ? 'Armed' : 'Off'}</b></summary>
     <p class="sub">${msg}</p>
@@ -716,7 +721,6 @@ function renderPlan() {
   ${river ? renderRiver() : renderOcean()}`;
 }
 
-/** The big call beside the tank: a kicker, the verdict in the score's colour, and why. */
 /**
  * The colour of each verdict word. The score colours use the same lines
  * (LINES in util.js), so the tank and the word always agree; amber covers
@@ -743,7 +747,7 @@ function call(kicker, word, why, extra = '') {
 }
 
 export const riverWord = s =>
-  s >= LINES.river[0] ? 'Good river day' : s >= 55 ? 'Worth a fish' : s >= LINES.river[1] ? 'Steady' : 'Slow';
+  s >= 70 ? 'Good river day' : s >= 55 ? 'Worth a fish' : s >= 40 ? 'Steady' : 'Slow';
 
 function riverVerdict(day) {
   const s = day.river,
@@ -860,7 +864,7 @@ function renderOcean() {
   const ensemble =
     day.prob != null
       ? `<div class="ens" role="img" aria-label="${day.prob}% of ${day.ensembleMembers} forecast runs give you a usable window at ${esc(short(best.z.name))}">
-        <div class="ens-h"><span>Ensemble</span><b class="num"><em style="color:${light(day.prob, MODEL_LINES)}">${day.prob}%</em> of ${day.ensembleMembers} runs</b></div>
+        <div class="ens-h"><span>Ensemble</span><b class="num"><em style="color:${LAMP_COLOUR[modelsLamp(day)[0]]}">${day.prob}%</em> of ${day.ensembleMembers} runs</b></div>
         <div class="segs" aria-hidden="true">${Array.from({ length: 10 }, (_, i) => `<i${i < Math.round(day.prob / 10) ? ' class="on"' : ''}></i>`).join('')}</div>
       </div>`
       : '';
@@ -974,9 +978,9 @@ function renderOcean() {
     <div class="panel">
       ${
         day.prob != null
-          ? `<p class="sub"><b style="color:${light(day.prob, MODEL_LINES)}">${day.prob}%</b> of ${day.ensembleMembers} ensemble
+          ? `<p class="sub"><b style="color:${LAMP_COLOUR[modelsLamp(day)[0]]}">${day.prob}%</b> of ${day.ensembleMembers} ensemble
         runs give at least ${TUNING.minWindowHours} hours in a row inside your limits at ${esc(short(best.z.name))}${zone.prob != null && zone.z.id !== best.z.id ? `, and ${zone.prob}% at ${esc(short(zone.z.name))}` : ''}.
-        ${day.prob >= 70 ? 'That is a solid bet this far out.' : day.prob >= 40 ? 'Genuinely borderline — worth looking again tomorrow.' : 'Most runs say you get nothing, so plan around it.'}</p>`
+        ${day.prob >= TUNING.ensembleTrusted ? 'That is a solid bet this far out.' : day.prob >= TUNING.lowProbability ? 'Genuinely borderline — worth looking again tomorrow.' : 'Most runs say you get nothing, so plan around it.'}</p>`
           : '<p class="sub">No ensemble data today, so there is no probability figure. Lean on the model agreement below.</p>'
       }
       <p class="sub">${

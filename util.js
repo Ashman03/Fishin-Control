@@ -69,7 +69,8 @@ export function circularMean(degrees, weights) {
  *   ocean  Go from 75; Worth a look and Marginal from 42; River day below
  *   river  Good river day from 70; Worth a fish and Steady from 40; Slow below
  *   bite   the launch poll's Bite lamp: GO from 60, HOLD from 45
- * (The Models % uses the poll's own TUNING lines; see ui.js.)
+ * The verdict words keep their own numbers in ui.js; a test holds the two together.
+ * (The Models % takes the colour of its poll lamp; see modelsLamp() in ui.js.)
  */
 export const LINES = { ocean: [75, 42], river: [70, 40], bite: [60, 45] };
 

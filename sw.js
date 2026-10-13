@@ -15,7 +15,7 @@
  *
  * Go-day alerts: on a periodic background sync the worker runs the same
  * forecast model the page uses, with the user's limits (shared via Cache
- * Storage), and notifies for any day that has newly turned green. It is a
+ * Storage), and notifies for any day that newly scores 70 or more. It is a
  * module worker, registered with { type: 'module' }, so it imports the model
  * rather than duplicating it.
  *
@@ -34,7 +34,7 @@ import {
   STATE_CACHE
 } from './alerts.js';
 
-const VERSION = 'v6.0.1';
+const VERSION = 'v6.0.2';
 const SHELL = 'fishin-shell-' + VERSION;
 const DATA = 'fishin-data';
 

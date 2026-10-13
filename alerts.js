@@ -1,12 +1,12 @@
 /**
- * alerts.js — "a day just turned green" detection, shared by the page and the
+ * alerts.js — "a day just became a go day" (GO_SCORE or more) detection, shared by the page and the
  * service worker.
  *
  * There is no server, so alerts rely on Periodic Background Sync: an
  * installed web app on Android Chrome may wake its service worker
  * periodically (the browser decides when; typically every several hours).
  * The worker re-runs the forecast with the user's limits and notifies for
- * any day that is newly green. The page does the same check on every open,
+ * any day that is newly a go day. The page does the same check on every open,
  * so nothing is missed on browsers without background sync.
  *
  * Shared state lives in Cache Storage (readable by both page and worker,
@@ -14,12 +14,12 @@
  */
 import { hhmm } from './util.js';
 
-export const GO_SCORE = 70; // the green threshold used everywhere else
+export const GO_SCORE = 70; // a day scoring this or more is a go day for alerts (the tank turns green at 75)
 export const SYNC_TAG = 'fc-go-check';
 export const SYNC_INTERVAL_MS = 6 * 36e5;
 export const STATE_CACHE = 'fishin-state';
 
-/** Days scoring green, with what an alert needs to say about them. */
+/** Days scoring GO_SCORE or more, with what an alert needs to say about them. */
 export function goDays(days) {
   return days
     .filter(d => !d.past && d.overall >= GO_SCORE)
