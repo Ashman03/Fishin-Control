@@ -367,6 +367,14 @@ await describe('data', async () => {
     assert(data.fieldGaps(holed, data.FORECAST_VARS).length === 0, 'fieldGaps alone misses it');
     assert(data.fieldHoles(holed).join() === 'gusts missing at some hours', data.fieldHoles(holed).join());
     assert(data.fieldHoles(s.fc.slice(0, 19)).join() === 'forecast for 19 of 20 places', 'short reply');
+    const ends = s.fc.map(p => ({
+      ...p,
+      hourly: {
+        ...p.hourly,
+        wind_gusts_10m: p.hourly.wind_gusts_10m.map((v, k, all) => (k >= all.length - 5 ? null : v))
+      }
+    }));
+    assert(data.fieldHoles(ends).length === 0, 'where the forecast stops at every place is not a hole');
     globalThis.fetch = async url =>
       ok(url.includes('api.open-meteo.com/v1/forecast') ? holed : answer(s, url));
     const raw = await data.getData();
@@ -692,7 +700,7 @@ await describe('model', async () => {
   const tomorrowAt = (raw, fn) =>
     raw.fc.forEach((p, i) =>
       p.hourly.time.forEach((t, k) => {
-        if (Math.floor(k / 24) === TOMORROW) fn(p.hourly, raw.mar[i].hourly, k, k % 24);
+        if (Math.floor(k / 24) === TOMORROW) fn(p.hourly, raw.mar[i].hourly, k, k % 24, POINTS[i].zone);
       })
     );
 
@@ -722,6 +730,16 @@ await describe('model', async () => {
     );
   });
 
+  await it('a ramp with a launch window ranks above one without (best ramp could be unlaunchable)', () => {
+    const s = calm();
+    tomorrowAt(s, (F, M, k, hr, zone) => {
+      // Walkers Point: a short morning window and a poor day; the rest: scattered calm hours
+      if (zone === 'woodgate') F.wind_gusts_10m[k] = hr >= 6 && hr <= 8 ? 11 : 13;
+      else F.wind_gusts_10m[k] = hr % 2 ? 13 : 11;
+    });
+    const d = model.build(s, { cfg: CFG }).days[1];
+    assert(d.zones[0].z.id === 'woodgate' && d.zones[0].win.length, 'best ramp: ' + d.zones[0].z.id);
+  });
   await it('a window still makes a Go: the no-window cap leaves good days alone', () => {
     const d = model.build(calm(), { cfg: CFG }).days[1];
     assert(d.zones[0].win.length && d.overall >= 75, 'calm day scored ' + d.overall);
@@ -765,7 +783,6 @@ await describe('model', async () => {
   await it('an hour with no gust figure is outside the limits (two blank hours made a window on a 14 kn day)', () => {
     const s = fixture({ wind: 8, gust: 14, swell: 0.4, period: 9, dir: 250 });
     tomorrowAt(s, (F, M, k, hr) => {
-      F.wind_gusts_10m[k] = 9;
       if (hr === 9 || hr === 10) F.wind_gusts_10m[k] = null;
       else F.wind_gusts_10m[k] = 14;
     });
@@ -1637,9 +1654,31 @@ await describe('ui', async () => {
     ui.rebuild();
     ui.render();
     assert(/<dt>Counts as<\/dt><dd class="num">0\.[67] m/.test(steep), 'no Counts as for 0.5 m at 5 s');
+    state.raw = fixture({ wind: 6, gust: 8, swell: 0.5, period: 12, dir: 250 });
+    ui.rebuild();
+    ui.render();
+    const lazy = nodes.app.innerHTML;
+    state.raw = keep;
+    ui.rebuild();
+    ui.render();
+    assert(!lazy.includes('<dt>Counts as</dt>'), 'long-period swell counts as its own height: no extra line');
+  });
+  await it('a ramp with hours missing their gust figure is not tagged ok for gusts', () => {
+    const keep = state.raw;
+    state.raw = calm();
+    state.raw.fc.forEach(p => (p.hourly.wind_gusts_10m = p.hourly.wind_gusts_10m.map(() => null)));
+    state.raw.fc[0].hourly.wind_gusts_10m[0] = 8; // not missing everywhere, just everywhere that matters
+    ui.rebuild();
+    state.sel = 0;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    state.raw = keep;
+    ui.rebuild();
     assert(
-      !nodes.app.innerHTML.includes('<dt>Counts as</dt>') ||
-        state.days[state.sel].zones[0].swellChkMax - state.days[state.sel].zones[0].swellMax >= 0.05
+      !/tag ok">gusts/.test(html) && /tag bad">gusts/.test(html),
+      'gusts tagged ok with no gust figures'
     );
   });
   await it('each ramp links to its own BOM zone', () => {

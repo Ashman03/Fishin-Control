@@ -74,8 +74,8 @@ export const swellCheck = (swell, swellEff) => Math.max(swell, swellEff);
  * at or under the limit, sustained wind at or under the limit, gusts at or
  * under the limit. No discounts for shelter or direction.
  */
-export const passes = (swellEff, wind, gust, cfg) =>
-  swellEff <= cfg.maxSwell && wind <= cfg.maxWind && gust <= cfg.maxGust;
+export const passes = (swellChk, wind, gust, cfg) =>
+  swellChk <= cfg.maxSwell && wind <= cfg.maxWind && gust <= cfg.maxGust;
 
 /**
  * Soft score deductions for things that make the water worse than its
@@ -156,11 +156,15 @@ export function riverScore(c) {
 }
 
 /**
- * Whether an hour can sit inside a launch window: inside the limits, and no
- * thunderstorm forecast in it or the hour after (zone hour `storm` 2 carries
- * that buffer). A showery, unstable hour only costs points.
+ * The rules besides the limits that keep an hour out of a launch window: a
+ * wind or gust figure missing, or a thunderstorm forecast in the hour or the
+ * hour after (zone hour `storm` 2 carries that buffer). A showery, unstable
+ * hour only costs points. Shared by the windows and the ensemble probability.
  */
-export const launchable = h => h.z.ok && h.storm !== 2;
+export const windowRules = h => !h.gap && h.storm !== 2;
+
+/** Whether an hour can sit inside a launch window: inside the limits, and clear of `windowRules`. */
+export const launchable = h => h.z.ok && windowRules(h);
 
 /**
  * Unbroken runs of launchable hours inside the fishing hours [from, to], at
@@ -508,7 +512,7 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
         const wind = e.wind + (h.wind - r.wind);
         const gustBase = e.gust ?? e.wind * (r.wind > 0 ? r.gust / r.wind : 1.35);
         const gust = gustBase + (h.gust - r.gust);
-        if (!h.gap && h.storm !== 2 && passes(h.swellChk, wind, gust, cfg)) {
+        if (windowRules(h) && passes(h.swellChk, wind, gust, cfg)) {
           run++;
           best = Math.max(best, run);
         } else run = 0;
@@ -573,8 +577,8 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
         prob: probability(zi, from, to),
         swell: min(day.map(h => h.swell)),
         swellMax: max(day.map(h => h.swell)),
-        swellEffMax: max(day.map(h => h.swellEff)),
         swellChkMax: max(day.map(h => h.swellChk)),
+        gapHrs: day.filter(h => h.gap).length, // hours with no wind or gust figure
         chop: max(day.map(h => h.chop)),
         period: periods.length ? Math.min(...periods) : null,
         wind: mean(day.map(h => h.wind)),
@@ -590,7 +594,9 @@ export function build(raw, { cfg, log = [], now = new Date() }) {
         stormFrom: stormy.length ? stormy[0].t : null, // first fishing hour with storm risk
         stormMax: max(stormy.map(h => h.stormNow)) // 2 thunderstorm, 1 unstable
       };
-    }).sort((a, b) => b.score - b.z.drive - (a.score - a.z.drive));
+    })
+      // a ramp you can launch from always ranks above one you can't
+      .sort((a, b) => !!b.win.length - !!a.win.length || b.score - b.z.drive - (a.score - a.z.drive));
 
     const refDay = points[refZ.ptInshore].filter(h => h.t >= d0 && h.t < d1);
     const tideDay = tidePts.filter(h => h.t >= d0 && h.t < d1);

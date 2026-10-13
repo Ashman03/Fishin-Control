@@ -95,10 +95,12 @@ export function fieldGaps(sets, vars) {
 }
 
 /**
- * Wind and gusts decide go / no-go hour by hour, so a hole anywhere counts:
- * the model treats an hour without them as outside the limits, and this says
- * so on screen ("gusts missing at some hours"). Also catches a reply that
- * left places out. Empty when every place has every hour.
+ * Wind and gusts decide go / no-go hour by hour, so a hole counts: the model
+ * treats an hour without them as outside the limits, and this says so on
+ * screen ("gusts missing at some hours"). A hole is a blank between the first
+ * and last hour any place has a figure for; blanks past the end of the
+ * forecast at every place are where the forecast stops, not a hole. Also
+ * catches a reply that left places out. Empty when nothing is missing.
  */
 export const HARD_VARS = 'wind_speed_10m,wind_gusts_10m';
 export function fieldHoles(sets, vars = HARD_VARS) {
@@ -109,8 +111,15 @@ export function fieldHoles(sets, vars = HARD_VARS) {
     const [, label] = FIELDS[name] || [null, name];
     const series = sets.map(o => pickVar(o && o.hourly, name));
     if (!series.some(hasData)) continue; // missing everywhere: fieldGaps() already says so
-    if (series.some(a => !Array.isArray(a) || a.some(v => v == null)))
-      gaps.push(label + ' missing at some hours');
+    let first = Infinity,
+      last = -1;
+    series.forEach(a =>
+      (a || []).forEach((v, k) => {
+        if (v != null) [first, last] = [Math.min(first, k), Math.max(last, k)];
+      })
+    );
+    const holed = a => !Array.isArray(a) || a.slice(first, last + 1).some(v => v == null);
+    if (series.some(holed)) gaps.push(label + ' missing at some hours');
   }
   return gaps;
 }
