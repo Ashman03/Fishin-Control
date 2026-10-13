@@ -22,7 +22,8 @@ import {
   ACTIONS,
   countdown,
   tickCountdown,
-  selectDay
+  selectDay,
+  feedsLine
 } from './ui.js';
 import { goDays, newlyGo, readShared, writeShared } from './alerts.js';
 import { esc, isoDay } from './util.js';
@@ -68,12 +69,8 @@ function splashProgress(done, total) {
   splashFill.style.width = pct + '%';
   splashFill.parentElement.setAttribute('aria-valuenow', pct);
   document.getElementById('splashPct').textContent = pct + ' %';
-  check(
-    'scFeeds',
-    done < total ? 'busy' : 'go',
-    done < total ? 'Loading' : 'Go',
-    `Forecast feeds · ${done} of ${total}`
-  );
+  // how many have come back; whether they answered is set once getData returns
+  check('scFeeds', 'busy', 'Loading', `Forecast feeds · ${done} of ${total}`);
 }
 
 if (splashUp) {
@@ -110,7 +107,11 @@ async function start() {
   wantDay = null;
   if (!state.days.length) app.innerHTML = '<div class="state">Reading the water…</div>';
   setStamp('busy', 'Updating…');
-  check('scAlerts', state.alerts.on ? 'go' : 'off', state.alerts.on ? 'Armed' : 'Off');
+  check(
+    'scAlerts',
+    state.alerts && state.alerts.on ? 'go' : 'off',
+    state.alerts && state.alerts.on ? 'Armed' : 'Off'
+  );
 
   let raw,
     demo = false,
@@ -118,7 +119,6 @@ async function start() {
   try {
     raw = await getData(splashProgress);
   } catch (err) {
-    check('scFeeds', 'nogo', 'No go', 'Forecast feeds · offline');
     console.warn('[data] using sample data:', err.message, err.status || '');
     raw = sampleData();
     raw.status = err.status || raw.status; // keep the real per-source outcomes for the panel
@@ -126,6 +126,7 @@ async function start() {
     loadError = err.message;
   }
   if (ticket !== state.loadSeq) return; // a newer refresh has started
+  check('scFeeds', ...feedsLine(raw, demo)); // what answered, not just how many came back
 
   try {
     state.raw = raw;
@@ -195,7 +196,11 @@ app.addEventListener('keydown', e => {
 window.addEventListener('error', e => {
   if (!state.days.length) fail(e.error || new Error(e.message));
 });
-window.addEventListener('unhandledrejection', e => console.warn('[app] unhandled rejection', e.reason));
+window.addEventListener('unhandledrejection', e => {
+  console.warn('[app] unhandled rejection', e.reason);
+  // before the first forecast is drawn, an error must not leave the loading screen up
+  if (!state.days.length) fail(e.reason || new Error('start-up failed'));
+});
 document.getElementById('reload').addEventListener('click', start);
 
 // re-check when the app comes back to the foreground after a while
@@ -308,7 +313,7 @@ if (new URLSearchParams(location.search).has('check')) {
     }
     rows.push(['Browser offered install', installState !== 'waiting']);
     app.innerHTML =
-      '<div class="card"><h3>Install self-check</h3>' +
+      '<div class="panel stack"><h3>Install self-check</h3>' +
       rows
         .map(
           ([k, v]) =>

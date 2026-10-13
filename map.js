@@ -96,8 +96,8 @@ const RANGE = ZONES.map(
 
 /* ── Labels ─────────────────────────────────────────────────────────────
  * No outlined text: labels follow the app's own type — ramp names in Outfit
- * on a pill like the app's tags, small spaced capitals for distances.
- * SVG text can't size its own background, so the pills are sized from
+ * on a dark name plate edged in the ramp's colour, small spaced capitals for
+ * distances. SVG text can't size its own background, so the plates are sized from
  * Outfit's real advance widths (weight 500, thousandths of an em, for the
  * printable ASCII characters).
  */
@@ -207,7 +207,7 @@ export function mapSVG(day, selId, marks = [], infoId = null) {
         y = f1(my(m.lat)),
         on = m.id === infoId;
       return `<g class="mk-dot" data-act="markInfo" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc(m.name)}">
-      <circle cx="${x}" cy="${y}" r="11" fill="transparent"/>
+      <circle cx="${x}" cy="${y}" r="20" fill="transparent"/>
       <circle cx="${x}" cy="${y}" r="${on ? 6 : 4.6}" fill="${on ? '#eaf4fb' : '#061420'}" stroke="#eaf4fb" stroke-width="2"/>
       <circle cx="${x}" cy="${y}" r="1.6" fill="${on ? '#061420' : '#eaf4fb'}"/>
     </g>`;
@@ -229,6 +229,7 @@ export function mapSVG(day, selId, marks = [], infoId = null) {
       // ramp's colour down its left edge, like the launch sites list
       return `<g class="pin" data-act="zone" data-z="${z.z.id}" role="button" tabindex="0"
       aria-label="${esc(z.z.name)}, score ${z.score}" style="cursor:pointer">
+      <rect x="${f1(x - 28)}" y="${f1(y - 28)}" width="${f1(lx + w - x + 28)}" height="56" fill="transparent"/>
       <rect x="${f1(x - r - 9)}" y="${f1(y - r - 9)}" width="${(r + 9) * 2}" height="${(r + 9) * 2}" fill="${c}" opacity="${on ? 0.22 : 0.1}"/>
       <rect x="${f1(lx)}" y="${f1(y - 12)}" width="${f1(w)}" height="24" fill="#061420" fill-opacity=".9"/>
       <text x="${f1(lx + 9)}" y="${f1(y + 5.2)}" font-size="${size}" font-weight="${on ? 600 : 500}"

@@ -172,13 +172,11 @@ header.top {
   flex-direction: column;
   gap: 3px;
 }
-.mark span {
-  display: none;
-}
 .iconbtn[hidden] {
   display: none;
 }
 .mark {
+  margin: 0;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -186,6 +184,7 @@ header.top {
   white-space: nowrap;
 }
 .mark span {
+  display: none;
   font-size: 10px;
   font-weight: 400;
   color: var(--mute);
@@ -268,13 +267,6 @@ header.top {
   flex-direction: column;
   gap: 14px;
 }
-.view > .switch {
-  margin-bottom: 0;
-}
-.view-plan > .alert + .deck,
-.view-plan > .alert + .alert {
-  margin-top: 0;
-}
 section {
   min-width: 0;
 }
@@ -335,11 +327,6 @@ h2.sect span {
   font-size: 14px;
   color: var(--mute);
   line-height: 1.45;
-}
-.panel > .sub + .sub,
-.panel > .sub + .links,
-.panel > .links + details {
-  margin-top: 0;
 }
 ul.tight {
   margin: 0;
@@ -606,7 +593,7 @@ button.inline {
 }
 .tm-unit i {
   font-style: normal;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute);
@@ -640,7 +627,7 @@ button.inline {
   font-weight: 400;
 }
 .tank .cap {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   color: var(--mute);
 }
@@ -719,19 +706,9 @@ button.inline {
 .segs i.on {
   background: var(--sky);
 }
-@media (prefers-reduced-motion: no-preference) {
-  .fillw {
-    transition:
-      y 0.8s cubic-bezier(0.4, 0, 0.2, 1),
-      height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-}
 
 /* ── The go / no-go poll ────────────────────────────────────────────
    Each station a tile with its own lamp; on the rivers page, one row each. */
-.poll-row {
-  --st: var(--go);
-}
 .poll-row[data-st='hold'] {
   --st: var(--mid);
 }
@@ -744,6 +721,7 @@ button.inline {
   gap: 6px;
 }
 .poll-row {
+  --st: var(--go);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -992,7 +970,7 @@ button.inline {
   border: 1px dashed var(--sky);
 }
 .legend .hintx {
-  color: var(--dim);
+  color: var(--mute);
 }
 .legend.key {
   margin: 6px 0 8px;
@@ -1120,7 +1098,7 @@ button.inline {
   min-width: 0;
 }
 .kv .k {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   color: var(--mute);
 }
@@ -1342,7 +1320,7 @@ details > .sub {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   color: var(--mute);
 }
@@ -1396,7 +1374,7 @@ footer {
 .lab {
   display: block;
   margin-bottom: 4px;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   color: var(--mute);
 }
@@ -1882,6 +1860,9 @@ label.filebtn:focus-within {
 .sc-row[data-st='busy'] {
   --c: var(--sky);
 }
+.sc-row[data-st='hold'] {
+  --c: var(--mid);
+}
 .sc-row[data-st='nogo'] {
   --c: var(--no);
 }
@@ -1938,7 +1919,7 @@ label.filebtn:focus-within {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--mute);
 }
 /* boot fallback: only visible if app.js has not started within 6 seconds.
    With no stylesheet at all it shows immediately, which is exactly when it is needed. */

@@ -1,5 +1,63 @@
 # Changelog
 
+## 6.0.0
+
+The "Flight Deck" redesign: every screen rebuilt as a launch-control console, and a
+proper layout for a computer screen. Look and feel only. Scores, limits and fishing logic
+are unchanged — checked by building the same forecasts (88 cases, across both sides of
+every limit) with 5.1.1 and 6.0.0 and comparing every figure.
+
+**New look**
+
+- Square panels on a faint chart grid, spaced capital labels, and corner brackets on the
+  launch clock, the import panel and the log form.
+- The score is a **tank** that fills with water to the score, with ticks at the green (70)
+  and amber (48) lines. It keeps the faint water and drawn surface line of the old dial.
+- The verdict is big beside the tank ("GO for launch"), in the colour of what it says.
+- The launch poll is a board of station lights: one tile per station, each with its own
+  lamp. The rivers poll lists its stations one per line.
+- The week is a **7-day telemetry** bar chart: one bar per day at its score, dashed lines
+  at 70 and 48, the window track and the ensemble odds under each day.
+- Map: square score markers, and ramp names on dark plates with a bar of the ramp's
+  colour. The markers and your marks are easier to tap.
+- The sections bar (Forecast, My marks, Catch log) sits along the bottom of a phone
+  screen, within thumb reach, with icons.
+- Header: the live / saved / sample status sits under the wordmark with a coloured lamp,
+  and Refresh and Install are icon buttons.
+- My marks: the Helix steps are numbered. Catch log: patterns show as bars.
+- The conditions and tide charts are drawn at phone width, so their labels are readable.
+
+**Loading screen**
+
+- The logo on a radar scope in corner brackets, and a **systems check** that reports what
+  the app has really done: the app loaded, how many forecast feeds came back and how many
+  answered (amber if some are down or the phone's saved copy stood in), the forecast
+  built, and whether go-day alerts are on. The loading bar is in 20 segments.
+
+**Computer screens (900 px and wider)**
+
+- The sections bar moves to the top, with the Ocean / Rivers switch at its right.
+- The forecast spreads into three columns: clock, score and poll; the chart; launch sites
+  and warnings. The week runs full width beneath, then the rest as cards in columns.
+- My marks and Catch log sit in two columns.
+
+**Fixes (from the senior dev review)**
+
+- Keyboard focus could jump to the wrong control after a tap: to a ramp's map marker
+  instead of its list entry, or to the first species chip.
+- The `?check` install self-check page had lost its styling.
+- An error during start-up could leave the loading screen up for good. It now shows the
+  error with a Try again button.
+- "0 of N up" for data sources now shows red, not amber.
+- One date style everywhere ("Tue 13 Oct").
+- Screen readers no longer read out each line of the loading checklist as it changes.
+- The smallest labels are 10 px, and secondary text no longer uses the dimmest colour.
+
+**Tests**
+
+- 164 tests (14 new), including the tank level, the week chart, every ocean section still
+  being present, the systems check, and one test for each fix above.
+
 ## 5.1.1
 
 Map tidy-up and a senior dev review. Scores, limits and fishing logic are unchanged in

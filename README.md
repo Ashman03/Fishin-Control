@@ -15,8 +15,9 @@ Settings → Pages → Deploy from a branch → `main` → `/ (root)`.
 
 The site uses ES modules, so it must be served over http(s). Opening `index.html` by
 double-clicking will not work — use the single-file preview for that (see below). If the
-page ever shows only the logo and a "files are missing" note, a `.js` file or
-`styles.css` did not upload.
+loading screen sticks on "Mission software · Loading" and a "files are missing" note
+appears, a `.js` file did not upload; a page with no styling at all means `styles.css`
+did not.
 
 ## How it works
 
@@ -35,7 +36,7 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 | `model.js`    | The go / no-go rule (`passes`), scoring, windows, tides, probability. Pure       |
 | `advice.js`   | Sessions, techniques, marks, catch-log patterns. Pure                            |
 | `astro.js`    | Sun and moon. Pure                                                               |
-| `ui.js`       | Rendering and click handlers                                                     |
+| `ui.js`       | Rendering and click handlers (the "Flight Deck" screens)                         |
 | `store.js`    | The single `state` object and localStorage                                       |
 | `app.js`      | Entry point: startup, refresh, install, service worker                           |
 | `closures.js` | Queensland closed seasons for this coast, from DPI's published dates             |
@@ -86,6 +87,11 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 - **Releasing:** bump `APP_VERSION` in `config.js`, `VERSION` in `sw.js` and `version` in
   `package.json` together (the tests check they match). The version bump is what makes
   phones replace cached images and fonts, which are served cache-first.
+- **Look and feel ("Flight Deck", 6.0):** square panels on a chart grid, spaced capital
+  headings (`sect()` in `ui.js`), corner brackets (`--brackets` in `styles.css`). Green,
+  amber and red mean go, marginal and no-go and nothing else; light blue is the
+  interface. Nothing uses outlined text. Phones get a bottom sections bar; from 900 px
+  wide the layout spreads into columns (`.deck`, `.col-a/b/c`, `.grid`).
 - **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
   damaged entry can't break a render.
 
@@ -94,7 +100,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 150 tests, no dependencies, clock pinned to Queensland time
+npm test             # 164 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```

@@ -47,7 +47,7 @@
       </div>
       <div class="splash-mark">Fishin' Control</div>
       <div class="splash-tag">Launch control · Bundaberg coast</div>
-      <div class="splash-checks">
+      <div class="splash-checks" aria-live="off">
         <div class="sc-head"><span>Systems check</span><span id="splashCount"></span></div>
         <div class="sc-row" id="scApp" data-st="busy"><i></i><span>Mission software</span><b>Loading</b></div>
         <div class="sc-row" id="scFeeds" data-st="wait"><i></i><span>Forecast feeds</span><b>Standby</b></div>
@@ -57,7 +57,9 @@
         <div class="sc-row" id="scAlerts" data-st="wait"><i></i><span>Go-day alerts</span><b>Standby</b></div>
       </div>
       <div class="splash-load">
-        <div class="splash-msg"><span>Reading the water…</span><span class="num" id="splashPct"></span></div>
+        <div class="splash-msg">
+          <span>Reading the water…</span><span class="num" id="splashPct" aria-live="off"></span>
+        </div>
         <div
           class="splash-bar"
           role="progressbar"
@@ -78,7 +80,7 @@
       <div class="top-in">
         <img class="logo" src="logo-128.webp" width="38" height="38" alt="" />
         <div class="brand">
-          <div class="mark">Fishin' Control<span>Bundaberg coast</span></div>
+          <h1 class="mark">Fishin' Control<span>Bundaberg coast</span></h1>
           <div class="stamp" id="stamp" aria-live="polite"></div>
         </div>
         <button class="iconbtn" id="install" aria-label="Install the app" title="Install" hidden>

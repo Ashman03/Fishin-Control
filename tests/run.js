@@ -1035,7 +1035,7 @@ await describe('ui', async () => {
     const range = svg.match(/<g fill="#7ad3f5" opacity="\.07">([\s\S]*?)<\/g>/)[1];
     assert((range.match(/<circle /g) || []).length === ZONES.length, 'one 20 km reach per ramp');
   });
-  await it('the score dial reads in every colour: faint water, figures on top, no outlines', () => {
+  await it('the score tank reads in every colour: faint water, figures on top, no outlines', () => {
     for (const score of [92, 62, 45, 18]) {
       const svg = ui.dial(score);
       const water = [...svg.matchAll(/class="fillw"[^>]*\sopacity="([\d.]+)"/g)].map(m => +m[1]);
@@ -1045,7 +1045,7 @@ await describe('ui', async () => {
       assert(!/<text[^>]*\bstroke/.test(svg), score + ': outlined text');
     }
   });
-  await it('map labels have no outlines, and every name fits its pill on the chart', async () => {
+  await it('map labels have no outlines, and every name fits its plate on the chart', async () => {
     const { mapSVG, MAPW, textWidth } = await imp('map');
     for (const z of ZONES) {
       const svg = mapSVG(state.days[0], z.id);
@@ -1168,6 +1168,77 @@ await describe('ui', async () => {
     ui.render();
     assert((nodes.app.innerHTML.match(/class="track"/g) || []).length === state.days.length);
   });
+  await it('the score tank fills to the score, with ticks at the green and amber lines', () => {
+    for (const score of [92, 62, 45, 18]) {
+      const svg = ui.dial(score);
+      const H = +svg.match(/viewBox="0 0 \d+ (\d+)"/)[1];
+      const y = +svg.match(/<rect class="fillw" x="0" y="([\d.]+)"/)[1];
+      near(y, H - (H * score) / 100, 0.05, score + ': water level');
+      const ticks = [...svg.matchAll(/<path d="M0 ([\d.]+)h14"/g)].map(m => +m[1]);
+      assert(ticks.length === 2, score + ': ' + ticks.length + ' ticks');
+      near(ticks[0], H * 0.3, 0.05, 'green tick');
+      near(ticks[1], H * 0.52, 0.05, 'amber tick');
+    }
+  });
+  await it('the week reads as one bar per day at its score, with the chosen day pressed', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.sel = 1;
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const bars = [...html.matchAll(/class="bar" style="--s:(\d+);/g)].map(m => +m[1]);
+    assert(bars.join() === state.days.map(d => d.overall).join(), bars.join() + ' vs scores');
+    const pressed = [...html.matchAll(/data-i="(\d+)" aria-pressed="true"/g)].map(m => m[1]);
+    assert(pressed.join() === '1', 'pressed: ' + pressed.join());
+    state.sel = 0;
+  });
+  await it('every section of the ocean page is still there after the redesign', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const heads = [...nodes.app.innerHTML.matchAll(/<h2 class="sect">([^<]+)/g)].map(m => m[1].trim());
+    const want = [
+      'Launch poll',
+      '7-day telemetry',
+      'Launch control · chart',
+      'Launch sites',
+      'Conditions',
+      'Tide and moon',
+      'Flight plan',
+      "What's biting",
+      'Pre-launch checks'
+    ];
+    assert(heads.join('|') === want.join('|'), heads.join('|'));
+    ['id="tminus"', 'class="dial"', 'class="chart-map"', 'data-key="limits"', 'data-key="alerts"'].forEach(
+      k => assert(nodes.app.innerHTML.includes(k), k + ' missing')
+    );
+  });
+  await it('the poll heading totals the calls', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const tally = html.match(/<h2 class="sect">Launch poll <span>([^<]+)/)[1];
+    const n = st => (html.match(new RegExp(`poll-s ${st}"`, 'g')) || []).length;
+    const want = [
+      ['go', 'GO'],
+      ['hold', 'HOLD'],
+      ['nogo', 'NO GO']
+    ]
+      .filter(([st]) => n(st))
+      .map(([st, w]) => n(st) + ' ' + w)
+      .join(' · ');
+    assert(tally === want, tally + ' vs ' + want);
+  });
+  await it('the sections bar names all three sections, with the open one marked', () => {
+    state.tab = 'log';
+    ui.render();
+    const nav = nodes.app.innerHTML.match(/<nav class="tabs"[\s\S]*?<\/nav>/)[0];
+    ['Forecast', 'My marks', 'Catch log'].forEach(l => assert(nav.includes(l), l));
+    assert((nav.match(/aria-current="page"/g) || []).length === 1, 'one current');
+    assert(/data-tab="log" class="on" aria-current="page"/.test(nav), 'log marked');
+    state.tab = 'plan';
+  });
   await it('countdown reads T-minus, window open, or no window — never blank', () => {
     const html = ui.countdown();
     assert(/T−|Window open|No launch window/.test(html), html);
@@ -1230,6 +1301,66 @@ await describe('ui', async () => {
     state.alerts = { on: false, mode: null };
     ui.render();
     assert(nodes.app.innerHTML.includes('data-act="alertsOn"'));
+  });
+  await it('the verdict word is coloured by what it says, not by the score (Marginal is never red)', () => {
+    const d = state.days[0],
+      saved = d.overall;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.sel = 0;
+    for (const [score, word, colour] of [
+      [45, 'Marginal', 'var(--mid)'],
+      [72, 'Worth a look', 'var(--mid)'],
+      [80, 'Go', 'var(--go)'],
+      [30, 'River day', 'var(--no)']
+    ]) {
+      d.overall = score;
+      ui.render();
+      const m = nodes.app.innerHTML.match(/class="verdict[^"]*" style="color:([^"]+)">([^<]+)/);
+      assert(m && m[2] === word && m[1] === colour, score + ': ' + (m && m[2] + ' in ' + m[1]));
+    }
+    d.overall = saved;
+  });
+  await it('loading screen: the feeds line is GO only when every source answered live', () => {
+    const st = (...oks) => oks.map(ok => ({ label: 'x', role: 'y', ok }));
+    assert(ui.feedsLine({ status: st(true, true, true) }, false)[0] === 'go', 'all up');
+    const part = ui.feedsLine({ status: st(true, false, true) }, false);
+    assert(part[0] === 'hold' && part[2].includes('2 of 3 up'), 'one down: ' + part);
+    assert(ui.feedsLine({ status: st(true, true), cached: true }, false)[0] === 'hold', 'saved copy');
+    assert(ui.feedsLine({ status: st(false) }, true)[0] === 'nogo', 'sample data');
+  });
+  await it('keyboard focus comes back to the same control, not its map pin or the first chip', () => {
+    const el = (tag, dataset) => ({ tagName: tag, dataset });
+    const pin = ui.controlKey(el('G', { act: 'zone', z: 'elliott' }));
+    const btn = ui.controlKey(el('BUTTON', { act: 'zone', z: 'elliott' }));
+    assert(pin !== btn, 'pin and list button share a key: ' + pin);
+    const a = ui.controlKey(el('BUTTON', { act: 'logSp', name: 'Grunter' }));
+    const b = ui.controlKey(el('BUTTON', { act: 'logSp', name: 'Flathead' }));
+    assert(a !== b, 'species chips share a key: ' + a);
+    const odd = ui.controlKey(el('BUTTON', { act: 'delMark', id: 'm1\nx"y' }));
+    assert(!/\n/.test(odd) && odd.includes('\\a ') && odd.includes('\\"'), 'unsafe key: ' + odd);
+  });
+  await it('data sources read red when nothing answered', () => {
+    const saved = state.raw.status;
+    state.raw.status = [
+      { label: 'Wind forecast', role: 'primary', ok: false, detail: 'down' },
+      { label: 'Swell forecast', role: 'primary', ok: false, detail: 'down' }
+    ];
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const m = nodes.app.innerHTML.match(/<b class="num" style="color:([^"]+)">0 of 2 up/);
+    assert(m && m[1] === 'var(--no)', m ? m[1] : 'no summary');
+    state.raw.status = saved;
+  });
+  await it('one date style everywhere: "Tue 13 Oct", never "Tue, 13 Oct"', () => {
+    state.freshGo = [{ ds: state.days[1].ds, score: 81, ramp: 'Elliott Heads', from: '06:00', to: '11:00' }];
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    state.freshGo = [];
+    const bad = nodes.app.innerHTML.match(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d/);
+    assert(!bad, 'found ' + (bad && bad[0]));
   });
   await it('the sample-data banner says why the live forecast failed', () => {
     state.demo = true;
@@ -1500,6 +1631,31 @@ await describe('shell', async () => {
     const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
     assert(/function fail\(err\) \{[^}]*hideSplash\(\)/.test(app), 'stays up over an error');
     assert(/getData\(splashProgress\)/.test(app), 'bar not wired to the requests');
+  });
+  await it('every class the app shell writes has a style (the ?check page lost its panel once)', () => {
+    const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const used = new Set(
+      [...app.matchAll(/class="([^"$]+)"/g)].flatMap(m => m[1].split(/\s+/)).filter(c => c.length > 1)
+    );
+    used.forEach(c => assert(new RegExp(`\\.${c}\\b`).test(css), '.' + c + ' has no style'));
+  });
+  await it('an error during start-up never leaves the loading screen up', () => {
+    const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+    assert(
+      /addEventListener\('unhandledrejection', e => \{[^}]*if \(!state\.days\.length\) fail\(/.test(app),
+      'an unhandled rejection before the first forecast only logs'
+    );
+  });
+  await it('the loading checklist is not read out line by line', () =>
+    assert(
+      /class="splash-checks" aria-live="off"/.test(html) && /id="splashPct" aria-live="off"/.test(html)
+    ));
+  await it('every line of the loading systems check is driven by something the app really does', () => {
+    const rows = [...html.matchAll(/class="sc-row" id="(\w+)"/g)].map(m => m[1]);
+    const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+    assert(rows.length === 4, rows.length + ' rows');
+    rows.forEach(id => assert(new RegExp(`check\\(\\s*'${id}'`).test(app), id + ' is never updated'));
   });
 
   const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');

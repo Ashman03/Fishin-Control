@@ -306,13 +306,27 @@ function barCard(zone) {
   );
 }
 
+/**
+ * The loading screen's "Forecast feeds" line once the requests are back, as
+ * [state, word, label]: GO only when every source answered live. Amber when
+ * some are down or a primary is the phone's saved copy; red with sample data.
+ */
+export function feedsLine(raw, demo) {
+  const s = (raw && raw.status) || [];
+  const up = s.filter(x => x.ok).length;
+  const label = `Forecast feeds · ${up} of ${s.length} up`;
+  if (demo) return ['nogo', 'No go', 'Forecast feeds · offline'];
+  if (raw.cached) return ['hold', 'Saved', label];
+  return up === s.length ? ['go', 'Go', label] : ['hold', 'Partial', label];
+}
+
 /** What actually answered, so a silent failure upstream is visible on screen. */
 function sourceStatus() {
   const s = state.raw && state.raw.status;
   if (!s || !s.length) return '';
   const up = s.filter(x => x.ok).length;
   return `<details data-key="sources"><summary><span>Data sources</span>
-      <b class="num" style="color:${up === s.length ? 'var(--go)' : 'var(--mid)'}">${up} of ${s.length} up</b>
+      <b class="num" style="color:${up === s.length ? 'var(--go)' : up ? 'var(--mid)' : 'var(--no)'}">${up} of ${s.length} up</b>
       <span class="dots" aria-hidden="true">${s.map(x => `<i class="${x.ok ? 'ok' : 'down'}"></i>`).join('')}</span></summary>
     ${s
       .map(
@@ -509,12 +523,11 @@ function closuresCard(day, zone) {
   const soon = upcomingClosures(day.d0, zone.z, 14);
   const stale = closureDatesStale(day.d0);
   if (!now.length && !soon.length && !stale) return '';
-  const fmt = d => d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
   return alertBox(
     'mid',
     now.length ? 'Closed season in force' : 'Closed season coming up',
     `${now.map(c => `<p class="sub"><b>${esc(c.title)}.</b> ${esc(c.detail)}${c.where ? ' Applies ' + esc(c.where) + '.' : ''}</p>`).join('')}
-    ${soon.map(u => `<p class="sub"><b>${esc(u.closure.title)}</b> from ${fmt(u.starts)}.${u.closure.where ? ' Applies ' + esc(u.closure.where) + '.' : ''}</p>`).join('')}
+    ${soon.map(u => `<p class="sub"><b>${esc(u.closure.title)}</b> from ${shortDate(u.starts)}.${u.closure.where ? ' Applies ' + esc(u.closure.where) + '.' : ''}</p>`).join('')}
     ${stale ? '<p class="sub">The published coral reef fin fish dates in this app have run out — check the official page.</p>' : ''}`,
     `<div class="links"><a href="${CLOSURES_SOURCE}" target="_blank" rel="noopener">Official closed seasons</a></div>`
   );
@@ -523,11 +536,7 @@ function closuresCard(day, zone) {
 function freshGoBanner() {
   if (!state.freshGo || !state.freshGo.length) return '';
   const item = g =>
-    new Date(g.ds + 'T12:00').toLocaleDateString('en-AU', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short'
-    }) +
+    shortDate(new Date(g.ds + 'T12:00')) +
     ' · ' +
     esc(short(g.ramp)) +
     ' ' +
@@ -686,11 +695,27 @@ function renderPlan() {
 }
 
 /** The big call beside the tank: a kicker, the verdict in the score's colour, and why. */
-function call(kicker, score, word, why, extra = '') {
+/**
+ * The colour of each verdict word. It follows the word, not the score: the
+ * verdict bands (75 / 58 / 42 for the ocean) are not the traffic-light lines
+ * (70 / 48), and a red "Marginal" would read as a no-go.
+ */
+export const VERDICT_COLOUR = {
+  Go: 'var(--go)',
+  'Worth a look': 'var(--mid)',
+  Marginal: 'var(--mid)',
+  'River day': 'var(--no)',
+  'Good river day': 'var(--go)',
+  'Worth a fish': 'var(--mid)',
+  Steady: 'var(--mid)',
+  Slow: 'var(--no)'
+};
+
+function call(kicker, word, why, extra = '') {
   const go = word === 'Go';
   return `<div class="call">
       <span class="kick">${kicker}</span>
-      <div class="verdict${word.length > 6 ? ' long' : ''}" style="color:${light(score)}">${word}${go ? '<small>for launch</small>' : ''}</div>
+      <div class="verdict${word.length > 6 ? ' long' : ''}" style="color:${VERDICT_COLOUR[word] || 'var(--paper)'}">${word}${go ? '<small>for launch</small>' : ''}</div>
       <p class="why">${why}</p>${extra}
     </div>`;
 }
@@ -759,7 +784,7 @@ function renderRiver() {
   <div class="deck">
     <div class="col col-a">
       <section class="panel hero">${tank(day.river, 'River tank')}
-        ${call(esc(shortDate(day.d0) + ' · ' + est.name), day.river, word, why)}
+        ${call(esc(shortDate(day.d0) + ' · ' + est.name), word, why)}
       </section>
       <section class="pollsec">${pollHTML(rows, 'River poll for ' + est.name, 'River poll', 'rows')}</section>
     </div>
@@ -821,7 +846,6 @@ function renderOcean() {
       <section class="panel hero">${tank(day.overall, 'Score tank')}
         ${call(
           "Flight director's call · " + esc(shortDate(day.d0)),
-          day.overall,
           word,
           why + (day.caps.length ? ' Capped: ' + esc(day.caps.join('; ')) + '.' : ''),
           ensemble
@@ -1044,15 +1068,15 @@ function renderLog() {
         <div><label for="lr">Ramp</label><select id="lr">${ZONES.map(
           z => `<option value="${z.id}" ${z.id === d.ramp ? 'selected' : ''}>${esc(z.name)}</option>`
         ).join('')}</select></div>
-        <div class="wide"><span class="lab">What you caught</span>
-          <div class="chips">${allSpecies
+        <div class="wide"><span class="lab" id="lcaught">What you caught</span>
+          <div class="chips" role="group" aria-labelledby="lcaught">${allSpecies
             .map(
               n =>
                 `<button data-act="logSp" data-name="${esc(n)}" class="${d.picked.includes(n) ? 'on' : ''}" aria-pressed="${d.picked.includes(n)}">${esc(n)}</button>`
             )
             .join('')}</div></div>
-        <div class="wide"><span class="lab">How it went</span>
-          <div class="rate">${RATINGS.map(
+        <div class="wide"><span class="lab" id="lrate">How it went</span>
+          <div class="rate" role="group" aria-labelledby="lrate">${RATINGS.map(
             (r, i) =>
               `<button data-act="rate" data-rating="${i}" class="${i === d.rating ? 'on' : ''}" aria-pressed="${i === d.rating}">${r}</button>`
           ).join('')}</div></div>
@@ -1144,16 +1168,22 @@ function renderLog() {
 
 /**
  * A selector that finds the same control again after a re-render, built from
- * its data-* attributes (data-act plus whichever of i, z, tab, rating, id it
- * carries). Null for anything that is not one of our controls.
+ * its tag and data-* attributes (data-act plus whichever of i, z, tab, view,
+ * rating, id, name it carries). Null for anything that is not one of our controls.
  */
-function controlKey(el) {
+export function controlKey(el) {
   if (!el || !el.dataset || !el.dataset.act) return null;
-  const q = v => '"' + String(v).replace(/["\\]/g, '\\$&') + '"';
-  return ['act', 'i', 'z', 'tab', 'view', 'rating', 'id']
-    .filter(k => el.dataset[k] != null)
-    .map(k => `[data-${k}=${q(el.dataset[k])}]`)
-    .join('');
+  // a CSS string: quotes and backslashes escaped, and a newline written as \a
+  // (a raw one would make querySelector throw part-way through a render)
+  const q = v => '"' + String(v).replace(/["\\]/g, '\\$&').replace(/\n/g, '\\a ') + '"';
+  // the tag first: a ramp's map pin (<g>) and its list button share data-z
+  return (
+    el.tagName.toLowerCase() +
+    ['act', 'i', 'z', 'tab', 'view', 'rating', 'id', 'name']
+      .filter(k => el.dataset[k] != null)
+      .map(k => `[data-${k}=${q(el.dataset[k])}]`)
+      .join('')
+  );
 }
 
 export function render() {
