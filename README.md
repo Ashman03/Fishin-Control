@@ -58,7 +58,11 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 ### Rules worth knowing before changing anything
 
 - **The limits are compared in exactly one place:** `passes()` in `model.js`. Charts,
-  scores, windows and the ensemble probability all call it.
+  scores, windows and the ensemble probability all call it. Swell meets the limit as
+  `swellCheck()`: weighted for period, never less than the forecast height.
+- **A GO needs a launch window.** A ramp with no 2-hour window scores `capNoWindow` (74)
+  at most and ranks below any ramp with one. Windows also end at an hour with no wind or
+  gust figure (`gap`) and at a forecast thunderstorm (`windowRules()` in `model.js`).
 - **Sampling is offshore.** Each ramp is sampled at 2, 10, 15 and 20 km along its run-out
   bearing; go / no-go uses the worst of the outer three. See `POINTS` in `config.js`.
 - **Mind the request budget.** Open-Meteo's free tier counts every location as a call
@@ -79,8 +83,8 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   not touch the DOM or localStorage.
 - **Soft adjustments never move the line.** Northerlies, wind against the tidal current
   and storm risk (`softPenalties()` in `model.js`) lower the ranking score by a few points;
-  only `passes()` decides GO / NO GO. Storms show as a HOLD on the caution and advisory panel at
-  most.
+  only `passes()` decides GO / NO GO. A forecast thunderstorm ends a launch window, but
+  storms still show as a HOLD on the caution and advisory panel at most.
 - **Fishing hours** run from an hour before sunrise to an hour after sunset
   (`fishBeforeSunrise` / `fishAfterSunset` in `TUNING`).
 - **Rivers are scored separately** (`riverScore()`): tide, moon and rain first; wind only
@@ -120,7 +124,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 224 tests, no dependencies, clock pinned to Queensland time
+npm test             # 237 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```

@@ -94,6 +94,36 @@ export function fieldGaps(sets, vars) {
   return gaps;
 }
 
+/**
+ * Wind and gusts decide go / no-go hour by hour, so a hole counts: the model
+ * treats an hour without them as outside the limits, and this says so on
+ * screen ("gusts missing at some hours"). A hole is a blank between the first
+ * and last hour any place has a figure for; blanks past the end of the
+ * forecast at every place are where the forecast stops, not a hole. Also
+ * catches a reply that left places out. Empty when nothing is missing.
+ */
+export const HARD_VARS = 'wind_speed_10m,wind_gusts_10m';
+export function fieldHoles(sets, vars = HARD_VARS) {
+  const gaps = [];
+  if (!Array.isArray(sets)) return gaps;
+  if (sets.length !== POINTS.length) gaps.push(`forecast for ${sets.length} of ${POINTS.length} places`);
+  for (const name of vars.split(',')) {
+    const [, label] = FIELDS[name] || [null, name];
+    const series = sets.map(o => pickVar(o && o.hourly, name));
+    if (!series.some(hasData)) continue; // missing everywhere: fieldGaps() already says so
+    let first = Infinity,
+      last = -1;
+    series.forEach(a =>
+      (a || []).forEach((v, k) => {
+        if (v != null) [first, last] = [Math.min(first, k), Math.max(last, k)];
+      })
+    );
+    const holed = a => !Array.isArray(a) || a.slice(first, last + 1).some(v => v == null);
+    if (series.some(holed)) gaps.push(label + ' missing at some hours');
+  }
+  return gaps;
+}
+
 /** Sunrise and sunset, which set the fishing hours; without them the app guesses. */
 export const hasSunTimes = sets =>
   Array.isArray(sets) &&
@@ -316,6 +346,7 @@ export async function getData(onProgress = () => {}) {
   // reads a missing figure as zero, so say so rather than let it look calm.
   const gaps = [
     ...fieldGaps(fc.json, FORECAST_VARS),
+    ...fieldHoles(fc.json),
     ...(hasSunTimes(fc.json) ? [] : ['sunrise times missing']),
     ...(wave ? fieldGaps(wave.json, backup ? BACKUP_CHECKED : MARINE_VARS) : [])
   ];
