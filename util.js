@@ -63,9 +63,20 @@ export function circularMean(degrees, weights) {
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-/** Traffic-light colour and class key for a 0–100 score. */
-export const light = s => (s >= 70 ? 'var(--go)' : s >= 48 ? 'var(--mid)' : 'var(--no)');
-export const lightKey = s => (s >= 70 ? 'g' : s >= 48 ? 'a' : 'r');
+/**
+ * Green and amber lines for each reading, the same lines its words use, so a
+ * colour never disagrees with the verdict or poll lamp beside it.
+ *   ocean  Go from 75; Worth a look and Marginal from 42; River day below
+ *   river  Good river day from 70; Worth a fish and Steady from 40; Slow below
+ *   bite   the launch poll's Bite lamp: GO from 60, HOLD from 45
+ * (The Models % uses the poll's own TUNING lines; see ui.js.)
+ */
+export const LINES = { ocean: [75, 42], river: [70, 40], bite: [60, 45] };
+
+/** Traffic-light colour and class key against [green, amber] lines (default 70 / 48: catch-log ratings). */
+export const light = (s, [go, amber] = [70, 48]) =>
+  s >= go ? 'var(--go)' : s >= amber ? 'var(--mid)' : 'var(--no)';
+export const lightKey = (s, [go, amber] = [70, 48]) => (s >= go ? 'g' : s >= amber ? 'a' : 'r');
 
 /**
  * Parse "2026-10-04T05:00" as local wall-clock time. The API already returns

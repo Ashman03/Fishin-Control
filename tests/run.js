@@ -1471,17 +1471,21 @@ await describe('ui', async () => {
     ui.render();
     assert((nodes.app.innerHTML.match(/class="track"/g) || []).length === state.days.length);
   });
-  await it('the score tank fills to the score, with ticks at the green and amber lines', () => {
-    for (const score of [92, 62, 45, 18]) {
-      const svg = ui.dial(score);
-      const H = +svg.match(/viewBox="0 0 \d+ (\d+)"/)[1];
-      const y = +svg.match(/<rect class="fillw" x="0" y="([\d.]+)"/)[1];
-      near(y, H - (H * score) / 100, 0.05, score + ': water level');
-      const ticks = [...svg.matchAll(/<path d="M0 ([\d.]+)h14"/g)].map(m => +m[1]);
-      assert(ticks.length === 2, score + ': ' + ticks.length + ' ticks');
-      near(ticks[0], H * 0.3, 0.05, 'green tick');
-      near(ticks[1], H * 0.52, 0.05, 'amber tick');
-    }
+  await it("the score tank fills to the score, with ticks at the verdict's green and amber lines", () => {
+    for (const [lines, go, amber] of [
+      [undefined, 75, 42], // the ocean tank
+      [[70, 40], 70, 40] // the river tank
+    ])
+      for (const score of [92, 62, 45, 18]) {
+        const svg = ui.dial(score, lines);
+        const H = +svg.match(/viewBox="0 0 \d+ (\d+)"/)[1];
+        const y = +svg.match(/<rect class="fillw" x="0" y="([\d.]+)"/)[1];
+        near(y, H - (H * score) / 100, 0.05, score + ': water level');
+        const ticks = [...svg.matchAll(/<path d="M0 ([\d.]+)h14"/g)].map(m => +m[1]);
+        assert(ticks.length === 2, score + ': ' + ticks.length + ' ticks');
+        near(ticks[0], H * (1 - go / 100), 0.05, 'green tick');
+        near(ticks[1], H * (1 - amber / 100), 0.05, 'amber tick');
+      }
   });
   await it('the week reads as one bar per day at its score, with the chosen day pressed', () => {
     state.tab = 'plan';
@@ -1623,6 +1627,95 @@ await describe('ui', async () => {
       assert(m && m[2] === word && m[1] === colour, score + ': ' + (m && m[2] + ' in ' + m[1]));
     }
     d.overall = saved;
+  });
+  await it('the score tank is the colour of its verdict word, at every score, ocean and river', () => {
+    const { LINES } = util;
+    const tankColour = svg => svg.match(/fill="([^"]+)" class="dial-num"/)[1];
+    for (let s = 0; s <= 100; s++) {
+      const sea = ui.VERDICT_COLOUR[ui.verdict(s, 50)[0]];
+      assert(tankColour(ui.dial(s, LINES.ocean)) === sea, 'ocean ' + s + ': tank vs ' + ui.verdict(s, 50)[0]);
+      const river = ui.VERDICT_COLOUR[ui.riverWord(s)];
+      assert(tankColour(ui.dial(s, LINES.river)) === river, 'river ' + s + ': tank vs ' + ui.riverWord(s));
+    }
+  });
+  await it('every ocean score on the page is coloured at the verdict lines: tank, week, sites, map, pill', () => {
+    const d = state.days[0],
+      saved = { overall: d.overall, scores: d.zones.map(z => z.score) };
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.sel = 0;
+    d.overall = 72; // "Worth a look": amber, where the old 70 line made it green
+    d.zones.forEach(z => (z.score = 72));
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const greens = [
+      /fill="var\(--go\)" class="dial-num"/,
+      /class="sc num" style="color:var\(--go\)">72</,
+      /--s:72;--c:var\(--go\)/,
+      /class="zsc num" style="color:var\(--go\)"/,
+      /class="pill g">Launch/
+    ].filter(re => re.test(html));
+    assert(!greens.length, 'still green at 72: ' + greens.join(' '));
+    const pins = html.match(/<g class="pin"[^]*?<\/g>/g) || [];
+    assert(pins.length && pins.every(p => !p.includes('var(--go)')), 'a map pin is still green at 72');
+    assert(/fill="var\(--mid\)" class="dial-num"/.test(html), 'tank not amber');
+    assert(/--line-go:75;--line-amber:42/.test(html), 'week lines not at 75 / 42');
+    d.overall = saved.overall;
+    d.zones.forEach((z, i) => (z.score = saved.scores[i]));
+    state.view = 'river';
+    ui.render();
+    assert(/--line-go:70;--line-amber:40/.test(nodes.app.innerHTML), 'river week lines not at 70 / 40');
+    state.view = 'ocean';
+  });
+  await it('the Bite figure is coloured at the poll lamp lines (60 / 45)', () => {
+    const d = state.days[0],
+      saved = d.bite;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.sel = 0;
+    for (const [bite, lamp, colour] of [
+      [65, 'go', 'var(--go)'],
+      [60, 'go', 'var(--go)'],
+      [50, 'hold', 'var(--mid)'],
+      [45, 'hold', 'var(--mid)'],
+      [44, 'nogo', 'var(--no)']
+    ]) {
+      d.bite = bite;
+      ui.render();
+      const html = nodes.app.innerHTML;
+      const row = html.match(/data-st="(\w+)">\s*<span class="poll-k">Bite</);
+      const fig = html.match(/<div class="k">Bite<\/div><div class="v num" style="color:([^"]+)">/);
+      assert(row && row[1] === lamp, bite + ': lamp ' + (row && row[1]));
+      assert(fig && fig[1] === colour, bite + ': figure ' + (fig && fig[1]));
+    }
+    d.bite = saved;
+  });
+  await it('the Models % is coloured at the poll lamp lines (HOLD from 35%)', () => {
+    const d = state.days[0],
+      saved = { prob: d.prob, members: d.ensembleMembers, level: d.agree.level };
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.sel = 0;
+    d.ensembleMembers = d.ensembleMembers || 30;
+    d.agree.level = 'high';
+    for (const [prob, lamp, colour] of [
+      [70, 'go', 'var(--go)'],
+      [40, 'hold', 'var(--mid)'],
+      [35, 'hold', 'var(--mid)'],
+      [34, 'nogo', 'var(--no)']
+    ]) {
+      d.prob = prob;
+      ui.render();
+      const html = nodes.app.innerHTML;
+      const row = html.match(/data-st="(\w+)">\s*<span class="poll-k">Models</);
+      const ens = html.match(/<em style="color:([^"]+)">\d+%<\/em>/);
+      const check = html.match(/<p class="sub"><b style="color:([^"]+)">\d+%<\/b>/);
+      assert(row && row[1] === lamp, prob + ': lamp ' + (row && row[1]));
+      assert(ens && ens[1] === colour, prob + ': ensemble ' + (ens && ens[1]));
+      assert(check && check[1] === colour, prob + ': pre-launch checks ' + (check && check[1]));
+    }
+    Object.assign(d, { prob: saved.prob, ensembleMembers: saved.members });
+    d.agree.level = saved.level;
   });
   await it('loading screen: the feeds line is GO only when every source answered live', () => {
     const st = (...oks) => oks.map(ok => ({ label: 'x', role: 'y', ok }));
