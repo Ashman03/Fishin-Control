@@ -45,6 +45,7 @@ import {
   clamp,
   light,
   lightKey,
+  LINES,
   dirOf,
   isoDay,
   span,
@@ -52,6 +53,24 @@ import {
   HOUR,
   DAY
 } from './util.js';
+
+/** A lamp's colour, for a figure that is coloured by its poll lamp. */
+const LAMP_COLOUR = { go: 'var(--go)', hold: 'var(--mid)', nogo: 'var(--no)' };
+
+/**
+ * The Models lamp: [state, figure]. The ensemble answers "is there a window?"
+ * directly, so it leads; the three-model spread can only downgrade a GO to a
+ * HOLD. The ensemble % elsewhere on the page takes this lamp's colour.
+ */
+function modelsLamp(day) {
+  if (day.prob != null) {
+    const st =
+      day.prob >= TUNING.ensembleTrusted ? 'go' : day.prob >= TUNING.lowProbability ? 'hold' : 'nogo';
+    return [st === 'go' && day.agree.level === 'low' ? 'hold' : st, day.prob + '%'];
+  }
+  const st = { high: 'go', fair: 'hold', low: 'nogo', unknown: 'hold' }[day.agree.level];
+  return [st, day.agree.level === 'unknown' ? 'one model' : day.agree.level + ' agreement'];
+}
 
 const $ = id => document.getElementById(id);
 const short = name => name.split(' /')[0].split(' (')[0];
@@ -65,15 +84,16 @@ const shortDate = d =>
 /* ── Small components ───────────────────────────────────────────────────── */
 
 /**
- * The score as a tank that fills with water, with ticks at the green (70) and
- * amber (48) lines. The water is kept faint and its surface drawn as a line,
- * so the figures on top read the same in green, amber or red.
+ * The score as a tank that fills with water, with ticks at its green and amber
+ * lines (the verdict's lines: LINES.ocean, or LINES.river for the river tank).
+ * The water is kept faint and its surface drawn as a line, so the figures on
+ * top read the same in green, amber or red.
  */
-export function dial(score) {
+export function dial(score, lines = LINES.ocean) {
   const W = 82,
     H = 196,
     y = +(H - (H * score) / 100).toFixed(1),
-    c = light(score);
+    c = light(score, lines);
   const tick = s =>
     `<path d="M0 ${(H - (H * s) / 100).toFixed(1)}h14" stroke="#e9f4fb" stroke-opacity=".5"/>`;
   return `<svg class="dial" viewBox="0 0 ${W} ${H}" role="img" aria-label="Score ${score} of 100">
@@ -83,7 +103,7 @@ export function dial(score) {
      <rect class="fillw" x="0" y="${y}" width="${W}" height="${H - y + 3}" fill="${c}" opacity=".16"/>
      <path class="fillw" d="M0 ${y} q10 -4 20.5 0 t20.5 0 t20.5 0 t20.5 0 V${H} H0Z" fill="${c}" opacity=".06"/>
      <path class="fillw" d="M0 ${y} q10 -4 20.5 0 t20.5 0 t20.5 0 t20.5 0" fill="none" stroke="${c}" stroke-width="2"/>
-     ${tick(70)}${tick(48)}
+     ${tick(lines[0])}${tick(lines[1])}
    </g>
    <text x="41" y="90" text-anchor="middle" font-size="38" font-weight="700" fill="${c}" class="dial-num">${score}</text>
    <text x="41" y="107" text-anchor="middle" font-size="11" fill="#bde9fb" class="dial-sub">out of 100</text>
@@ -91,9 +111,10 @@ export function dial(score) {
 }
 
 /** The tank with its caption, as it sits at the left of the hero. */
-const tank = (score, caption) => `<div class="tank">${dial(score)}<span class="cap">${caption}</span></div>`;
+const tank = (score, caption, lines) =>
+  `<div class="tank">${dial(score, lines)}<span class="cap">${caption}</span></div>`;
 
-function verdict(score, river) {
+export function verdict(score, river) {
   if (score >= 75) return ['Go', 'Inside your limits for a decent stretch of the day.'];
   if (score >= 58)
     return [
@@ -374,17 +395,7 @@ function launchPoll(day, zone) {
   const lo = k => Math.min(...inWin.map(h => h[k])),
     hi = k => Math.max(...inWin.map(h => h[k]));
 
-  // Models: the ensemble answers "is there a window?" directly, so it leads.
-  // The three-model spread can only downgrade a GO to a HOLD.
-  let models, modelsVal;
-  if (day.prob != null) {
-    models = day.prob >= TUNING.ensembleTrusted ? 'go' : day.prob >= TUNING.lowProbability ? 'hold' : 'nogo';
-    if (models === 'go' && day.agree.level === 'low') models = 'hold';
-    modelsVal = day.prob + '%';
-  } else {
-    models = { high: 'go', fair: 'hold', low: 'nogo', unknown: 'hold' }[day.agree.level];
-    modelsVal = day.agree.level === 'unknown' ? 'one model' : day.agree.level + ' agreement';
-  }
+  const [models, modelsVal] = modelsLamp(day);
 
   const rows = [
     ['Swell', station(hours(h => h.swellEff <= cfg.maxSwell)), span(lo('swell'), hi('swell')) + ' m'],
@@ -396,7 +407,11 @@ function launchPoll(day, zone) {
       w ? hhmm(w.a) + '–' + hhmm(w.b) + ' · ' + zone.goodHrs + ' h' : zone.goodHrs + ' h'
     ],
     ['Models', models, modelsVal],
-    ['Bite', day.bite >= 60 ? 'go' : day.bite >= 45 ? 'hold' : 'nogo', String(day.bite)],
+    [
+      'Bite',
+      day.bite >= LINES.bite[0] ? 'go' : day.bite >= LINES.bite[1] ? 'hold' : 'nogo',
+      String(day.bite)
+    ],
     // storms lower the score but never stop the launch on their own: HOLD at worst
     [
       'Storms',
@@ -567,13 +582,13 @@ function alertsPanel() {
   const msg =
     {
       background:
-        'On. Your phone checks in the background — Android decides how often, usually every several hours — and notifies you when a day turns green.',
+        'On. Your phone checks in the background — Android decides how often, usually every several hours — and notifies you when a day newly scores 70 or more.',
       open: 'On, but this phone will not run background checks: install the app from Chrome for that. Until then, new go days are flagged whenever you open it.',
       denied:
         'Notifications are blocked for this site. Allow them in Chrome under the site settings, then try again.',
       unsupported: 'This browser cannot show notifications.'
     }[a.on ? a.mode : a.mode === 'denied' || a.mode === 'unsupported' ? a.mode : ''] ||
-    'Get a notification when a day newly turns green, without opening the app.';
+    'Get a notification when a day newly scores 70 or more, without opening the app.';
   return `<details data-key="alerts"><summary><span>Go-day alerts</span>
       <b style="color:${a.on ? 'var(--go)' : 'var(--mute)'}">${a.on ? 'Armed' : 'Off'}</b></summary>
     <p class="sub">${msg}</p>
@@ -601,18 +616,18 @@ const moonPhase = p =>
 
 /**
  * The week as a bar chart, one bar per day at the height of its score, with
- * dashed lines at the green (70) and amber (48) marks. Each day is a button.
+ * dashed lines at its green and amber lines (as the tank). Each day is a button.
  * score(d), what(d) for the spoken label, extra(d) under the date.
  */
-function dayStrip(title, score, what, extra) {
+function dayStrip(title, score, what, extra, lines) {
   return `<section class="panel telem">${sect(title, 'Tap a day')}
-    <div class="strip" style="--n:${state.days.length}">${state.days
+    <div class="strip" style="--n:${state.days.length};--line-go:${lines[0]};--line-amber:${lines[1]}">${state.days
       .map(
         (d, i) => `
     <button class="day ${i === state.sel ? 'on' : ''}" data-act="day" data-i="${i}" aria-pressed="${i === state.sel}"
       aria-label="${longDate(d.d0)}, score ${score(d)} of 100, ${what(d)}">
-      <span class="plot" aria-hidden="true"><span class="sc num" style="color:${light(score(d))}">${score(d)}</span>
-        <span class="bar" style="--s:${score(d)};--c:${light(score(d))}"></span></span>
+      <span class="plot" aria-hidden="true"><span class="sc num" style="color:${light(score(d), lines)}">${score(d)}</span>
+        <span class="bar" style="--s:${score(d)};--c:${light(score(d), lines)}"></span></span>
       <span class="dow">${d.d0.toLocaleDateString('en-AU', { weekday: 'short' })}</span>
       <span class="dd num">${d.d0.getDate()}/${d.d0.getMonth() + 1}</span>
       ${extra(d)}
@@ -634,7 +649,7 @@ function tideSection(day) {
         <div><div class="k">Sunrise</div><div class="v num">${hhmm(day.sunrise)}</div></div>
         <div><div class="k">Sunset</div><div class="v num">${hhmm(day.sunset)}</div></div>
         <div><div class="k">Water</div><div class="v num">${day.sst != null ? day.sst.toFixed(1) + '°' : '—'}</div></div>
-        <div><div class="k">Bite</div><div class="v num" style="color:${light(day.bite)}">${day.bite}</div></div>
+        <div><div class="k">Bite</div><div class="v num" style="color:${light(day.bite, LINES.bite)}">${day.bite}</div></div>
       </div>
       <p class="sub">Green bands are the major feeding periods, when the moon is directly
       overhead or underfoot. Tide times are modelled 10 km off Burnett Heads rather than official —
@@ -706,11 +721,10 @@ function renderPlan() {
   ${river ? renderRiver() : renderOcean()}`;
 }
 
-/** The big call beside the tank: a kicker, the verdict in the score's colour, and why. */
 /**
- * The colour of each verdict word. It follows the word, not the score: the
- * verdict bands (75 / 58 / 42 for the ocean) are not the traffic-light lines
- * (70 / 48), and a red "Marginal" would read as a no-go.
+ * The colour of each verdict word. The score colours use the same lines
+ * (LINES in util.js), so the tank and the word always agree; amber covers
+ * both middle words, as a red "Marginal" would read as a no-go.
  */
 export const VERDICT_COLOUR = {
   Go: 'var(--go)',
@@ -732,10 +746,13 @@ function call(kicker, word, why, extra = '') {
     </div>`;
 }
 
+export const riverWord = s =>
+  s >= 70 ? 'Good river day' : s >= 55 ? 'Worth a fish' : s >= 40 ? 'Steady' : 'Slow';
+
 function riverVerdict(day) {
   const s = day.river,
     ri = day.riverInfo;
-  const word = s >= 70 ? 'Good river day' : s >= 55 ? 'Worth a fish' : s >= 40 ? 'Steady' : 'Slow';
+  const word = riverWord(s);
   const why = ri.runoff
     ? 'Run-off after heavy rain — dirty water. Fish the clean edges and the holes further up.'
     : ri.windStrong
@@ -795,7 +812,7 @@ function renderRiver() {
   return `${banners(day)}
   <div class="deck">
     <div class="col col-a">
-      <section class="panel hero">${tank(day.river, 'River tank')}
+      <section class="panel hero">${tank(day.river, 'River tank', LINES.river)}
         ${call(esc(shortDate(day.d0) + ' · ' + est.name), word, why)}
       </section>
       <section class="pollsec">${pollHTML(rows, 'River poll for ' + est.name, 'River poll', 'rows')}</section>
@@ -805,7 +822,8 @@ function renderRiver() {
       d => d.river,
       () => 'rivers and creeks',
       d =>
-        `<span class="odds${d.riverInfo.runoff ? ' runoff' : ''}">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</span>`
+        `<span class="odds${d.riverInfo.runoff ? ' runoff' : ''}">${d.riverInfo.runoff ? 'run-off' : '&nbsp;'}</span>`,
+      LINES.river
     )}
     <div class="col col-c">
       <section>
@@ -846,7 +864,7 @@ function renderOcean() {
   const ensemble =
     day.prob != null
       ? `<div class="ens" role="img" aria-label="${day.prob}% of ${day.ensembleMembers} forecast runs give you a usable window at ${esc(short(best.z.name))}">
-        <div class="ens-h"><span>Ensemble</span><b class="num"><em style="color:${light(day.prob)}">${day.prob}%</em> of ${day.ensembleMembers} runs</b></div>
+        <div class="ens-h"><span>Ensemble</span><b class="num"><em style="color:${LAMP_COLOUR[modelsLamp(day)[0]]}">${day.prob}%</em> of ${day.ensembleMembers} runs</b></div>
         <div class="segs" aria-hidden="true">${Array.from({ length: 10 }, (_, i) => `<i${i < Math.round(day.prob / 10) ? ' class="on"' : ''}></i>`).join('')}</div>
       </div>`
       : '';
@@ -855,7 +873,7 @@ function renderOcean() {
   <div class="deck">
     <div class="col col-a">
       ${countdown()}
-      <section class="panel hero">${tank(day.overall, 'Score tank')}
+      <section class="panel hero">${tank(day.overall, 'Score tank', LINES.ocean)}
         ${call(
           "Flight director's call · " + esc(shortDate(day.d0)),
           word,
@@ -866,7 +884,7 @@ function renderOcean() {
       <section class="pollsec">
         ${launchPoll(day, best)}
         <div class="pills">
-          <span class="pill ${lightKey(best.score)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
+          <span class="pill ${lightKey(best.score, LINES.ocean)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
           <span class="pill">Swell <b>${span(best.swell, best.swellMax)} m</b>${best.period ? ` · ${Math.round(best.period)} s, ${seaWord(best.period)}` : ''}</span>
           <span class="pill">Wind <b>${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
           <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
@@ -880,7 +898,8 @@ function renderOcean() {
       '7-day telemetry',
       d => d.overall,
       d => `${d.zones[0].goodHrs} hours inside your limits`,
-      d => windowTrack(d) + `<span class="odds num">${d.prob != null ? d.prob + '%' : '&nbsp;'}</span>`
+      d => windowTrack(d) + `<span class="odds num">${d.prob != null ? d.prob + '%' : '&nbsp;'}</span>`,
+      LINES.ocean
     )}
 
     <section class="col col-b mapsec">
@@ -904,7 +923,7 @@ function renderOcean() {
             .map(
               z => `
             <button class="zone ${z.z.id === state.zsel ? 'on' : ''}" data-act="zone" data-z="${z.z.id}" aria-pressed="${z.z.id === state.zsel}">
-              <span class="zsc num" style="color:${light(z.score)}">${z.score}</span>
+              <span class="zsc num" style="color:${light(z.score, LINES.ocean)}">${z.score}</span>
               <span class="zb">
                 <span class="t">${esc(z.z.name)}</span>
                 <span class="d">${esc(z.z.ramp)}</span>
@@ -918,7 +937,7 @@ function renderOcean() {
             <p class="sub">${esc(zone.z.grounds)}</p>
             ${ln.length ? `<ul class="tight">${ln.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
             <p class="sub">Rivers and creeks today
-              <b style="color:${light(day.river)}">${day.river}/100</b>.
+              <b style="color:${light(day.river, LINES.river)}">${day.river}/100</b>.
               <button class="inline" data-act="view" data-view="river">River view</button></p>
             <div class="links">
               <a href="${bom[1]}" target="_blank" rel="noopener">${bom[0]}</a>
@@ -959,9 +978,9 @@ function renderOcean() {
     <div class="panel">
       ${
         day.prob != null
-          ? `<p class="sub"><b style="color:${light(day.prob)}">${day.prob}%</b> of ${day.ensembleMembers} ensemble
+          ? `<p class="sub"><b style="color:${LAMP_COLOUR[modelsLamp(day)[0]]}">${day.prob}%</b> of ${day.ensembleMembers} ensemble
         runs give at least ${TUNING.minWindowHours} hours in a row inside your limits at ${esc(short(best.z.name))}${zone.prob != null && zone.z.id !== best.z.id ? `, and ${zone.prob}% at ${esc(short(zone.z.name))}` : ''}.
-        ${day.prob >= 70 ? 'That is a solid bet this far out.' : day.prob >= 40 ? 'Genuinely borderline — worth looking again tomorrow.' : 'Most runs say you get nothing, so plan around it.'}</p>`
+        ${day.prob >= TUNING.ensembleTrusted ? 'That is a solid bet this far out.' : day.prob >= TUNING.lowProbability ? 'Genuinely borderline — worth looking again tomorrow.' : 'Most runs say you get nothing, so plan around it.'}</p>`
           : '<p class="sub">No ensemble data today, so there is no probability figure. Lean on the model agreement below.</p>'
       }
       <p class="sub">${

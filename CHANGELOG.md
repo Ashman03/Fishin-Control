@@ -1,5 +1,33 @@
 # Changelog
 
+## 6.0.2
+
+Colours now match the words beside them. GO / NO GO calls, scores, limits and fishing
+logic are unchanged: on 88 test forecasts the old and new versions give the same calls,
+verdicts and figures. Only colours differ, plus the two lines of wording below.
+
+- **Score tank:** changes colour where the verdict changes. Green from 75 (Go), amber from
+  42 (Worth a look, Marginal), red below (River day). A score of 70 to 74 used to show a
+  green tank beside "Worth a look". The river tank does the same at the river verdict's
+  70 and 40. The tank ticks and the 7-day telemetry dashed lines moved to match.
+- The same lines colour every other ocean score (launch sites list, map pins, the
+  Launch pill, the 7-day bars) and the river score, so they all agree with the tank.
+- **Bite:** the figure turns green at 60 and amber at 45, the same as the Bite lamp in the
+  launch poll. It used to be 70 and 48.
+- **Models:** the ensemble % turns amber from 35%, where the Models lamp turns HOLD, and
+  green from 70%. It used to be red below 48%.
+
+**Fixes (from the senior dev review)**
+
+- The Models % now takes the colour of its Models lamp. When the forecast models disagree,
+  the lamp drops to HOLD even at a high %, and the figure used to stay green beside it.
+- The pre-launch checks sentence now calls 35% to 69% "genuinely borderline", matching the
+  HOLD lamp. Between 35% and 39% it used to say "most runs say you get nothing".
+- The go-day alerts panel said you are notified "when a day turns green". Alerts still go
+  at a score of 70 or more, which can now be an amber day, so it says that instead.
+- Tests for the river colours, the week chart's dashed lines and the verdict word cut-offs,
+  which were not covered. Tests: 198.
+
 ## 6.0.1
 
 Checks that the forecast and other sources are still coming through the way the app

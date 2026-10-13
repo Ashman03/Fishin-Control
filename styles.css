@@ -825,7 +825,7 @@ button.inline {
   color: var(--no);
 }
 
-/* ── 7-day telemetry: one bar per day, dashed lines at 70 and 48 ───── */
+/* ── 7-day telemetry: one bar per day, dashed lines at its green and amber lines ── */
 
 .telem {
   padding: 12px 12px 10px;
@@ -868,11 +868,11 @@ button.inline {
   left: -4px;
   right: -4px;
   border-top: 1px dashed rgba(61, 220, 132, 0.45);
-  bottom: calc(70 * var(--bh));
+  bottom: calc(var(--line-go, 75) * var(--bh));
 }
 .plot::after {
   border-top-color: rgba(255, 201, 60, 0.4);
-  bottom: calc(48 * var(--bh));
+  bottom: calc(var(--line-amber, 42) * var(--bh));
 }
 .plot > * {
   position: relative;
