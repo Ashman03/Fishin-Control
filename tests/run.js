@@ -988,6 +988,76 @@ await describe('closures', async () => {
     assert(!cl.closureDatesStale(new Date('2033-06-01')) && cl.closureDatesStale(new Date('2034-01-01'))));
 });
 
+/* ── river species ──────────────────────────────────────────────────────── */
+
+await describe('river species', async () => {
+  const cl = await imp('closures');
+  // reef and offshore fish: never caught in the rivers and creeks
+  const OFFSHORE = [
+    'Spanish mackerel',
+    'Spotted mackerel',
+    'School mackerel',
+    'Coral trout',
+    'Red emperor',
+    'Grass sweetlip',
+    'Snapper',
+    'Tuskfish',
+    'Longtail tuna',
+    'Mac tuna',
+    'Squid'
+  ];
+  const dayIn = (m, extra = {}) => ({
+    d0: new Date(2027, m, 15, 12),
+    range: 2,
+    rain: 0,
+    presTrend: 0,
+    sst: 23,
+    moon: { phase: 0.25 },
+    ...extra
+  });
+  await it('the rivers page lists only estuary fish, every month', () => {
+    for (let m = 0; m < 12; m++) {
+      const sp = advice.techniques(dayIn(m), true).m.sp;
+      const bad = sp.filter(n => OFFSHORE.includes(n));
+      assert(!bad.length, 'month ' + m + ': ' + bad.join(', '));
+      assert(sp.length >= 6, 'month ' + m + ': only ' + sp.length);
+    }
+  });
+  await it('the ocean page keeps its own list', () => {
+    for (let m = 0; m < 12; m++) assert(advice.techniques(dayIn(m)).m === config.SEASON[m], 'month ' + m);
+    assert(advice.techniques(dayIn(2)).m.sp.includes('Spanish mackerel'), 'ocean lost its spanish');
+  });
+  await it('a fish closed for the whole month is left off the river list (barra Nov to Jan)', () => {
+    for (let m = 0; m < 12; m++) {
+      const days = new Date(2027, m + 1, 0).getDate();
+      for (const z of ZONES) {
+        const all = new Set(cl.closedSpecies(new Date(2027, m, 1, 12), z));
+        for (let d = 2; d <= days; d++) {
+          const shut = cl.closedSpecies(new Date(2027, m, d, 12), z);
+          all.forEach(n => shut.has(n) || all.delete(n));
+        }
+        const listed = config.RIVER_SEASON[m].sp.filter(n => all.has(n));
+        assert(!listed.length, 'month ' + m + ' ' + z.id + ': ' + listed.join(', '));
+      }
+    }
+    assert(!config.RIVER_SEASON[11].sp.includes('Barramundi'), 'barra in December');
+    assert(config.RIVER_SEASON[1].sp.includes('Barramundi'), 'barra missing once open in February');
+  });
+  await it('every river month has a title, species, bait, lures and a note', () => {
+    assert(Object.keys(config.RIVER_SEASON).length === 12);
+    Object.values(config.RIVER_SEASON).forEach((m, i) => {
+      assert(m.t && m.note && m.sp.length && m.bait.length && m.lure.length, 'month ' + i);
+      assert(new Set(m.sp).size === m.sp.length, 'month ' + i + ' repeats a species');
+    });
+  });
+  await it('river notes for the day talk about the river, not going wide or pelagics', () => {
+    const r = advice.techniques(dayIn(0, { range: 1.2, sst: 27 }), true).mods.join(' ');
+    assert(!/go wide|pelagic/i.test(r), r);
+    const o = advice.techniques(dayIn(0, { range: 1.2, sst: 27 })).mods.join(' ');
+    assert(/go wide/.test(o) && /pelagics/.test(o), 'ocean notes changed: ' + o);
+  });
+});
+
 /* ── alerts ─────────────────────────────────────────────────────────────── */
 
 await describe('alerts', async () => {
@@ -1076,13 +1146,20 @@ await describe('geography', async () => {
 
 await describe('art', async () => {
   const art = await imp('art');
-  const all = [...new Set(Object.values(config.SEASON).flatMap(m => m.sp))];
+  const all = [
+    ...new Set([config.SEASON, config.RIVER_SEASON].flatMap(t => Object.values(t).flatMap(m => m.sp)))
+  ];
   const fs = await import('fs');
   const file = f => new URL('../' + f, import.meta.url);
-  await it('every species in the seasonal lists has a painted illustration', () => {
-    const missing = all.filter(n => !art.hasImage(n));
+  await it('every species in the seasonal lists has a painted illustration, or is waiting on one', () => {
+    const missing = all.filter(n => !art.hasImage(n) && !art.ART_PENDING.includes(n));
     assert(!missing.length, 'no image: ' + missing.join(', '));
   });
+  await it('species waiting on art are in use and have no picture yet', () =>
+    art.ART_PENDING.forEach(n => {
+      assert(all.includes(n), n + ' is not in any list');
+      assert(!art.hasImage(n), n + ' has its picture now: take it off ART_PENDING');
+    }));
   await it('no illustration is mapped to a species the app does not use', () => {
     const extra = Object.keys(art.SPECIES_IMAGES).filter(n => !all.includes(n));
     assert(!extra.length, 'unused: ' + extra.join(', '));
@@ -1107,9 +1184,10 @@ await describe('art', async () => {
     assert(img.startsWith('<img class="sp" src="species-mangrove-jack.webp"'), img);
     assert(/ width="600" height="320"/.test(img) && / alt=""/.test(img), 'size/alt');
     assert(art.speciesArt('mangrove JACK') === img, 'names match regardless of case');
+    const none = art.speciesArt('Some new fish');
     assert(
-      art.speciesArt('Some new fish') === '<span class="sp sp-none" aria-hidden="true"></span>',
-      'fallback'
+      /^<span class="sp sp-none" aria-hidden="true"><svg viewBox="0 0 150 80">.*<\/svg><\/span>$/.test(none),
+      none
     );
   });
   await it('the service worker stores every illustration for offline use', () => {
@@ -1531,6 +1609,26 @@ await describe('ui', async () => {
     assert(html.indexOf('class="dial"') < html.indexOf('class="panel week"'), 'score before the week');
     state.view = 'ocean';
   });
+  await it("the rivers page's what's biting has no reef or offshore fish", () => {
+    state.tab = 'plan';
+    state.view = 'river';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const biting = html.slice(html.indexOf('class="biting"'));
+    const names = [...biting.matchAll(/<div class="n">([^<]+)/g)].map(m => m[1]);
+    assert(names.length >= 6, 'names: ' + names.join(', '));
+    const month = state.days[state.sel].d0.getMonth();
+    assert(names.join() === config.RIVER_SEASON[month].sp.join(), names.join());
+    assert(
+      !/Spanish mackerel|Coral trout|Red emperor|Snapper/.test(biting),
+      'offshore fish on the rivers page'
+    );
+    state.view = 'ocean';
+    ui.render();
+    const o = nodes.app.innerHTML;
+    const on = [...o.slice(o.indexOf('class="biting"')).matchAll(/<div class="n">([^<]+)/g)].map(m => m[1]);
+    assert(on.join() === config.SEASON[month].sp.join(), 'ocean: ' + on.join());
+  });
   await it('the week sits with the daily score and the panel comes after both, ocean and river', async () => {
     state.tab = 'plan';
     for (const view of ['ocean', 'river']) {
@@ -1612,6 +1710,311 @@ await describe('ui', async () => {
       .map(([st, w]) => n(st) + ' ' + w)
       .join(' · ');
     assert(tally === want, tally + ' vs ' + want);
+  });
+  await it('the ocean panel is an annunciator: a bezel with four screws, its heading on the bezel', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const annun = html.slice(
+      html.indexOf('<div class="annun">'),
+      html.indexOf('</section>', html.indexOf('class="annun"'))
+    );
+    assert(annun.length > 0 && html.includes('<div class="annun">'), 'no bezel');
+    assert(
+      (annun.match(/class="screw (tl|tr|bl|br)" aria-hidden="true"/g) || []).length === 4,
+      'four screws'
+    );
+    assert(/<h2 class="sect">Caution and advisory panel/.test(annun), 'heading inside the bezel');
+    assert((annun.match(/class="adv-row"/g) || []).length === 8, 'eight keys inside the bezel');
+    state.view = 'ocean';
+  });
+  await it('each key reads call, then station large, then figure', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const rule = sel => css.match(new RegExp(sel.replace(/\./g, '\\.') + ' \\{([^}]*)\\}'))[1];
+    const order = sel => +rule(sel).match(/order: (\d)/)[1];
+    const size = sel => parseFloat(rule(sel).match(/font-size: ([\d.]+)px/)[1]);
+    assert(order('.adv.tiles .adv-s') < order('.adv.tiles .adv-k'), 'call above the station');
+    assert(order('.adv.tiles .adv-k') < order('.adv.tiles .adv-v'), 'figure under the station');
+    assert(size('.adv.tiles .adv-k') > size('.adv.tiles .adv-s') + 6, 'station is the big word');
+    assert(size('.adv.tiles .adv-s') >= 12 && size('.adv.tiles .adv-v') >= 12, 'small text stays readable');
+    assert(!/-webkit-text-stroke|text-stroke/.test(css), 'no outlined text');
+  });
+  await it('on a wide screen the ocean panel sits straight under the score and chart, sites beside it', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const areas = [...css.matchAll(/\.deck\.ocean \{[^}]*grid-template-areas: ([^;]+);/g)].map(m => m[1]);
+    assert(
+      areas.includes("'a b' 't t' 'p p' 'c c' 'n n' 'g g' 'f f'"),
+      'mid width: countdown and panel under score and chart, then sites'
+    );
+    assert(
+      areas.includes("'a b c' 't t c' 'p p c' 'n n n' 'g g g' 'f f f'"),
+      'wide: sites run down beside the countdown and panel'
+    );
+    ['col-a', 'col-b', 'advsec', 'col-c', 'grid'].forEach(c =>
+      assert(css.includes(`.deck.ocean > .${c} {`), c)
+    );
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    assert(nodes.app.innerHTML.includes('<div class="deck ocean">'), 'ocean deck marked');
+  });
+  await it('a day with bar or closed-season cards keeps the wide layout packed (no gap above the countdown)', async () => {
+    const fs = await import('fs');
+    const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+    const day = state.days[state.sel],
+      d0 = day.d0;
+    const zone = day.zones.find(z => z.z.id === state.zsel) || day.zones[0];
+    const barWin = zone.barWin;
+    // a bar warning, and a date two weeks before a closed season starts
+    zone.barWin = [{ a: new Date(+d0 + 11 * 36e5), b: new Date(+d0 + 15 * 36e5), max: 3 }];
+    day.d0 = new Date(d0.getFullYear(), 9, 25);
+    state.zsel = zone.z.id;
+    state.tab = 'plan';
+    try {
+      for (const view of ['ocean', 'river']) {
+        state.view = view;
+        ui.render();
+        const html = nodes.app.innerHTML;
+        const colC = html.slice(html.indexOf('class="col col-c"'), html.indexOf('class="notes"'));
+        assert(html.includes('class="notes"'), view + ': no cautions row');
+        assert(!/class="alert /.test(colC), view + ': a caution card still sits in the sites column');
+        const notes = html.slice(html.indexOf('class="notes"'), html.indexOf('class="grid"'));
+        assert(notes.includes('Closed season coming up'), view + ': closed season card missing');
+        if (view === 'ocean') assert(notes.includes('Bar · stay off it'), 'bar card missing');
+      }
+    } finally {
+      zone.barWin = barWin;
+      day.d0 = d0;
+      state.view = 'ocean';
+    }
+    // a day with nothing to say leaves no empty row behind
+    ui.render();
+    if (!zone.barWin.length && !/Closed season/.test(nodes.app.innerHTML))
+      assert(!nodes.app.innerHTML.includes('class="notes"'), 'empty cautions row');
+    const wide = css.slice(css.indexOf('@media (min-width: 1180px)'));
+    assert(
+      /grid-template-rows: auto auto 1fr;/.test(wide),
+      'a long sites column still spreads the rows apart'
+    );
+    assert(/\.deck\.ocean > \.advsec \{\s*align-self: stretch;/.test(wide), 'panel does not meet the sites');
+    assert(
+      /\.deck > \.notes \{\s*flex: 1 1 100%;\s*order: 4;/.test(css),
+      'rivers: cautions not a row of their own'
+    );
+  });
+  /* ── design critique fixes (13 Oct 2026) ── */
+  const readCss = async () =>
+    (await import('fs')).readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const wideCss = css => css.slice(css.indexOf('@media (min-width: 900px)'));
+  await it('critique 1: on a wide screen the cards under the panel pair up instead of leaving gaps', async () => {
+    const css = await readCss();
+    const wide = wideCss(css);
+    assert(!/\.deck > \.grid \{[^}]*\n\s*columns:/.test(wide), 'still flows down newspaper columns');
+    assert(
+      /\.deck\.ocean > \.grid \{\s*grid-template-areas: 'cond tide' 'plan biting' 'checks checks';/.test(
+        wide
+      ),
+      'ocean pairs'
+    );
+    assert(
+      /\.deck\.river > \.grid \{\s*grid-template-areas: 'tide plan' 'biting biting';/.test(wide),
+      'river pairs'
+    );
+    assert(
+      /grid-template-areas: 'plan checks' 'biting biting';/.test(wide),
+      'ocean at 1180: plan beside checks, fish under both'
+    );
+    assert(/\.grid section > \.panel \{\s*flex: 1;/.test(wide), 'paired cards do not end level');
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const stack = html.slice(html.indexOf('class="gstack"'), html.indexOf('class="gmain"'));
+    assert(stack.includes('class="cond"') && stack.includes('class="tide"'), 'conditions and tide stack');
+    const main = html.slice(html.indexOf('class="gmain"'));
+    ['class="plan"', 'class="biting"', 'class="checks"'].forEach(c => assert(main.includes(c), c));
+    // on a phone the groups are not boxes, so the order there is unchanged
+    assert(
+      /\.gstack,\s*\.gmain \{\s*display: contents;/.test(
+        css.slice(0, css.indexOf('@media (min-width: 900px)'))
+      )
+    );
+  });
+  await it('critique 2: the daily score shows the launch and bite figures it is made from', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.days.forEach((d, i) => {
+      state.sel = i;
+      ui.render();
+      const html = nodes.app.innerHTML;
+      const m = html.match(
+        /<span class="parts"><span>Launch <b[^>]*>(\d+)<\/b><\/span><span>Bite <b[^>]*>(\d+)<\/b>/
+      );
+      assert(m, i + ': no parts under the score');
+      assert(+m[1] === d.zones[0].score && +m[2] === d.bite, i + ': ' + m[1] + '/' + m[2]);
+    });
+    state.sel = 0;
+  });
+  await it('critique 3: the best ramp figures sit in the hero, and the loose pills are gone', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const hero = html.slice(html.indexOf('class="panel hero"'), html.indexOf('class="panel week"'));
+    const ro = hero.match(/<dl class="readout">([\s\S]*?)<\/dl>/);
+    assert(ro, 'no readout in the hero');
+    ['Best ramp', 'Swell', 'Wind', 'Gusts', 'Close in', 'At 20 km'].forEach(k =>
+      assert(ro[1].includes(`<dt>${k}</dt>`), k)
+    );
+    assert(!/class="pills?\b/.test(html), 'pills still drawn');
+  });
+  await it('critique 4: colours agree with their words (wind tag, best ramp, river day)', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    const i = state.days.findIndex(d => d.zones.some(z => z.windMax > state.cfg.maxWind));
+    assert(i >= 0, 'sample week has no windy day');
+    state.sel = i;
+    ui.render();
+    let html = nodes.app.innerHTML;
+    assert(/class="tag bad">[\d–]+ kn /.test(html), 'wind over the limit is not red');
+    assert(!/class="tag mid">[\d–]+ kn /.test(html), 'wind over the limit is still amber');
+    const d = state.days[0],
+      saved = [d.overall, d.zones[0].score];
+    d.overall = 20;
+    d.zones[0].score = 10;
+    state.sel = 0;
+    ui.render();
+    html = nodes.app.innerHTML;
+    assert(
+      /<span class="pre">Ocean · No go<\/span>/.test(html),
+      'River day does not say the red is the ocean'
+    );
+    assert(/<dt>Best ramp<\/dt><dd>/.test(html), 'a no-go best ramp is coloured');
+    d.overall = 90;
+    d.zones[0].score = 90;
+    ui.render();
+    html = nodes.app.innerHTML;
+    assert(!html.includes('class="pre"'), 'Ocean · No go on a go day');
+    assert(/<dt>Best ramp<\/dt><dd class="g">/.test(html), 'a go best ramp is not green');
+    [d.overall, d.zones[0].score] = saved;
+  });
+  await it('critique 5: amber is HOLD on the map legend and the loading screen', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const legend = nodes.app.innerHTML.match(/<div class="legend">([\s\S]*?)<\/div>/)[1];
+    assert(legend.includes('Hold') && !legend.includes('Marginal'), legend);
+    const st = (...ok) => ok.map(o => ({ ok: o }));
+    assert(ui.feedsLine({ status: st(true, false) }, false)[1] === 'Hold', 'partial');
+    const saved = ui.feedsLine({ status: st(true, true), cached: true }, false);
+    assert(saved[1] === 'Hold' && /saved copy/.test(saved[2]), saved.join());
+  });
+  await it('critique 6: the rivers panel is an annunciator too, short figures on the keys, the full reading read out', async () => {
+    state.tab = 'plan';
+    state.view = 'river';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const annun = html.slice(
+      html.indexOf('<div class="annun">'),
+      html.indexOf('</section>', html.indexOf('class="annun"'))
+    );
+    assert(html.includes('<div class="annun">'), 'no bezel on the rivers page');
+    assert((annun.match(/class="adv-row"/g) || []).length === 7, 'seven keys');
+    const turns = annun.match(
+      /<span class="adv-k">Turns<\/span><span class="adv-v num"([^>]*)>([^<]+)<\/span>(<span class="vh">([^<]+)<\/span>)?/
+    );
+    assert(turns && turns[2].length <= 12, 'turns key: ' + (turns && turns[2]));
+    if (!/none/.test(turns[2]))
+      assert(
+        /aria-hidden/.test(turns[1]) && /(high|low) \d\d:\d\d/.test(turns[4]),
+        'turn times not read out'
+      );
+    const css = await readCss();
+    assert(
+      /\.adv\.tiles \.adv-row:last-child:nth-child\(4n \+ 3\) \{\s*grid-column: span 2;/.test(css),
+      'hole after the seventh key'
+    );
+    assert(!/\.adv\.rows/.test(css), 'old row layout left behind');
+    state.view = 'ocean';
+  });
+  await it('critique 7: the conditions chart has its own storm marking and both scales', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    const i = state.days.findIndex(d => d.zones[0].hours.some(h => h.stormNow > 0));
+    assert(i >= 0, 'sample week has no storm');
+    state.sel = i;
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const svg = html.slice(
+      html.indexOf('aria-label="Swell, wind and gusts'),
+      html.indexOf('</svg>', html.indexOf('aria-label="Swell, wind and gusts'))
+    );
+    assert(/class="storm"[^>]*fill="url\(#stormHatch\)"/.test(svg), 'storms are not hatched');
+    assert(!/fill="var\(--mid\)"[^>]*height="4"/.test(svg), 'storms still an amber tick, like the wind line');
+    assert(/>[\d.]+ m<\/text>/.test(svg) && />\d+ kn<\/text>/.test(svg), 'no scale for swell and wind');
+    assert(/<i class="bx st"><\/i>Storm</.test(html), 'legend');
+    state.sel = 0;
+  });
+  await it('critique 8: "outside is out" is said once, and the extra links fold away', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    const i = state.days.findIndex(d => !d.zones[0].win.length);
+    assert(i >= 0, 'sample week has no river day');
+    state.sel = i;
+    ui.render();
+    const html = nodes.app.innerHTML;
+    assert((html.match(/Outside is out today/g) || []).length === 1, 'said more than once');
+    const checks = html.slice(html.indexOf('class="checks"'));
+    const shown = checks.slice(0, checks.indexOf('<details data-key="links">'));
+    assert((shown.match(/<a href/g) || []).length === config.TOP_SOURCES, 'links up front');
+    const more = checks.match(/<details data-key="links">([\s\S]*?)<\/details>/)[1];
+    assert(
+      (more.match(/<a href/g) || []).length === config.SOURCES.length - config.TOP_SOURCES,
+      'folded links'
+    );
+    state.sel = 0;
+  });
+  await it('critique 9: thumb-sized links and readable small labels', async () => {
+    const css = await readCss();
+    const px = (sel, prop) =>
+      parseFloat(
+        css.match(new RegExp(sel.replace(/[.()]/g, '\\$&') + ' \\{[^}]*?' + prop + ': ([\\d.]+)px'))[1]
+      );
+    assert(/\.links a,\s*\.links button \{[^}]*min-height: 44px/.test(css), 'links');
+    assert(px('.checks .links a', 'min-height') >= 40, 'pre-launch links');
+    assert(px('summary', 'min-height') >= 44, 'fold rows');
+    assert(px('.tm-unit i', 'font-size') >= 11, 'countdown labels');
+    assert(px('.tag', 'font-size') >= 11, 'ramp tags');
+    assert(/\.tabs button \{[^}]*font-size: 11px/.test(css), 'sections bar labels');
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    assert(
+      /<div class="links">\s*<button data-act="view" data-view="river">River view<\/button>/.test(
+        nodes.app.innerHTML
+      ),
+      'River view is still a small inline link'
+    );
+  });
+  await it('critique 10: the date never splits, the countdown follows the week, the loading screen is centred', async () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    assert(
+      /<span class="kick"><span>Flight director's call<\/span><span>\w{3} \d{1,2} \w{3}<\/span><\/span>/.test(
+        html
+      ),
+      'kicker'
+    );
+    const css = await readCss();
+    assert(/\.kick span \{\s*white-space: nowrap;/.test(css), 'kicker phrases can split');
+    assert(html.indexOf('class="tmsec"') > html.indexOf('class="panel week"'), 'countdown above the week');
+    assert(html.indexOf('class="tmsec"') < html.indexOf('class="advsec"'), 'countdown below the panel');
+    assert(/\.splash-radar \{[^}]*margin-top: auto;/.test(css), 'loading screen not centred');
   });
   await it('the sections bar names all three sections, with the open one marked', () => {
     state.tab = 'log';
@@ -2042,6 +2445,7 @@ await describe('ui', async () => {
     state.logDraft = null;
     ui.render();
     assert(/data-act="logSp" data-name="Grunter"/.test(nodes.app.innerHTML), 'species chips');
+    assert(/data-act="logSp" data-name="Estuary cod"/.test(nodes.app.innerHTML), 'river species chips');
     ui.ACTIONS.logSp({ dataset: { name: 'Grunter' } });
     ui.ACTIONS.logSp({ dataset: { name: 'Flathead' } });
     ui.ACTIONS.logSp({ dataset: { name: 'Grunter' } }); // second tap un-picks

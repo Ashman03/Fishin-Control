@@ -1,5 +1,106 @@
 # Changelog
 
+## 6.1.0
+
+Everything since 6.0.4 in one release: the new Caution and advisory panel, the Rivers
+page's own fish list with five new paintings, the ten design-critique fixes, and a fix
+for a spacing bug on wide screens. Scores, limits, windows and the GO / HOLD / NO GO calls
+are unchanged: on four test forecasts every score, verdict, limit check, window, session
+and launch note is byte-for-byte the same as 6.0.4.
+
+- **No gaps on a day with a bar warning or a closed season coming up.** Those cards sat
+  at the foot of the launch sites column. On a computer that column runs beside the
+  score, countdown and panel, so a longer column opened gaps of up to 160 px above and
+  below the countdown (every day from 18 October, with the barramundi closure coming
+  up). The Rivers page had the same gap under its score card. The cards now sit in a row
+  of their own: under the launch sites on the Ocean page, under the panel on the Rivers
+  page. When a site brief runs long, the panel's bezel grows to meet the foot of the
+  sites instead. On a phone the order is unchanged.
+- Tests: 223.
+
+A design tidy-up from the design critique of 13 October: all ten fixes. Scores, limits,
+windows, sessions and the GO / HOLD / NO GO calls are unchanged. On four test forecasts
+every score, window, limit check and session time is byte-for-byte the same as before.
+
+- **No more big gaps on a tablet or computer.** The cards under the panel now pair up so
+  neighbours end level. On the Ocean page: conditions beside tide, the flight plan beside
+  what's biting, then the pre-launch checks. From 1180 px, conditions and tide run down
+  the left, with the flight plan and pre-launch checks side by side and what's biting
+  (its fish in one row) under both. On the Rivers page, tide sits beside the flight plan
+  with what's biting full width below. The launch sites and rivers lists run to the foot
+  of the column beside them.
+- **The daily score says what it is made from.** Under the Ocean tank: "Launch 16 · Bite
+  65". The tank blends the best ramp's launch score with the bite, so it used to show 29
+  while every ramp showed 16, with nothing to say why.
+- **The best ramp's figures sit beside the call** (best ramp, swell and period, wind,
+  gusts, close in, at 20 km, chop, bar). This fills the empty half of the score card on a
+  phone and replaces the loose tags that sat under the caution panel.
+- **Colours agree with their words.** A ramp's wind tag turns red over your limit, as
+  swell and gusts already did (it could only reach amber). The best ramp is green or
+  amber only when it is a go or a maybe, never a red "launch here". "River day" now has
+  "Ocean · No go" above it, so its red reads as the ocean's, not the rivers'.
+- **One word for amber: HOLD.** The map legend says Hold (was Marginal), and the loading
+  screen says Hold for some feeds down or a saved copy (was Partial or Saved). The big
+  call keeps its words (Worth a look, Marginal).
+- **The Rivers caution and advisory panel is an annunciator too,** with seven keys. Long
+  readings are shortened on the key (Turns: "2 turns", Water: "run-off") and read out in
+  full to screen readers. The tide times are on the tide chart just below.
+- **The conditions chart is easier to read.** Storm hours are white hatching instead of
+  an amber tick that matched the wind line. Swell has its scale on the left and wind on
+  the right. The legend fits on one line.
+- **A shorter Ocean page on a phone.** On a river day, "Outside is out today, so fish the
+  system instead" is said once at the top of the flight plan instead of in every
+  session. Pre-launch checks show four links (BOM Capricornia Coast, BOM Hervey Bay
+  Waters, BOM radar, MSQ tide tables), with the other eight under "More links".
+- **Bigger targets and labels.** Link buttons are 44 px tall (40 px in pre-launch
+  checks), as are the fold-out rows. "River view" is a full-size button beside the other
+  links. Labels in the sections bar, the countdown, the ramp tags, the score caption and
+  the call's heading go from 10 px to 11 px.
+- **Polish.** The call's heading wraps whole, so the date never splits ("Oct" alone on a
+  line). The countdown moves under the 7-day forecast on a phone, and runs as a strip
+  under the score and chart on a wider screen. The loading screen is centred on a tall
+  phone.
+
+- Tests: 222.
+
+The Rivers page now has its own "What's biting" list. It used to show the ocean list, so
+spanish mackerel, coral trout and red emperor turned up on the rivers. Scores, limits and
+the GO / NO GO calls are unchanged: on four test forecasts every score, verdict, limit
+check, window, session and launch note is byte-for-byte the same as 6.0.4.
+
+- **River and creek fish only on the Rivers page,** month by month, for Baffle Creek, the
+  Kolan, Burnett, Elliott, Gregory and Burrum: mangrove jack, barramundi, king threadfin,
+  blue salmon, grunter, flathead, whiting, bream, estuary cod, trevally, queenfish,
+  mulloway, mud crabs and prawns, with river baits, lures and a note for each month.
+  Built from the Bundaberg fishing reports and the Queensland rules.
+- **Barramundi are off the river list from November to January,** while the east coast
+  closure is on, since the rule is not to target them at all. The month notes say so.
+- **The day's notes on the Rivers page talk about the river.** Neap tides suggest the
+  flats and snags instead of going wide, and warm water mentions jacks and threadfin
+  instead of pelagics.
+- **The Ocean page's fish list is unchanged.**
+- **The catch log** offers the river fish as well as the ocean ones.
+- **New paintings for the river fish:** estuary cod, trevally, queenfish, mulloway and
+  prawns, in the same style, size and framing as the other 21. A species added later
+  without a painting shows a faint fish silhouette until its picture arrives.
+
+The Caution and advisory panel on the Ocean page is redrawn as a cockpit annunciator
+panel, and the wide-screen layout no longer leaves gaps. Scores, limits and the GO /
+HOLD / NO GO calls are unchanged: the same eight lamps, worked out the same way.
+
+- **The panel looks like the advisory panel in a cockpit.** A navy bezel with a screw in
+  each corner holds eight glass keys. Each key glows green, amber or red, with the call
+  in small letters on top, the station name large (WIND, SWELL…) and its figure
+  underneath. The heading and the tally (for example 3 GO · 1 HOLD · 4 NO GO) sit on the
+  bezel. Two keys to a row on a phone, four on a tablet or computer.
+- **No more gaps on a wide screen.** The panel now sits straight under the daily score,
+  the week and the chart, with the launch sites after it. From 1180 px wide the launch
+  sites run down a third column beside the panel, so the panel fills the space under the
+  score and the chart that used to sit empty.
+- The Rivers page keeps its panel as a list, as its readings are longer.
+
+- Tests: 212.
+
 ## 6.0.4
 
 New names, and the week moves up so the page reads from the top: today's score, then the

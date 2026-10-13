@@ -50,7 +50,7 @@ render()           ui.js      state → HTML; clicks → ACTIONS → state → r
 | `importer.js` | Reads Humminbird DATA.HWR and GPX waypoints into marks, on the phone             |
 | `sw.js`       | Offline support; flags saved forecasts so they are never shown as live           |
 
-Assets, all at the top level: `species-*.webp` (21 pictures), `logo-128.webp` (header), `logo-448.webp` (loading screen),
+Assets, all at the top level: `species-*.webp` (26 pictures), `logo-128.webp` (header), `logo-448.webp` (loading screen),
 `icon-*.png` (favicon, notifications, install), `font-*.woff2` (Outfit and Space Grotesk,
 self-hosted under the SIL Open Font License — see `fonts-OFL.txt`). The chart's coastline
 is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded in `map.js`.
@@ -94,14 +94,24 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
   phones replace cached images and fonts, which are served cache-first.
 - **Look and feel ("Flight Deck", 6.0):** square panels on a chart grid, spaced capital
   headings (`sect()` in `ui.js`), corner brackets (`--brackets` in `styles.css`). Green,
-  amber and red mean go, marginal and no-go and nothing else; light blue is the
+  amber and red mean GO, HOLD and NO GO and nothing else; light blue is the
   interface. Each reading turns green and amber at the same lines as its own words
   (`LINES` in `util.js`): ocean scores at the verdict's 75 / 42, river scores at 70 / 40,
   Bite at its lamp's 60 / 45, and the Models % takes its Models lamp's colour. Nothing
   uses outlined text. The page reads from the top: the daily score, then the 7-day
-  forecast, then the caution and advisory panel and the detail below it. Phones get a
-  bottom sections bar; from 900 px wide the layout spreads into columns (`.deck`,
-  `.col-a/b/c`, `.advsec`, `.grid`).
+  forecast, then the caution and advisory panel and the detail below it. Under the Ocean
+  daily score sit the launch and bite figures it is made from, and beside it the best
+  ramp's figures (`.readout`). On both pages the panel is an annunciator (`.annun`): a
+  navy bezel with corner screws holding a glowing glass key per station, the call small
+  above the station name. Phones get a bottom sections bar; from 900 px wide the layout
+  spreads into columns (`.deck`, `.col-a/b/c`, `.tmsec`, `.advsec`, `.grid`). The Ocean
+  page is a grid (`.deck.ocean`) so nothing leaves a hole: the countdown runs as a strip
+  under the score and chart, then the panel, with the launch sites after it, or beside it
+  in a third column from 1180 px. The day's bar and closed-season cards sit in a row of
+  their own (`.notes`) under the sites (Ocean) or the panel (Rivers), so a long day never
+  stretches the sites column and spreads the score, countdown and panel apart. The cards
+  below pair up so neighbours end level (`.deck > .grid`; on the Ocean page from
+  1180 px, `.gstack` and `.gmain`).
 - **Saved data is cleaned on load** (`cleanMark`, `cleanLogEntry` in `store.js`), so a
   damaged entry can't break a render.
 
@@ -110,7 +120,7 @@ is GSHHG full-resolution data (LGPL — see `coastline-LICENSE.txt`), embedded i
 Needs Node 18+ for the tests and tools only; the site itself needs nothing.
 
 ```
-npm test             # 202 tests, no dependencies, clock pinned to Queensland time
+npm test             # 223 tests, no dependencies, clock pinned to Queensland time
 npm run bundle       # dist/fishin-control.html — whole app in one file, for local preview
 npm run lint         # Prettier formatting check (npm run format to fix)
 ```
@@ -144,12 +154,18 @@ forecast and in Data sources.
 
 ### Species illustrations
 
-The 21 `species-*.webp` files are made from the supplied PNG artwork by
+The 26 `species-*.webp` files are made from the supplied PNG artwork by
 `python3 tools/prepare-species.py ORIGINALS_FOLDER [REDRAWN_FOLDER ...]` (needs Pillow,
 numpy and scipy). It removes the background haze and stray bits of neighbouring animals,
 centres each one on the same 600 × 320 canvas and writes WebP. Later folders override
 earlier ones. To replace one picture, run it again, then bump the version so phones fetch
 the new image.
+
+What's biting comes from `SEASON` (Ocean page) and `RIVER_SEASON` (Rivers page) in
+`config.js`. Species still waiting on a painting are listed in `ART_PENDING` in `art.js` and show a
+faint fish silhouette until then. To add one: name the PNG after the species (for example
+`estuary_cod.png`), run the tool, add the file to `SPECIES_IMAGES` in `art.js` and to the
+offline list in `sw.js`, and take the species off `ART_PENDING`. The tests check each step.
 
 The tests pin `TZ=Australia/Brisbane`. The app shows Queensland local time against the
 device clock, so a test machine on UTC sees "midnight" ten hours late.

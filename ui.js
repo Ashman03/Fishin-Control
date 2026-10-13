@@ -17,11 +17,13 @@ import {
   ZONES,
   ESTUARIES,
   SOURCES,
+  TOP_SOURCES,
   BOM_ZONES,
   MARK_TYPES,
   RATINGS,
   TUNING,
-  SEASON
+  SEASON,
+  RIVER_SEASON
 } from './config.js';
 import { state, save, validLimits } from './store.js';
 import { build, seaWord, conditionsFor } from './model.js';
@@ -110,9 +112,19 @@ export function dial(score, lines = LINES.ocean) {
   </svg>`;
 }
 
-/** The daily score with its caption, as it sits at the left of the hero. */
-const dailyScore = (score, caption, lines) =>
-  `<div class="dscore">${dial(score, lines)}<span class="cap">${caption}</span></div>`;
+/**
+ * The daily score with its caption, as it sits at the left of the hero.
+ * `parts` lists what the score is made from, so it can be read against the
+ * ramp scores below it: [[label, value, lines], …].
+ */
+const dailyScore = (score, caption, lines, parts = []) =>
+  `<div class="dscore">${dial(score, lines)}<span class="cap">${caption}</span>${
+    parts.length
+      ? `<span class="parts">${parts
+          .map(([k, v, l]) => `<span>${k} <b class="num" style="color:${light(v, l)}">${v}</b></span>`)
+          .join('')}</span>`
+      : ''
+  }</div>`;
 
 export function verdict(score, river) {
   if (score >= 75) return ['Go', 'Inside your limits for a decent stretch of the day.'];
@@ -143,6 +155,17 @@ const alertBox = (kind, title, body, extra = '') =>
     <div class="alert-b"><h3>${title}</h3>${body}${extra}</div></div>`;
 
 const notice = (title, body) => alertBox('no', title, `<p class="sub">${body}</p>`);
+
+/**
+ * The day's cautions (bar, closed seasons) in a row of their own under the
+ * sites, not at the foot of the sites column: they come and go by the day, and
+ * a column that grows with them pushed the panel and countdown apart on a
+ * wide screen. Nothing at all when there are none.
+ */
+const notes = (...cards) => {
+  const html = cards.filter(Boolean).join('');
+  return html ? `<div class="notes">${html}</div>` : '';
+};
 
 /** Banners for anything that makes the forecast less trustworthy than it looks. */
 function banners(day) {
@@ -233,19 +256,26 @@ function condChart(zone, cfg) {
       start = null;
     }
   });
-  // forecast storm hours: an amber tick along the top of the chart
+  // forecast storm hours: white hatching down the chart, so they cannot be
+  // mistaken for the wind line (amber); denser where a storm is likely
   const storms = hrs
     .filter(h => h.stormNow > 0)
     .map(
       h =>
-        `<rect x="${x(h.t)}" y="8" width="${Math.max(2, x(+h.t + HOUR) - x(h.t))}" height="4" fill="var(--mid)" opacity="${h.stormNow === 2 ? 0.9 : 0.45}"/>`
+        `<rect class="storm" x="${x(h.t)}" y="8" width="${Math.max(2, x(+h.t + HOUR) - x(h.t))}" height="${H - 24}" fill="url(#stormHatch)" opacity="${h.stormNow === 2 ? 0.9 : 0.5}"/>`
     )
     .join('');
   const label = (t, txt) =>
     `<text x="${x(t)}" y="${H - 2}" text-anchor="middle" font-size="10.5" fill="#95b8cd" font-family="Space Grotesk,sans-serif">${txt}</text>`;
+  // the two scales: swell in metres up the left, wind in knots up the right
+  const scale = (xx, anchor, colour, txt) =>
+    `<text x="${xx}" y="22" text-anchor="${anchor}" font-size="10.5" fill="${colour}" font-family="Space Grotesk,sans-serif">${txt}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Swell, wind and gusts through the day">
+   <defs><pattern id="stormHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+     <rect width="2" height="6" fill="#e9f4fb" opacity=".3"/></pattern></defs>
    <rect x="${P}" y="8" width="${W - P * 2}" height="${H - 24}" fill="rgba(0,0,0,.22)"/>
    ${bands}${storms}
+   ${scale(P + 3, 'start', 'var(--sky)', maxS.toFixed(1) + ' m')}${scale(W - P - 3, 'end', 'var(--mid)', Math.round(maxW) + ' kn')}
    <line x1="${P}" x2="${W - P}" y1="${sy(cfg.maxSwell)}" y2="${sy(cfg.maxSwell)}" stroke="var(--sky)" stroke-opacity=".45" stroke-dasharray="2 4"/>
    <line x1="${P}" x2="${W - P}" y1="${wy(cfg.maxWind)}" y2="${wy(cfg.maxWind)}" stroke="var(--no)" stroke-opacity=".35" stroke-dasharray="2 4"/>
    <path d="${line(wy, h => h.gust)}" fill="none" stroke="var(--no)" stroke-width="1.4" stroke-dasharray="4 3" opacity=".75"/>
@@ -341,16 +371,17 @@ function barCard(zone) {
 
 /**
  * The loading screen's "Forecast feeds" line once the requests are back, as
- * [state, word, label]: GO only when every source answered live. Amber when
- * some are down or a primary is the phone's saved copy; red with sample data.
+ * [state, word, label]: GO only when every source answered live. HOLD (amber,
+ * the word the caution and advisory panel uses) when some are down or a
+ * primary is the phone's saved copy; NO GO with sample data.
  */
 export function feedsLine(raw, demo) {
   const s = (raw && raw.status) || [];
   const up = s.filter(x => x.ok).length;
   const label = `Forecast feeds · ${up} of ${s.length} up`;
   if (demo) return ['nogo', 'No go', 'Forecast feeds · offline'];
-  if (raw.cached) return ['hold', 'Saved', label];
-  return up === s.length ? ['go', 'Go', label] : ['hold', 'Partial', label];
+  if (raw.cached) return ['hold', 'Hold', 'Forecast feeds · saved copy'];
+  return up === s.length ? ['go', 'Go', label] : ['hold', 'Hold', label];
 }
 
 /** What actually answered, so a silent failure upstream is visible on screen. */
@@ -369,6 +400,9 @@ function sourceStatus() {
       .join('')}
   </details>`;
 }
+
+/** The pre-launch links: the first TOP_SOURCES (config.js) show, the rest fold away. */
+const sourceLink = ([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(n)}</a>`;
 
 /* ── Launch theme: caution and advisory panel, countdown, window tracks ── */
 
@@ -425,27 +459,34 @@ function cautionPanel(day, zone) {
   return advisoryHTML(rows, 'Caution and advisory panel for ' + zone.z.name);
 }
 
+/** The four screws in the corners of the annunciator panel's bezel. */
+const SCREWS = ['tl', 'tr', 'bl', 'br'].map(c => `<i class="screw ${c}" aria-hidden="true"></i>`).join('');
+
 /**
- * A caution and advisory panel: rows of [label, 'go' | 'hold' | 'nogo', value],
- * under a heading that totals the calls. Each station is a tile with its own lamp;
- * `layout` 'rows' lists them one per line instead.
+ * A caution and advisory panel: rows of [label, 'go' | 'hold' | 'nogo', value,
+ * full?], under a heading that totals the calls, drawn as an annunciator: a
+ * bezel holding a glass key per station, its legend lit in the lamp's colour
+ * (the CSS puts the call above the station name). A key has room for a short
+ * figure; `full`, when given, is the whole reading, read out instead of it.
  */
-function advisoryHTML(rows, label, layout = 'tiles') {
+function advisoryHTML(rows, label) {
   const count = st => rows.filter(r => r[1] === st).length;
   const tally = ['go', 'hold', 'nogo']
     .filter(count)
     .map(st => count(st) + ' ' + STATUS[st])
     .join(' · ');
-  return `${sect('Caution and advisory panel', tally)}
-  <div class="adv ${layout}" role="list" aria-label="${esc(label)}">
+  const list = `<div class="adv tiles" role="list" aria-label="${esc(label)}">
     ${rows
       .map(
-        ([k, st, v]) => `<div class="adv-row" role="listitem" data-st="${st}">
-      <span class="adv-k">${k}</span><span class="adv-v num">${esc(v)}</span>
+        ([k, st, v, full]) => `<div class="adv-row" role="listitem" data-st="${st}">
+      <span class="adv-k">${k}</span><span class="adv-v num"${full ? ' aria-hidden="true"' : ''}>${esc(v)}</span>${
+        full ? `<span class="vh">${esc(full)}</span>` : ''
+      }
       <span class="adv-s ${st}">${STATUS[st]}</span></div>`
       )
       .join('')}
   </div>`;
+  return `<div class="annun">${SCREWS}${sect('Caution and advisory panel', tally)}${list}</div>`;
 }
 
 /** Earliest launch window still ahead (or open now) across the whole week. */
@@ -661,14 +702,15 @@ function tideSection(day) {
   </section>`;
 }
 
-/** Sessions, then what's biting. `river` swaps the marks note for the river one. */
-function flightPlan(day, zone, ss, river = false) {
-  const shut = closedSpecies(day.d0, zone.z);
-  const t = techniques(day);
-  const month = day.d0.toLocaleDateString('en-AU', { month: 'long' });
+/** The sessions. `river` swaps the marks note for the river one. */
+function flightPlan(ss, river = false) {
   return `<section class="plan">
     ${sect('Flight plan', 'when to go, and what to throw')}
-    <div class="panel list">${ss
+    <div class="panel list">${
+      ss.some(s => s.outside)
+        ? '<p class="sub lead">Outside is out today, so fish the system instead.</p>'
+        : ''
+    }${ss
       .map(
         s => `
       <div class="sess">
@@ -686,11 +728,18 @@ function flightPlan(day, zone, ss, river = false) {
           : 'Spots come from your marks list. Add your own on the My marks tab and they will be picked here by tide and swell.'
       }</p>
     </div>
-  </section>
-  <section class="biting">
+  </section>`;
+}
+
+/** What's biting this month, with the bait, lures and the day's notes. */
+function whatsBiting(day, zone, river = false) {
+  const shut = closedSpecies(day.d0, zone.z);
+  const t = techniques(day, river);
+  const month = day.d0.toLocaleDateString('en-AU', { month: 'long' });
+  return `<section class="biting">
     ${sect("What's biting", esc(month + ' · ' + t.m.t))}
     <div class="panel">
-      <div class="fish">${t.m.sp
+      <div class="fish" style="--fish-cols:${Math.ceil(t.m.sp.length / Math.ceil(t.m.sp.length / 6))}">${t.m.sp
         .map(
           n =>
             `<div class="fc${shut.has(n) ? ' closed' : ''}">${speciesArt(n)}<div class="n">${esc(n)}${shut.has(n) ? '<span class="shut">Closed</span>' : ''}</div></div>`
@@ -739,10 +788,17 @@ export const VERDICT_COLOUR = {
   Slow: 'var(--no)'
 };
 
+/**
+ * The verdict beside the daily score. `kicker` is a list of short phrases that
+ * wrap whole, so a date never splits across two lines. "River day" is red
+ * because the ocean is out, so a small line above it says so: the red must not
+ * read as a verdict on the rivers.
+ */
 function call(kicker, word, why, extra = '') {
   const go = word === 'Go';
   return `<div class="call">
-      <span class="kick">${kicker}</span>
+      <span class="kick">${kicker.map(k => `<span>${k}</span>`).join('')}</span>
+      ${word === 'River day' ? '<span class="pre">Ocean · No go</span>' : ''}
       <div class="verdict${word.length > 6 ? ' long' : ''}" style="color:${VERDICT_COLOUR[word] || 'var(--paper)'}">${word}${go ? '<small>for launch</small>' : ''}</div>
       <p class="why">${why}</p>${extra}
     </div>`;
@@ -785,9 +841,11 @@ function renderRiver() {
       day.range == null || day.range < 1.4 ? 'hold' : 'go',
       day.range != null ? day.range.toFixed(1) + ' m · ' + kind : kind
     ],
+    // a key holds a short figure; the times are on the tide chart just below
     [
       'Turns',
       turns.length >= 2 ? 'go' : turns.length ? 'hold' : 'nogo',
+      turns.length ? turns.length + (turns.length === 1 ? ' turn' : ' turns') : 'none',
       turns.length
         ? turns.map(t => (t.hi ? 'high ' : 'low ') + hhmm(t.t)).join(' · ')
         : 'none in fishing hours'
@@ -796,26 +854,28 @@ function renderRiver() {
     [
       'Feeding',
       majors.length ? 'go' : 'hold',
-      majors.length ? majors.map(hhmm).join(' · ') : 'outside fishing hours'
+      majors.length ? majors.map(hhmm).join(' · ') : 'none',
+      majors.length ? '' : 'outside fishing hours'
     ],
     [
       'Water',
       ri.runoff ? 'hold' : 'go',
+      ri.runoff ? 'run-off' : ri.rain72 >= 5 ? Math.round(ri.rain72) + ' mm rain' : 'clean',
       ri.runoff
         ? 'run-off · ' + Math.round(ri.rain72) + ' mm in 3 days'
         : ri.rain72 >= 5
           ? Math.round(ri.rain72) + ' mm in 3 days'
-          : 'clean'
+          : ''
     ],
     ['Wind', ri.windStrong ? 'hold' : 'go', Math.round(ri.windIn) + ' kn close in'],
     ['Rules', closed.length ? 'hold' : 'go', closed.length ? closed.length + ' closed' : 'all open']
   ];
   const [word, why] = riverVerdict(day);
   return `${banners(day)}
-  <div class="deck">
+  <div class="deck river">
     <div class="col col-a">
       <section class="panel hero">${dailyScore(day.river, 'Daily score', LINES.river)}
-        ${call(esc(shortDate(day.d0) + ' · ' + est.name), word, why)}
+        ${call([esc(shortDate(day.d0)), esc(est.name)], word, why)}
       </section>
       ${dayStrip(
         '7-day forecast',
@@ -826,7 +886,7 @@ function renderRiver() {
         LINES.river
       )}
     </div>
-    <section class="advsec">${advisoryHTML(rows, 'River caution and advisory panel for ' + est.name, 'rows')}</section>
+    <section class="advsec">${advisoryHTML(rows, 'River caution and advisory panel for ' + est.name)}</section>
     <div class="col col-c">
       <section>
         ${sect('Rivers and creeks', esc(longDate(day.d0)))}
@@ -843,11 +903,12 @@ function renderRiver() {
           </div>
         </div>
       </section>
-      ${closuresCard(day, zone)}
     </div>
+    ${notes(closuresCard(day, zone))}
     <div class="grid">
       ${tideSection(day)}
-      ${flightPlan(day, zone, sessions(day, zone, state.marks, est), true)}
+      ${flightPlan(sessions(day, zone, state.marks, est), true)}
+      ${whatsBiting(day, zone, true)}
     </div>
   </div>`;
 }
@@ -871,16 +932,33 @@ function renderOcean() {
       </div>`
       : '';
 
+  // the best ramp's figures for the day, beside the call: the hero's empty half
+  // was the best spot on the screen. The ramp is only coloured when it is a go
+  // or a maybe; on a no-go day a red "best ramp" would read as "launch here".
+  const rampKey = lightKey(best.score, LINES.ocean);
+  const readout = `<dl class="readout">
+      <div class="wide"><dt>Best ramp</dt><dd${rampKey !== 'r' ? ` class="${rampKey}"` : ''}>${esc(short(best.z.name))}</dd></div>
+      <div><dt>Swell</dt><dd class="num">${span(best.swell, best.swellMax)} m${best.period ? ` · ${Math.round(best.period)} s` : ''}</dd></div>
+      <div><dt>Wind</dt><dd class="num">${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</dd></div>
+      <div><dt>Gusts</dt><dd class="num">${Math.round(best.gust)} kn</dd></div>
+      <div><dt>Close in</dt><dd class="num">${best.swellIn.toFixed(1)} m</dd></div>
+      <div><dt>At 20 km</dt><dd class="num">${best.swell20.toFixed(1)} m</dd></div>
+      ${best.chop >= 0.3 ? `<div><dt>Chop</dt><dd class="num">${best.chop.toFixed(1)} m</dd></div>` : ''}
+      ${best.barMax >= 2 ? '<div class="wide"><dt>Bar</dt><dd class="r">Wind against tide</dd></div>' : ''}
+    </dl>`;
+
   return `${banners(day)}${freshGoBanner()}
-  <div class="deck">
+  <div class="deck ocean">
     <div class="col col-a">
-      ${countdown()}
-      <section class="panel hero">${dailyScore(day.overall, 'Daily score', LINES.ocean)}
+      <section class="panel hero">${dailyScore(day.overall, 'Daily score', LINES.ocean, [
+        ['Launch', best.score, LINES.ocean],
+        ['Bite', day.bite, LINES.bite]
+      ])}
         ${call(
-          "Flight director's call · " + esc(shortDate(day.d0)),
+          ["Flight director's call", esc(shortDate(day.d0))],
           word,
           why + (day.caps.length ? ' Capped: ' + esc(day.caps.join('; ')) + '.' : ''),
-          ensemble
+          readout + ensemble
         )}
       </section>
       ${dayStrip(
@@ -892,17 +970,9 @@ function renderOcean() {
       )}
     </div>
 
-    <section class="advsec">
-      ${cautionPanel(day, best)}
-      <div class="pills">
-        <span class="pill ${lightKey(best.score, LINES.ocean)}">Launch <b>${esc(best.z.ramp.split(',')[0])}</b></span>
-        <span class="pill">Swell <b>${span(best.swell, best.swellMax)} m</b>${best.period ? ` · ${Math.round(best.period)} s, ${seaWord(best.period)}` : ''}</span>
-        <span class="pill">Wind <b>${span(best.wind, best.windMax, 0)} kn ${dirOf(best.wdir)}</b> · gusts ${Math.round(best.gust)}</span>
-        <span class="pill">Close in <b>${best.swellIn.toFixed(1)} m</b> · at 20 km <b>${best.swell20.toFixed(1)} m</b></span>
-        ${best.chop >= 0.3 ? `<span class="pill">Chop <b>${best.chop.toFixed(1)} m</b></span>` : ''}
-        ${best.barMax >= 2 ? '<span class="pill r"><b>Bar</b> wind against tide</span>' : ''}
-      </div>
-    </section>
+    <div class="tmsec">${countdown()}</div>
+
+    <section class="advsec">${cautionPanel(day, best)}</section>
 
     <section class="col col-b mapsec">
       ${sect('Launch control', esc(shortDate(day.d0)))}
@@ -910,7 +980,7 @@ function renderOcean() {
       ${markCaption(zone)}
       <div class="legend">
         <span><i style="background:var(--go)"></i>Go</span>
-        <span><i style="background:var(--mid)"></i>Marginal</span>
+        <span><i style="background:var(--mid)"></i>Hold</span>
         <span><i style="background:var(--no)"></i>No go</span>
         <span><i class="range"></i>Your 20 km range</span>
         <span class="hintx">Tap a ramp to plan around it</span>
@@ -929,7 +999,7 @@ function renderOcean() {
               <span class="zb">
                 <span class="t">${esc(z.z.name)}</span>
                 <span class="d">${esc(z.z.ramp)}</span>
-                <span class="tags"><span class="tag ${z.swellEffMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind ? 'ok' : 'mid'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}</span>
+                <span class="tags"><span class="tag ${z.swellEffMax <= cfg.maxSwell ? 'ok' : 'bad'}">swell ${span(z.swell, z.swellMax)} m</span><span class="tag ${z.windMax <= cfg.maxWind ? 'ok' : 'bad'}">${span(z.wind, z.windMax, 0)} kn ${dirOf(z.wdir)}</span><span class="tag ${z.gust <= cfg.maxGust ? 'ok' : 'bad'}">gusts ${Math.round(z.gust)}</span><span class="tag">${z.goodHrs} h ok</span>${z.barMax >= 2 ? '<span class="tag bad">bar risk</span>' : ''}${z.prob != null ? `<span class="tag">${z.prob}% chance</span>` : ''}</span>
               </span>
             </button>`
             )
@@ -939,9 +1009,9 @@ function renderOcean() {
             <p class="sub">${esc(zone.z.grounds)}</p>
             ${ln.length ? `<ul class="tight">${ln.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
             <p class="sub">Rivers and creeks today
-              <b style="color:${light(day.river, LINES.river)}">${day.river}/100</b>.
-              <button class="inline" data-act="view" data-view="river">River view</button></p>
+              <b style="color:${light(day.river, LINES.river)}">${day.river}/100</b>.</p>
             <div class="links">
+              <button data-act="view" data-view="river">River view</button>
               <a href="${bom[1]}" target="_blank" rel="noopener">${bom[0]}</a>
               <a href="https://www.windy.com/-Waves-waves?waves,${zone.z.mlat},${zone.z.mlon},9" target="_blank" rel="noopener">Windy at ${esc(short(zone.z.name))}</a>
               <a href="https://www.google.com/maps/dir/?api=1&destination=${zone.z.mlat},${zone.z.mlon}" target="_blank" rel="noopener">Directions</a>
@@ -949,11 +1019,11 @@ function renderOcean() {
           </div>
         </div>
       </section>
-      ${barCard(zone)}
-      ${closuresCard(day, zone)}
     </div>
+    ${notes(barCard(zone), closuresCard(day, zone))}
 
     <div class="grid">
+  <div class="gstack">
   <section class="cond">
     ${sect('Conditions', '10–20 km off ' + esc(short(zone.z.name)))}
     <div class="panel chartwrap">${condChart(zone, cfg)}
@@ -961,19 +1031,23 @@ function renderOcean() {
         <span><i class="ln sw"></i>Swell</span>
         <span><i class="ln wd"></i>Wind</span>
         <span><i class="ln gu"></i>Gusts</span>
-        <span><i class="bx ok"></i>Inside limits</span>
-        <span><i class="bx st"></i>Storm risk</span>
+        <span><i class="bx ok"></i>In limits</span>
+        <span><i class="bx st"></i>Storm</span>
       </div>
-      <p class="sub">Swell is weighted for period. Dashed lines are your limits;
-      green shading marks every hour that clears all three. Figures are the worst of the 10, 15 and 20 km
+      <p class="sub">Swell is weighted for period and read on the left scale, wind and gusts on the
+      right. Dashed lines are your limits; green shading marks every hour that clears all three,
+      white hatching any hour with a storm forecast. Figures are the worst of the 10, 15 and 20 km
       points on the bearing you run out on —
       ${zone.period ? `period today is around ${Math.round(zone.period)} seconds, ${seaWord(zone.period)}` : 'period data is missing today'}.</p>
     </div>
   </section>
 
   ${tideSection(day)}
+  </div>
 
-  ${flightPlan(day, zone, ss)}
+  <div class="gmain">
+  ${flightPlan(ss)}
+  ${whatsBiting(day, zone)}
 
   <section class="checks">
     ${sect('Pre-launch checks')}
@@ -990,7 +1064,10 @@ function renderOcean() {
           ? `Compared across ${day.agree.windModels} wind models${day.agree.waveModels > 1 ? ' and ' + day.agree.waveModels + ' swell models' : ''}. Wind spread ${day.agree.wSpread.toFixed(1)} kn${day.agree.sSpread != null ? ', swell spread ' + day.agree.sSpread.toFixed(2) + ' m' : ''}. ${day.agree.level === 'low' ? 'That is a wide spread, so treat this day as unsettled and look again the morning of.' : day.agree.level === 'fair' ? 'Reasonable agreement — worth a second look the day before.' : 'Tight agreement, which is about as confident as a week-out forecast gets.'}`
           : 'Only one model responded, so there is no cross-check today. Lean on the links below.'
       }</p>
-      <div class="links">${SOURCES.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(n)}</a>`).join('')}</div>
+      <div class="links">${SOURCES.slice(0, TOP_SOURCES).map(sourceLink).join('')}</div>
+      <details data-key="links"><summary><span>More links</span><b class="num">${SOURCES.length - TOP_SOURCES} more</b></summary>
+        <div class="links">${SOURCES.slice(TOP_SOURCES).map(sourceLink).join('')}</div>
+      </details>
       ${sourceStatus()}
       ${alertsPanel()}
       <details data-key="limits">
@@ -1007,6 +1084,7 @@ function renderOcean() {
       </details>
     </div>
   </section>
+  </div>
     </div>
     <footer>
       Forecasts from Open-Meteo: wind from its best-match model with ECMWF IFS 9 km, NOAA GFS and DWD ICON as
@@ -1086,9 +1164,10 @@ function renderLog() {
     rating: 2,
     notes: ''
   };
-  // this month's species first, then the rest of the year's
-  const month = SEASON[new Date().getMonth()].sp;
-  const allSpecies = [...new Set([...month, ...Object.values(SEASON).flatMap(m => m.sp)])];
+  // this month's species first, ocean then rivers, then the rest of the year's
+  const mo = new Date().getMonth();
+  const year = [SEASON, RIVER_SEASON].flatMap(t => Object.values(t).flatMap(m => m.sp));
+  const allSpecies = [...new Set([...SEASON[mo].sp, ...RIVER_SEASON[mo].sp, ...year])];
   const pat = patterns(state.log);
   const cap = k => k.charAt(0).toUpperCase() + k.slice(1);
   const rampName = id => (ZONES.find(z => z.id === id) || { name: id }).name;

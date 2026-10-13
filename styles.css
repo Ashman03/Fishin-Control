@@ -117,10 +117,10 @@ h2.sect,
 .tm-head,
 .adv-k,
 .adv-s,
-.pill,
 .dow,
 .legend,
 .links a,
+.links button,
 .save,
 .ghost,
 .danger,
@@ -261,6 +261,7 @@ header.top {
 .view,
 .deck,
 .col,
+.notes,
 .grid,
 .pages {
   display: flex;
@@ -269,6 +270,11 @@ header.top {
 }
 section {
   min-width: 0;
+}
+/* the ocean page's card groups only become boxes on a wide screen (see 1180 px) */
+.gstack,
+.gmain {
+  display: contents;
 }
 
 /* section heading: spaced capitals in light blue, a quieter note on the right */
@@ -401,13 +407,6 @@ ul.tight li {
   gap: 6px;
   margin-top: 10px;
 }
-button.inline {
-  color: var(--sky);
-  font-size: inherit;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
 .links {
   display: flex;
   flex-wrap: wrap;
@@ -416,17 +415,19 @@ button.inline {
 .links.pad {
   padding: 12px;
 }
-.links a {
+.links a,
+.links button {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 10px;
   border: 1px solid var(--line2);
   font-size: 11px;
   letter-spacing: 0.1em;
   color: var(--sky);
 }
-.links a:hover {
+.links a:hover,
+.links button:hover {
   border-color: var(--sky);
 }
 
@@ -453,8 +454,8 @@ button.inline {
   justify-content: center;
   gap: 5px;
   border-top: 2px solid transparent;
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   color: var(--mute);
 }
 .tabs svg {
@@ -557,8 +558,8 @@ button.inline {
   align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   color: var(--mute);
 }
 .tm-label {
@@ -598,7 +599,7 @@ button.inline {
 }
 .tm-unit i {
   font-style: normal;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--mute);
@@ -632,9 +633,25 @@ button.inline {
   font-weight: 400;
 }
 .dscore .cap {
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
   color: var(--mute);
+}
+/* what the daily score is made from, so it reads against the ramp scores */
+.dscore .parts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-family: var(--disp);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.dscore .parts b {
+  font-size: 13px;
+  font-weight: 700;
 }
 .call {
   flex: 1;
@@ -643,10 +660,68 @@ button.inline {
   flex-direction: column;
   gap: 9px;
 }
+/* the kicker's phrases wrap whole, so the date never splits */
 .kick {
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   color: var(--mute);
+}
+.kick span {
+  white-space: nowrap;
+}
+.kick span + span {
+  color: var(--sky2);
+}
+/* above "River day": the red is the ocean's */
+.call .pre {
+  margin-bottom: -5px;
+  font-family: var(--disp);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--no);
+}
+/* the best ramp's figures, filling the hero beside the score */
+.readout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  margin: 2px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+.readout div {
+  min-width: 0;
+}
+.readout .wide {
+  grid-column: 1 / -1;
+}
+.readout dt {
+  font-family: var(--disp);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.readout dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--paper);
+}
+.readout dd.g {
+  color: var(--go);
+}
+.readout dd.a {
+  color: var(--mid);
+}
+.readout dd.r {
+  color: var(--no);
 }
 .verdict {
   display: flex;
@@ -720,11 +795,6 @@ button.inline {
 .adv-row[data-st='nogo'] {
   --st: var(--no);
 }
-.adv.tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
 .adv-row {
   --st: var(--go);
   display: grid;
@@ -771,63 +841,128 @@ button.inline {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.adv.rows {
-  background: var(--panel);
-  border: 1px solid var(--line);
+/* On the ocean page the panel is an annunciator, like the advisory panel in a
+   cockpit: a navy bezel with a screw in each corner holds a glass key per
+   station. Each legend glows in its lamp's colour: the call small on top, the
+   station large, the figure underneath. Glow only, never an outline. */
+.annun {
+  position: relative;
+  padding: 8px 18px 10px;
+  background: linear-gradient(#0d2536, #08192a);
+  border: 1px solid var(--line2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 20px rgba(0, 0, 0, 0.45);
 }
-.adv.rows .adv-row {
-  grid-template-columns: 84px minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 10px 12px;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-}
-.adv.rows .adv-row:last-child {
-  border-bottom: 0;
-}
-.adv.rows .adv-v {
-  grid-row: 1;
-  grid-column: 2;
-  white-space: normal;
-}
-.adv.rows .adv-s {
-  grid-column: 3;
-}
-.pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.pill {
-  padding: 6px 9px;
-  border: 1px solid rgba(122, 211, 245, 0.25);
-  font-size: 11px;
-  letter-spacing: 0.06em;
+.annun h2.sect {
+  margin: 0 0 6px;
+  padding: 0 2px;
   color: var(--sky2);
+  letter-spacing: 0.2em;
 }
-.pill b {
-  font-weight: 600;
-  color: var(--paper);
+.screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #a9cfe2, #24465a 70%);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
 }
-.pill.g {
-  border-color: rgba(61, 220, 132, 0.45);
+.screw::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 4px;
+  height: 1.5px;
+  background: #0b2231;
+  transform: rotate(35deg);
 }
-.pill.g b {
-  color: var(--go);
+.screw.tl,
+.screw.tr {
+  top: 7px;
 }
-.pill.a {
-  border-color: rgba(255, 201, 60, 0.45);
+.screw.bl,
+.screw.br {
+  bottom: 7px;
 }
-.pill.a b {
-  color: var(--mid);
+.screw.tl,
+.screw.bl {
+  left: 7px;
 }
-.pill.r {
-  border-color: rgba(255, 99, 99, 0.45);
+.screw.tr,
+.screw.br {
+  right: 7px;
 }
-.pill.r b {
-  color: var(--no);
+.adv.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.adv.tiles .adv-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 62px;
+  padding: 5px 6px;
+  text-align: center;
+  color: var(--st);
+  background: #050d13;
+  background: linear-gradient(color-mix(in srgb, var(--st) 9%, #0a141b), #03080c);
+  border: 1px solid #000;
+  box-shadow:
+    inset 0 0 0 2px rgba(122, 211, 245, 0.16),
+    inset 0 10px 16px rgba(0, 0, 0, 0.65);
+  text-shadow: 0 0 6px var(--st);
+  text-shadow:
+    0 0 6px color-mix(in srgb, var(--st) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--st) 35%, transparent);
+}
+.adv.tiles .adv-s {
+  order: 1;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  line-height: 1.25;
+}
+.adv.tiles .adv-k {
+  order: 2;
+  display: block;
+  max-width: 100%;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  color: inherit;
+}
+.adv.tiles .adv-k::before {
+  content: none;
+}
+.adv.tiles .adv-v {
+  order: 3;
+  max-width: 100%;
+  font-family: var(--disp);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+.adv.tiles .adv-row:last-child:nth-child(odd) {
+  grid-column: span 2;
+}
+@media (min-width: 560px) {
+  .adv.tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .adv.tiles .adv-row:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+  .adv.tiles .adv-row:last-child:nth-child(4n + 3) {
+    grid-column: span 2;
+  }
 }
 
 /* ── 7-day forecast: one bar per day, dashed lines at its green and amber lines ── */
@@ -978,7 +1113,9 @@ button.inline {
   color: var(--mute);
 }
 .legend.key {
+  gap: 8px 10px;
   margin: 6px 0 8px;
+  letter-spacing: 0.08em;
 }
 .key i.ln {
   width: 14px;
@@ -1001,8 +1138,8 @@ button.inline {
 }
 .key i.bx.st {
   width: 10px;
-  height: 4px;
-  background: var(--mid);
+  height: 10px;
+  background: repeating-linear-gradient(45deg, rgba(233, 244, 251, 0.55) 0 2px, transparent 2px 4px);
 }
 
 /* ── Launch sites and estuaries ─────────────────────────────────────── */
@@ -1051,11 +1188,11 @@ button.inline {
   margin-top: 3px;
 }
 .tag {
-  padding: 2px 6px;
+  padding: 2px 5px;
   border: 1px solid rgba(122, 211, 245, 0.35);
   font-family: var(--disp);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  letter-spacing: 0.03em;
   color: var(--sky2);
 }
 .tag.ok {
@@ -1181,6 +1318,12 @@ button.inline {
   padding: 10px 12px 12px;
   font-size: 13px;
 }
+.plan .lead {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13.5px;
+  color: var(--sky2);
+}
 .biting .panel {
   display: flex;
   flex-direction: column;
@@ -1205,9 +1348,20 @@ button.inline {
   object-fit: contain;
   display: block;
 }
-/* a species with no picture yet keeps the card's shape */
+/* a species with no picture yet keeps the card's shape, with a faint fish in it */
 .fc .sp-none {
   background: rgba(122, 211, 245, 0.06);
+}
+.fc .sp-none svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.fc .sp-none path {
+  fill: rgba(122, 211, 245, 0.12);
+}
+.fc .sp-none circle {
+  fill: var(--ink);
 }
 .fc .n {
   padding: 6px 8px;
@@ -1256,10 +1410,13 @@ button.inline {
   gap: 10px;
 }
 .checks .links a {
-  min-height: 30px;
-  padding: 0 8px;
-  font-size: 10px;
+  min-height: 40px;
+  padding: 0 9px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
+}
+.checks details .links {
+  margin-top: 6px;
 }
 .checks details {
   border-top: 1px solid var(--line);
@@ -1269,7 +1426,7 @@ summary {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 28px;
+  min-height: 44px;
   cursor: pointer;
   list-style: none;
   font-size: 11px;
@@ -1682,29 +1839,139 @@ label.filebtn:focus-within {
     flex: 1 1 100%;
     order: 4;
   }
-  /* full width: the ocean stations four to a row, the river rows in two columns */
+  /* the day's cautions, side by side under the panel (rivers) or the sites (ocean) */
+  .deck > .notes {
+    flex: 1 1 100%;
+    order: 4;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+  }
+  /* the keys four to a row */
+  .annun {
+    padding: 10px 30px 12px;
+  }
   .adv.tiles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
   }
-  .adv.rows {
-    columns: 2;
-    column-gap: 0;
-    column-rule: 1px solid var(--rule);
+  .adv.tiles .adv-row {
+    min-height: 84px;
   }
-  .adv.rows .adv-row {
-    break-inside: avoid;
+  .adv.tiles .adv-s {
+    font-size: 14px;
   }
-  /* cards of different heights flow down three columns instead of leaving gaps */
+  .adv.tiles .adv-k {
+    font-size: 24px;
+  }
+  .adv.tiles .adv-v {
+    font-size: 13px;
+  }
+  /* The ocean page is a grid, so nothing leaves a hole: the score and week
+     beside the chart, the panel straight under them, then the launch sites.
+     From 1180 px the sites take a third column that runs down beside the
+     panel, so the panel fills the space under the score and chart. */
+  .deck.ocean {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas: 'a b' 't t' 'p p' 'c c' 'n n' 'g g' 'f f';
+    align-items: start;
+  }
+  /* the countdown runs as one strip across the score and the chart, its
+     heading at the left and the clock at the right */
+  .deck.ocean > .tmsec {
+    grid-area: t;
+  }
+  .tmsec .tminus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 12px 20px;
+  }
+  .tmsec .tm-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .tmsec .tm-clock {
+    flex: 0 1 420px;
+    margin-top: 0;
+  }
+  /* the launch sites (rivers) list runs to the foot of the column beside it */
+  .deck > .col-c {
+    align-self: stretch;
+  }
+  .deck > .col-c > section:first-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .deck > .col-c > section:first-child > .panel {
+    flex: 1;
+  }
+  .deck.ocean > .col-a {
+    grid-area: a;
+  }
+  .deck.ocean > .col-b {
+    grid-area: b;
+  }
+  .deck.ocean > .advsec {
+    grid-area: p;
+  }
+  .deck.ocean > .col-c {
+    grid-area: c;
+  }
+  .deck.ocean > .notes {
+    grid-area: n;
+  }
+  .deck.ocean > .grid {
+    grid-area: g;
+  }
+  .deck.ocean > footer {
+    grid-area: f;
+  }
+  /* The cards under the panel, paired so neighbours end level and nothing
+     leaves a hole. Ocean: conditions beside tide, the flight plan beside
+     what's biting, then the pre-launch checks full width. Rivers: tide beside
+     the flight plan, then what's biting full width, its fish in a row. */
   .deck > .grid {
     flex: 1 1 100%;
     order: 5;
-    display: block;
-    columns: 360px 3;
-    column-gap: 18px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
   }
-  .deck > .grid > section {
-    break-inside: avoid;
-    margin-bottom: 18px;
+  /* cards side by side end level: each panel fills its card's cell */
+  .grid section {
+    display: flex;
+    flex-direction: column;
+  }
+  .grid section > .panel {
+    flex: 1;
+  }
+  .deck.ocean > .grid {
+    grid-template-areas: 'cond tide' 'plan biting' 'checks checks';
+  }
+  .deck.river > .grid {
+    grid-template-areas: 'tide plan' 'biting biting';
+  }
+  .grid .cond {
+    grid-area: cond;
+  }
+  .grid .tide {
+    grid-area: tide;
+  }
+  .grid .plan {
+    grid-area: plan;
+  }
+  .grid .biting {
+    grid-area: biting;
+  }
+  .grid .checks {
+    grid-area: checks;
+  }
+  .deck.river .biting .fish {
+    grid-template-columns: repeat(var(--fish-cols, 5), minmax(0, 1fr));
   }
   .deck > footer {
     flex: 1 1 100%;
@@ -1770,6 +2037,11 @@ label.filebtn:focus-within {
 .splash-top #splashVer {
   text-transform: none;
 }
+/* the radar takes the spare space above, the footer the space below, so the
+   content sits in the middle of a tall phone instead of leaving a band under it */
+.splash-top {
+  margin-bottom: 16px;
+}
 .splash-top {
   display: flex;
   justify-content: space-between;
@@ -1784,7 +2056,7 @@ label.filebtn:focus-within {
   position: relative;
   width: var(--r);
   height: var(--r);
-  margin-top: 16px;
+  margin-top: auto;
   display: grid;
   place-items: center;
   background:
@@ -1960,6 +2232,55 @@ label.filebtn:focus-within {
 @keyframes splash-creep {
   to {
     width: 35%;
+  }
+}
+@media (min-width: 1180px) {
+  .deck.ocean {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr) minmax(0, 1fr);
+    grid-template-areas: 'a b c' 't t c' 'p p c' 'n n n' 'g g g' 'f f f';
+    /* the sites column runs beside the score, countdown and panel; when its
+       brief runs long the extra lands under the panel, not between them */
+    grid-template-rows: auto auto 1fr;
+  }
+  /* and the panel's bezel grows to meet the foot of the sites, keys centred */
+  .deck.ocean > .advsec {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+  .deck.ocean > .advsec > .annun {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .deck.ocean > .advsec .adv.tiles {
+    flex: 1;
+    align-content: center;
+  }
+  /* Three columns: conditions over tide down the left; the flight plan and
+     the pre-launch checks side by side, with what's biting under both, its
+     fish in one row. The two stacks end within a card's breadth. */
+  .deck.ocean > .grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    grid-template-areas: none;
+  }
+  .deck.ocean .gstack {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .deck.ocean .gstack > .tide {
+    flex: 1;
+  }
+  .deck.ocean .gmain {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto 1fr;
+    grid-template-areas: 'plan checks' 'biting biting';
+    gap: 18px;
+  }
+  .deck.ocean .biting .fish {
+    grid-template-columns: repeat(var(--fish-cols, 6), minmax(0, 1fr));
   }
 }
 @media (prefers-reduced-motion: no-preference) {
