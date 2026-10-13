@@ -354,6 +354,33 @@ await describe('data', async () => {
     );
   });
 
+  await it('a blank gust hour at one place shows the incomplete warning (only whole-field gaps did)', async () => {
+    const s = data.sampleData();
+    assert(data.fieldHoles(s.fc).length === 0, 'sample forecast has no holes');
+    const holed = s.fc.map((p, i) => ({
+      ...p,
+      hourly: {
+        ...p.hourly,
+        wind_gusts_10m: p.hourly.wind_gusts_10m.map((v, k) => (i === 9 && k === 60 ? null : v))
+      }
+    }));
+    assert(data.fieldGaps(holed, data.FORECAST_VARS).length === 0, 'fieldGaps alone misses it');
+    assert(data.fieldHoles(holed).join() === 'gusts missing at some hours', data.fieldHoles(holed).join());
+    assert(data.fieldHoles(s.fc.slice(0, 19)).join() === 'forecast for 19 of 20 places', 'short reply');
+    const ends = s.fc.map(p => ({
+      ...p,
+      hourly: {
+        ...p.hourly,
+        wind_gusts_10m: p.hourly.wind_gusts_10m.map((v, k, all) => (k >= all.length - 5 ? null : v))
+      }
+    }));
+    assert(data.fieldHoles(ends).length === 0, 'where the forecast stops at every place is not a hole');
+    globalThis.fetch = async url =>
+      ok(url.includes('api.open-meteo.com/v1/forecast') ? holed : answer(s, url));
+    const raw = await data.getData();
+    assert(raw.gaps.join() === 'gusts missing at some hours', raw.gaps.join());
+  });
+
   await it('a forecast that answers without gusts is flagged, not passed off as complete', async () => {
     const s = data.sampleData();
     globalThis.fetch = async url =>
@@ -654,7 +681,7 @@ await describe('model', async () => {
   });
   const offshoreZ = ZONES.find(z => z.id === 'burnett'); // exposed 20–140°, so 270° is offshore
   await it('an offshore 13 kn wind fails a 10 kn limit (was discounted to 9.4)', () => {
-    const h = { swellEff: 0.3, wind: 13, gust: 13, wdir: 270 };
+    const h = { swellEff: 0.3, swellChk: 0.3, wind: 13, gust: 13, wdir: 270 };
     assert(model.hourScore(h, offshoreZ, CFG).ok === false);
   });
   await it('passes() is inclusive at the limit and strict beyond it', () => {
@@ -664,6 +691,121 @@ await describe('model', async () => {
   });
   await it('short-period swell counts as bigger', () =>
     assert(model.periodFactor(5) > 1.2 && model.periodFactor(11) < 1));
+
+  /* Safety fixes from the 13 Oct 2026 audit: each test below failed before its fix. */
+
+  // tomorrow in the sample week: two past days, then today
+  const TOMORROW = config.TUNING.pastDays + 1;
+  /** Change every place's hourly figures for tomorrow: fn(fcHourly, marineHourly, k, hour). */
+  const tomorrowAt = (raw, fn) =>
+    raw.fc.forEach((p, i) =>
+      p.hourly.time.forEach((t, k) => {
+        if (Math.floor(k / 24) === TOMORROW) fn(p.hourly, raw.mar[i].hourly, k, k % 24, POINTS[i].zone);
+      })
+    );
+
+  await it('long-period swell over the limit is a no go whatever its period (0.78 m at 12 s passed)', () => {
+    const d = model.build(fixture({ wind: 6, gust: 8, swell: 0.78, period: 12, dir: 250 }), { cfg: CFG })
+      .days[1];
+    d.zones.forEach(z => assert(z.goodHrs === 0 && !z.win.length, z.z.id + ' passed ' + z.goodHrs + ' h'));
+    assert(d.overall < 75, 'scored ' + d.overall);
+    // short, steep swell still counts as more than its height
+    assert(model.swellCheck(0.55, 0.55 * model.periodFactor(5)) > CFG.maxSwell, '0.55 m at 5 s');
+    assert(model.swellCheck(0.6, 0.6 * model.periodFactor(12)) === 0.6, 'never below the forecast');
+  });
+
+  await it('a day of scattered passing hours is never a Go (alternating gusts scored 89 with no window)', () => {
+    const s = calm();
+    tomorrowAt(s, (F, M, k, hr) => (F.wind_gusts_10m[k] = hr % 2 ? 13 : 11));
+    const d = model.build(s, { cfg: CFG }).days[1];
+    assert(
+      d.zones.every(z => !z.win.length),
+      'expected no windows'
+    );
+    assert(d.overall <= config.TUNING.capNoWindow, 'scored ' + d.overall);
+    d.zones.forEach(z => assert(z.score <= config.TUNING.capNoWindow, z.z.id + ' ' + z.score));
+    assert(
+      d.caps.some(c => /window/.test(c)),
+      'the cap should say why: ' + d.caps.join()
+    );
+  });
+
+  await it('a ramp with a launch window ranks above one without (best ramp could be unlaunchable)', () => {
+    const s = calm();
+    tomorrowAt(s, (F, M, k, hr, zone) => {
+      // Walkers Point: a short morning window and a poor day; the rest: scattered calm hours
+      if (zone === 'woodgate') F.wind_gusts_10m[k] = hr >= 6 && hr <= 8 ? 11 : 13;
+      else F.wind_gusts_10m[k] = hr % 2 ? 13 : 11;
+    });
+    const d = model.build(s, { cfg: CFG }).days[1];
+    assert(d.zones[0].z.id === 'woodgate' && d.zones[0].win.length, 'best ramp: ' + d.zones[0].z.id);
+  });
+  await it('a window still makes a Go: the no-window cap leaves good days alone', () => {
+    const d = model.build(calm(), { cfg: CFG }).days[1];
+    assert(d.zones[0].win.length && d.overall >= 75, 'calm day scored ' + d.overall);
+    assert(!d.caps.length, 'capped: ' + d.caps.join());
+  });
+
+  await it('a forecast thunderstorm ends the launch window (it ran 05:00–18:35 through one)', () => {
+    const s = calm();
+    tomorrowAt(s, (F, M, k, hr) => {
+      F.weather_code[k] = hr >= 13 && hr <= 15 ? 95 : 1;
+      F.cape[k] = 100;
+      F.precipitation[k] = 0;
+    });
+    const d = model.build(s, { cfg: CFG }).days[1];
+    const z = d.zones[0];
+    const storm = [new Date(+d.d0 + 12 * util.HOUR), new Date(+d.d0 + 16 * util.HOUR)];
+    assert(z.win.length >= 2, 'expected a window either side, got ' + z.win.length);
+    z.win.forEach(w => assert(w.b <= storm[0] || w.a >= storm[1], util.hhmm(w.a) + '–' + util.hhmm(w.b)));
+    // a showery, unstable hour only costs points
+    const t = calm();
+    tomorrowAt(t, (F, M, k, hr) => {
+      F.weather_code[k] = 80;
+      F.cape[k] = hr === 12 ? 2000 : 100;
+      F.precipitation[k] = hr === 12 ? 2 : 0;
+    });
+    assert(model.build(t, { cfg: CFG }).days[1].zones[0].win.length === 1, 'unstable hour broke the window');
+  });
+
+  await it('ensemble runs give no window through a thunderstorm either', () => {
+    const s = calm();
+    tomorrowAt(s, (F, M, k) => (F.weather_code[k] = 95));
+    const times = s.fc[0].hourly.time;
+    s.ensemble = {
+      times: times.map(util.localDate),
+      members: data.parseEnsemble(ensembleHourly(times, 6, 'suffixed'))
+    };
+    const b = model.build(s, { cfg: CFG });
+    assert(b.days[1].prob === 0 && b.days[2].prob === 100, b.days[1].prob + ' / ' + b.days[2].prob);
+  });
+
+  await it('an hour with no gust figure is outside the limits (two blank hours made a window on a 14 kn day)', () => {
+    const s = fixture({ wind: 8, gust: 14, swell: 0.4, period: 9, dir: 250 });
+    tomorrowAt(s, (F, M, k, hr) => {
+      if (hr === 9 || hr === 10) F.wind_gusts_10m[k] = null;
+      else F.wind_gusts_10m[k] = 14;
+    });
+    const d = model.build(s, { cfg: CFG }).days[1];
+    d.zones.forEach(z => assert(!z.win.length && z.goodHrs === 0, z.z.id + ' ' + z.goodHrs + ' h'));
+    // a blank wind figure too
+    const t = calm();
+    tomorrowAt(t, (F, M, k, hr) => hr % 2 === 0 && (F.wind_speed_10m[k] = null));
+    assert(
+      model.build(t, { cfg: CFG }).days[1].zones.every(z => !z.win.length),
+      'blank wind passed'
+    );
+  });
+
+  await it('a place left out of the forecast is all gaps, not a copy of Baffle Creek', () => {
+    const s = calm();
+    const miara = ZONES.find(z => z.id === 'miara');
+    s.fc[miara.ptOut[0]] = undefined;
+    const d = model.build(s, { cfg: CFG }).days[1];
+    const z = d.zones.find(x => x.z.id === 'miara');
+    assert(z.goodHrs === 0 && !z.win.length, 'miara passed ' + z.goodHrs + ' h on borrowed wind');
+    assert(d.zones.find(x => x.z.id === 'burnett').win.length, 'other ramps unaffected');
+  });
 
   await it('bay points borrow waves from the nearest point, not the first in the list', () => {
     const s = data.sampleData();
@@ -849,7 +991,7 @@ await describe('model', async () => {
     assert(+z.win[z.win.length - 1].b === +days[1].to, 'a calm evening runs right up to the cut-off');
   });
   await it('a northerly costs a few points at most, and never changes go / no-go', () => {
-    const h = { swellEff: 0.4, wind: 10, gust: 12, wdir: 0, against: 0, storm: 0 };
+    const h = { swellEff: 0.4, swellChk: 0.4, wind: 10, gust: 12, wdir: 0, against: 0, storm: 0 };
     const p = w => model.softPenalties({ ...h, wdir: w }, CFG).north;
     near(p(0), config.TUNING.northerly, 0.01, 'straight from the north');
     near(p(90), 0, 0.01, 'easterly');
@@ -1072,11 +1214,12 @@ await describe('alerts', async () => {
     assert(/if \(!canAlert\(raw\)\) return \{ checked: false \}/.test(read('sw.js')), 'background check');
     assert(/!demo && canAlert\(raw\)\) await checkGoDays\(\)/.test(read('app.js')), 'page check');
   });
-  const day = (ds, overall) => ({
+  const win = [{ a: new Date(2026, 9, 14, 6), b: new Date(2026, 9, 14, 10) }];
+  const day = (ds, overall, w = win) => ({
     ds,
     overall,
     past: false,
-    zones: [{ z: { name: 'Elliott Heads' }, win: [] }]
+    zones: [{ z: { name: 'Elliott Heads' }, win: w }]
   });
   await it('a go day for alerts is one the app calls Go: 75 or more, not 70', () =>
     assert(
@@ -1084,6 +1227,13 @@ await describe('alerts', async () => {
         .goDays([day('a', 70), day('b', 74), day('c', 75), day('d', 88)])
         .map(d => d.ds)
         .join() === 'c,d'
+    ));
+  await it('a go-day alert always has a launch window to name', () =>
+    assert(
+      al
+        .goDays([day('a', 90, []), day('b', 90)])
+        .map(d => d.ds + d.from)
+        .join() === 'b06:00'
     ));
   await it('first run records a baseline and alerts nothing', () =>
     assert(al.newlyGo(null, [{ ds: 'x' }]).length === 0));
@@ -1473,6 +1623,63 @@ await describe('ui', async () => {
       'no banner'
     );
     assert(html.includes('Do not launch on it'));
+  });
+  await it('the bar card is marked indicative and links the MSQ tables, not prescriptive timing', () => {
+    state.sel = 0;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.zsel = 'elliott';
+    const d = state.days[0];
+    const z = d.zones.find(x => x.z.id === 'elliott');
+    const keep = z.barWin;
+    z.barWin = [{ a: new Date(+d.d0 + 8 * util.HOUR), b: new Date(+d.d0 + 10 * util.HOUR), max: 3 }];
+    ui.render();
+    const html = nodes.app.innerHTML;
+    z.barWin = keep;
+    const card = html.slice(html.indexOf('Bar · '), html.indexOf('Bar · ') + 1200);
+    assert(html.includes('Bar · '), 'no bar card');
+    assert(/Indicative only/.test(card) && /msq\.qld\.gov\.au\/Tides/.test(card), 'not marked or linked');
+    assert(!/Cross before it starts/.test(html), 'still tells you when to cross');
+  });
+  await it('the top card shows the swell figure the limit is checked against when it differs', () => {
+    const keep = state.raw;
+    state.raw = fixture({ wind: 6, gust: 8, swell: 0.5, period: 5, dir: 250 });
+    ui.rebuild();
+    state.sel = 0;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const steep = nodes.app.innerHTML;
+    state.raw = keep;
+    ui.rebuild();
+    ui.render();
+    assert(/<dt>Counts as<\/dt><dd class="num">0\.[67] m/.test(steep), 'no Counts as for 0.5 m at 5 s');
+    state.raw = fixture({ wind: 6, gust: 8, swell: 0.5, period: 12, dir: 250 });
+    ui.rebuild();
+    ui.render();
+    const lazy = nodes.app.innerHTML;
+    state.raw = keep;
+    ui.rebuild();
+    ui.render();
+    assert(!lazy.includes('<dt>Counts as</dt>'), 'long-period swell counts as its own height: no extra line');
+  });
+  await it('a ramp with hours missing their gust figure is not tagged ok for gusts', () => {
+    const keep = state.raw;
+    state.raw = calm();
+    state.raw.fc.forEach(p => (p.hourly.wind_gusts_10m = p.hourly.wind_gusts_10m.map(() => null)));
+    state.raw.fc[0].hourly.wind_gusts_10m[0] = 8; // not missing everywhere, just everywhere that matters
+    ui.rebuild();
+    state.sel = 0;
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    state.raw = keep;
+    ui.rebuild();
+    assert(
+      !/tag ok">gusts/.test(html) && /tag bad">gusts/.test(html),
+      'gusts tagged ok with no gust figures'
+    );
   });
   await it('each ramp links to its own BOM zone', () => {
     state.sel = 0;

@@ -11,7 +11,7 @@
  * moving a sample point changes the forecast as surely as changing a weight.
  */
 
-export const APP_VERSION = '6.1.2';
+export const APP_VERSION = '6.2.0';
 export const TZ = 'Australia/Brisbane';
 
 /** The user's go / no-go limits. Swell is swell height, as BOM reports it. */
@@ -66,6 +66,7 @@ export const TUNING = Object.freeze({
   capLowAgreement: 74,
   capLowProbability: 62,
   lowProbability: 35,
+  capNoWindow: 74, // no launch window at the best ramp: never a Go
 
   // agreement thresholds between independent models
   agreeHighWind: 3,

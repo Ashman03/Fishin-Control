@@ -33,6 +33,7 @@ import {
   waveCheckUrl,
   ensembleUrl,
   fieldGaps,
+  fieldHoles,
   hasSunTimes,
   parseEnsemble,
   FORECAST_VARS,
@@ -103,7 +104,7 @@ export async function checkOpenMeteo({ now = Date.now(), wait } = {}) {
       check(sets) {
         if (sets.length !== POINTS.length)
           return [`answered for ${sets.length} places, the app asks for ${POINTS.length}`];
-        const gaps = fieldGaps(sets, FORECAST_VARS);
+        const gaps = [...fieldGaps(sets, FORECAST_VARS), ...fieldHoles(sets)];
         if (!hasSunTimes(sets)) gaps.push('sunrise times missing');
         const ahead = hoursAhead(sets, 'wind_speed_10m', now);
         if (ahead < MIN_HOURS_AHEAD) gaps.push(`wind only reaches ${ahead} hours ahead`);

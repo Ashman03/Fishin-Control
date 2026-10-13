@@ -1,5 +1,35 @@
 # Changelog
 
+## 6.2.0
+
+Safety fixes from the independent audit of 13 October. A GO now always means there is a
+real launch window. These change scores only on the days they are about: across 2,800
+generated test days, 2,521 scored byte-for-byte the same as 6.1.2, and every one that
+changed had no window at its best ramp, a thunderstorm forecast, long-period swell over
+the limit, or ramps re-ordered so one with a window ranks first.
+
+- **No GO without a launch window.** A day could score Go when its passing hours were
+  scattered (gusts flicking either side of 12 kn scored 89 with no 2-hour window, and
+  sent a go-day alert with no times). Now a ramp with no window scores 74 at most, the
+  day says "Capped: no 2-hour window inside your limits", a ramp you can launch from
+  always ranks above one you can't, and a go-day alert always names its window.
+- **A thunderstorm ends a launch window.** A window used to run straight through a
+  forecast storm. Now the storm hour and the hour before it end the window (the
+  countdown, alerts and ensemble % follow). A showery, unstable hour still only costs
+  points, and the Storms key still reads HOLD.
+- **A missing wind or gust figure is outside your limits.** A blank gust hour read as
+  0 kn, so two blank hours could make a window on a 14 kn day. Now that hour fails, a
+  place missing from the forecast is no longer filled in from Baffle Creek, and any
+  blank shows the "forecast incomplete" warning (which also stops go-day alerts). A
+  missing swell figure still reads as 0 m, as chosen earlier.
+- **Long-period swell over 0.7 m is a no go.** Swell weighting for period could let up to
+  0.80 m of long, lazy swell pass a 0.7 m limit. It now never counts as less than its
+  forecast height; short, steep swell still counts as more. When the figure checked
+  against your limit differs from the forecast, the top card shows it ("Counts as").
+- **The bar card is marked indicative.** It says the risk comes from one tide curve off
+  Burnett Heads, links the MSQ tide tables, and no longer tells you when to cross.
+- Tests: 237.
+
 ## 6.1.2
 
 - **The top card is a summary.** The Ensemble row (the share of forecast runs that give
