@@ -216,7 +216,8 @@ export function sessions(day, zone, marks, river = null) {
 
   return picked.map(c => {
     const [title, base] = (riverDay ? RIVER_COPY : COPY)[c.kind];
-    let how = outsideIsOut ? 'Outside is out today, so fish the system instead. ' + base : base;
+    // "Outside is out" is said once, above the sessions (the `outside` flag), not in every one
+    let how = base;
     if (c.solunar)
       how +=
         ' The moon is overhead or underfoot inside this window — if you only get one session, take this one.';
@@ -233,7 +234,8 @@ export function sessions(day, zone, marks, river = null) {
       bar,
       kind: c.kind,
       tide: tidePhaseAt(new Date((+c.a + +c.b) / 2), day.tides),
-      marks: riverDay ? [] : marksFor(marks, zone.z.id, c.kind, swell)
+      marks: riverDay ? [] : marksFor(marks, zone.z.id, c.kind, swell),
+      outside: outsideIsOut
     };
   });
 }

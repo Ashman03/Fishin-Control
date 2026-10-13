@@ -1716,7 +1716,10 @@ await describe('ui', async () => {
     state.view = 'ocean';
     ui.render();
     const html = nodes.app.innerHTML;
-    const annun = html.slice(html.indexOf('<div class="annun">'), html.indexOf('class="pills"'));
+    const annun = html.slice(
+      html.indexOf('<div class="annun">'),
+      html.indexOf('</section>', html.indexOf('class="annun"'))
+    );
     assert(annun.length > 0 && html.includes('<div class="annun">'), 'no bezel');
     assert(
       (annun.match(/class="screw (tl|tr|bl|br)" aria-hidden="true"/g) || []).length === 4,
@@ -1724,10 +1727,6 @@ await describe('ui', async () => {
     );
     assert(/<h2 class="sect">Caution and advisory panel/.test(annun), 'heading inside the bezel');
     assert((annun.match(/class="adv-row"/g) || []).length === 8, 'eight keys inside the bezel');
-    // the rivers list stays a list, without the bezel
-    state.view = 'river';
-    ui.render();
-    assert(!nodes.app.innerHTML.includes('class="annun"'), 'river panel in a bezel');
     state.view = 'ocean';
   });
   await it('each key reads call, then station large, then figure', async () => {
@@ -1747,10 +1746,13 @@ await describe('ui', async () => {
     const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
     const areas = [...css.matchAll(/\.deck\.ocean \{[^}]*grid-template-areas: ([^;]+);/g)].map(m => m[1]);
     assert(
-      areas.includes("'a b' 'p p' 'c c' 'g g' 'f f'"),
-      'mid width: panel under score and chart, then sites'
+      areas.includes("'a b' 't t' 'p p' 'c c' 'g g' 'f f'"),
+      'mid width: countdown and panel under score and chart, then sites'
     );
-    assert(areas.includes("'a b c' 'p p c' 'g g g' 'f f f'"), 'wide: sites run down beside the panel');
+    assert(
+      areas.includes("'a b c' 't t c' 'p p c' 'g g g' 'f f f'"),
+      'wide: sites run down beside the countdown and panel'
+    );
     ['col-a', 'col-b', 'advsec', 'col-c', 'grid'].forEach(c =>
       assert(css.includes(`.deck.ocean > .${c} {`), c)
     );
@@ -1758,6 +1760,217 @@ await describe('ui', async () => {
     state.view = 'ocean';
     ui.render();
     assert(nodes.app.innerHTML.includes('<div class="deck ocean">'), 'ocean deck marked');
+  });
+  /* ── design critique fixes (13 Oct 2026) ── */
+  const readCss = async () =>
+    (await import('fs')).readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const wideCss = css => css.slice(css.indexOf('@media (min-width: 900px)'));
+  await it('critique 1: on a wide screen the cards under the panel pair up instead of leaving gaps', async () => {
+    const css = await readCss();
+    const wide = wideCss(css);
+    assert(!/\.deck > \.grid \{[^}]*\n\s*columns:/.test(wide), 'still flows down newspaper columns');
+    assert(
+      /\.deck\.ocean > \.grid \{\s*grid-template-areas: 'cond tide' 'plan biting' 'checks checks';/.test(
+        wide
+      ),
+      'ocean pairs'
+    );
+    assert(
+      /\.deck\.river > \.grid \{\s*grid-template-areas: 'tide plan' 'biting biting';/.test(wide),
+      'river pairs'
+    );
+    assert(
+      /grid-template-areas: 'plan checks' 'biting biting';/.test(wide),
+      'ocean at 1180: plan beside checks, fish under both'
+    );
+    assert(/\.grid section > \.panel \{\s*flex: 1;/.test(wide), 'paired cards do not end level');
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const stack = html.slice(html.indexOf('class="gstack"'), html.indexOf('class="gmain"'));
+    assert(stack.includes('class="cond"') && stack.includes('class="tide"'), 'conditions and tide stack');
+    const main = html.slice(html.indexOf('class="gmain"'));
+    ['class="plan"', 'class="biting"', 'class="checks"'].forEach(c => assert(main.includes(c), c));
+    // on a phone the groups are not boxes, so the order there is unchanged
+    assert(
+      /\.gstack,\s*\.gmain \{\s*display: contents;/.test(
+        css.slice(0, css.indexOf('@media (min-width: 900px)'))
+      )
+    );
+  });
+  await it('critique 2: the daily score shows the launch and bite figures it is made from', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    state.days.forEach((d, i) => {
+      state.sel = i;
+      ui.render();
+      const html = nodes.app.innerHTML;
+      const m = html.match(
+        /<span class="parts"><span>Launch <b[^>]*>(\d+)<\/b><\/span><span>Bite <b[^>]*>(\d+)<\/b>/
+      );
+      assert(m, i + ': no parts under the score');
+      assert(+m[1] === d.zones[0].score && +m[2] === d.bite, i + ': ' + m[1] + '/' + m[2]);
+    });
+    state.sel = 0;
+  });
+  await it('critique 3: the best ramp figures sit in the hero, and the loose pills are gone', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const hero = html.slice(html.indexOf('class="panel hero"'), html.indexOf('class="panel week"'));
+    const ro = hero.match(/<dl class="readout">([\s\S]*?)<\/dl>/);
+    assert(ro, 'no readout in the hero');
+    ['Best ramp', 'Swell', 'Wind', 'Gusts', 'Close in', 'At 20 km'].forEach(k =>
+      assert(ro[1].includes(`<dt>${k}</dt>`), k)
+    );
+    assert(!/class="pills?\b/.test(html), 'pills still drawn');
+  });
+  await it('critique 4: colours agree with their words (wind tag, best ramp, river day)', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    const i = state.days.findIndex(d => d.zones.some(z => z.windMax > state.cfg.maxWind));
+    assert(i >= 0, 'sample week has no windy day');
+    state.sel = i;
+    ui.render();
+    let html = nodes.app.innerHTML;
+    assert(/class="tag bad">[\d–]+ kn /.test(html), 'wind over the limit is not red');
+    assert(!/class="tag mid">[\d–]+ kn /.test(html), 'wind over the limit is still amber');
+    const d = state.days[0],
+      saved = [d.overall, d.zones[0].score];
+    d.overall = 20;
+    d.zones[0].score = 10;
+    state.sel = 0;
+    ui.render();
+    html = nodes.app.innerHTML;
+    assert(
+      /<span class="pre">Ocean · No go<\/span>/.test(html),
+      'River day does not say the red is the ocean'
+    );
+    assert(/<dt>Best ramp<\/dt><dd>/.test(html), 'a no-go best ramp is coloured');
+    d.overall = 90;
+    d.zones[0].score = 90;
+    ui.render();
+    html = nodes.app.innerHTML;
+    assert(!html.includes('class="pre"'), 'Ocean · No go on a go day');
+    assert(/<dt>Best ramp<\/dt><dd class="g">/.test(html), 'a go best ramp is not green');
+    [d.overall, d.zones[0].score] = saved;
+  });
+  await it('critique 5: amber is HOLD on the map legend and the loading screen', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const legend = nodes.app.innerHTML.match(/<div class="legend">([\s\S]*?)<\/div>/)[1];
+    assert(legend.includes('Hold') && !legend.includes('Marginal'), legend);
+    const st = (...ok) => ok.map(o => ({ ok: o }));
+    assert(ui.feedsLine({ status: st(true, false) }, false)[1] === 'Hold', 'partial');
+    const saved = ui.feedsLine({ status: st(true, true), cached: true }, false);
+    assert(saved[1] === 'Hold' && /saved copy/.test(saved[2]), saved.join());
+  });
+  await it('critique 6: the rivers panel is an annunciator too, short figures on the keys, the full reading read out', async () => {
+    state.tab = 'plan';
+    state.view = 'river';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const annun = html.slice(
+      html.indexOf('<div class="annun">'),
+      html.indexOf('</section>', html.indexOf('class="annun"'))
+    );
+    assert(html.includes('<div class="annun">'), 'no bezel on the rivers page');
+    assert((annun.match(/class="adv-row"/g) || []).length === 7, 'seven keys');
+    const turns = annun.match(
+      /<span class="adv-k">Turns<\/span><span class="adv-v num"([^>]*)>([^<]+)<\/span>(<span class="vh">([^<]+)<\/span>)?/
+    );
+    assert(turns && turns[2].length <= 12, 'turns key: ' + (turns && turns[2]));
+    if (!/none/.test(turns[2]))
+      assert(
+        /aria-hidden/.test(turns[1]) && /(high|low) \d\d:\d\d/.test(turns[4]),
+        'turn times not read out'
+      );
+    const css = await readCss();
+    assert(
+      /\.adv\.tiles \.adv-row:last-child:nth-child\(4n \+ 3\) \{\s*grid-column: span 2;/.test(css),
+      'hole after the seventh key'
+    );
+    assert(!/\.adv\.rows/.test(css), 'old row layout left behind');
+    state.view = 'ocean';
+  });
+  await it('critique 7: the conditions chart has its own storm marking and both scales', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    const i = state.days.findIndex(d => d.zones[0].hours.some(h => h.stormNow > 0));
+    assert(i >= 0, 'sample week has no storm');
+    state.sel = i;
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const svg = html.slice(
+      html.indexOf('aria-label="Swell, wind and gusts'),
+      html.indexOf('</svg>', html.indexOf('aria-label="Swell, wind and gusts'))
+    );
+    assert(/class="storm"[^>]*fill="url\(#stormHatch\)"/.test(svg), 'storms are not hatched');
+    assert(!/fill="var\(--mid\)"[^>]*height="4"/.test(svg), 'storms still an amber tick, like the wind line');
+    assert(/>[\d.]+ m<\/text>/.test(svg) && />\d+ kn<\/text>/.test(svg), 'no scale for swell and wind');
+    assert(/<i class="bx st"><\/i>Storm</.test(html), 'legend');
+    state.sel = 0;
+  });
+  await it('critique 8: "outside is out" is said once, and the extra links fold away', () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    const i = state.days.findIndex(d => !d.zones[0].win.length);
+    assert(i >= 0, 'sample week has no river day');
+    state.sel = i;
+    ui.render();
+    const html = nodes.app.innerHTML;
+    assert((html.match(/Outside is out today/g) || []).length === 1, 'said more than once');
+    const checks = html.slice(html.indexOf('class="checks"'));
+    const shown = checks.slice(0, checks.indexOf('<details data-key="links">'));
+    assert((shown.match(/<a href/g) || []).length === config.TOP_SOURCES, 'links up front');
+    const more = checks.match(/<details data-key="links">([\s\S]*?)<\/details>/)[1];
+    assert(
+      (more.match(/<a href/g) || []).length === config.SOURCES.length - config.TOP_SOURCES,
+      'folded links'
+    );
+    state.sel = 0;
+  });
+  await it('critique 9: thumb-sized links and readable small labels', async () => {
+    const css = await readCss();
+    const px = (sel, prop) =>
+      parseFloat(
+        css.match(new RegExp(sel.replace(/[.()]/g, '\\$&') + ' \\{[^}]*?' + prop + ': ([\\d.]+)px'))[1]
+      );
+    assert(/\.links a,\s*\.links button \{[^}]*min-height: 44px/.test(css), 'links');
+    assert(px('.checks .links a', 'min-height') >= 40, 'pre-launch links');
+    assert(px('summary', 'min-height') >= 44, 'fold rows');
+    assert(px('.tm-unit i', 'font-size') >= 11, 'countdown labels');
+    assert(px('.tag', 'font-size') >= 11, 'ramp tags');
+    assert(/\.tabs button \{[^}]*font-size: 11px/.test(css), 'sections bar labels');
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    assert(
+      /<div class="links">\s*<button data-act="view" data-view="river">River view<\/button>/.test(
+        nodes.app.innerHTML
+      ),
+      'River view is still a small inline link'
+    );
+  });
+  await it('critique 10: the date never splits, the countdown follows the week, the loading screen is centred', async () => {
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    assert(
+      /<span class="kick"><span>Flight director's call<\/span><span>\w{3} \d{1,2} \w{3}<\/span><\/span>/.test(
+        html
+      ),
+      'kicker'
+    );
+    const css = await readCss();
+    assert(/\.kick span \{\s*white-space: nowrap;/.test(css), 'kicker phrases can split');
+    assert(html.indexOf('class="tmsec"') > html.indexOf('class="panel week"'), 'countdown above the week');
+    assert(html.indexOf('class="tmsec"') < html.indexOf('class="advsec"'), 'countdown below the panel');
+    assert(/\.splash-radar \{[^}]*margin-top: auto;/.test(css), 'loading screen not centred');
   });
   await it('the sections bar names all three sections, with the open one marked', () => {
     state.tab = 'log';
