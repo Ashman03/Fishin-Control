@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.3.0
 
 - **Flight log replaces My marks.** A new tab looks back over the last three years of
   conditions on the Wide Bay coast, by day, week, month or year, for the best ramp each
