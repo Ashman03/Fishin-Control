@@ -4,7 +4,7 @@
 
 - **Flight log replaces My marks.** A new tab looks back over the last three years of
   conditions on the Wide Bay coast, by day, week, month or year, for the best ramp each
-  day or any one ramp (picked from a drop-down beside the period):
+  day or any one ramp (picked from a box that opens in place to list the ramps, in the app's own style rather than the phone's pop-up):
   - **Month:** a calendar with each day coloured Go, Hold or No go; the month's own
     colour (its average score, which tints the summary card) and a bar splitting its
     days three ways; a chart of each day's swell, wind and gusts against the limits

@@ -1699,6 +1699,31 @@ export function histStep(view, ds, n, first, last) {
   return to < first ? first : to > last ? last : to;
 }
 
+/**
+ * The ramp picker: a box naming the ramp shown that opens in place to list
+ * the others, and closes once one is picked. Built in the app's own style,
+ * rather than a <select>, which a phone shows as its own pop-up.
+ */
+function rampPicker(rampId, open) {
+  const name = id => (id ? esc((ZONES.find(z => z.id === id) || { name: id }).name) : 'Best ramp each day');
+  return `<div class="hpick ${open ? 'open' : ''}">
+    <button class="hpick-box" data-act="histPick" aria-expanded="${!!open}" aria-controls="hpick-list">
+      <span class="hpick-k">Ramp</span><span class="hpick-v">${name(rampId)}</span><i class="hpick-c" aria-hidden="true"></i>
+    </button>
+    ${
+      open
+        ? `<div class="hpick-list" id="hpick-list" role="group" aria-label="Ramps">${[
+            '',
+            ...ZONES.map(z => z.id)
+          ]
+            .filter(id => id !== (rampId || ''))
+            .map(id => `<button data-act="histRamp" data-z="${id}" data-i="pick">${name(id)}</button>`)
+            .join('')}</div>`
+        : ''
+    }
+  </div>`;
+}
+
 function renderHistory() {
   const h = state.hist;
   if (h.status === 'idle') queueMicrotask(loadHistory);
@@ -1735,10 +1760,7 @@ function renderHistory() {
         <h2 class="num">${esc(p.title)}</h2>
         <button class="ghost" data-act="histStep" data-i="1" ${p.b >= h.last ? 'disabled' : ''} aria-label="Later">›</button>
       </div>
-      <select class="hramp" data-act="histRamp" aria-label="Ramp">
-        <option value="">Best ramp each day</option>
-        ${ZONES.map(z => `<option value="${z.id}" ${rampId === z.id ? 'selected' : ''}>${esc(z.name)}</option>`).join('')}
-      </select>
+      ${rampPicker(rampId, h.pickOpen)}
     </div>
     <div class="hbody hb-${h.view}">${body}</div>
     <p class="sub hnote">Each day is judged by the standard limits (${DEFAULTS.maxSwell} m swell, ${DEFAULTS.maxWind} kn wind,
@@ -2002,10 +2024,20 @@ export const ACTIONS = {
     render();
     scrollTop();
   },
-  /** From a launch site in the Day view, or the ramp picker (a <select>, on change). */
-  histRamp(el) {
-    state.hist.ramp = (el.tagName === 'SELECT' ? el.value : el.dataset.z) || '';
+  /** Open or close the ramp picker. */
+  histPick() {
+    state.hist.pickOpen = !state.hist.pickOpen;
     render();
+  },
+  /** A ramp from the picker or the Day view's launch sites; the picker closes. */
+  histRamp(el) {
+    // from the keyboard, focus goes back to the picker's box once its list closes
+    const keys = el.dataset.i === 'pick' && el.matches && el.matches(':focus-visible');
+    state.hist.ramp = el.dataset.z || '';
+    state.hist.pickOpen = false;
+    render();
+    const box = keys && $('app').querySelector && $('app').querySelector('.hpick-box');
+    if (box) box.focus({ preventScroll: true });
   },
   histRetry() {
     const h = state.hist;
@@ -2017,11 +2049,10 @@ export const ACTIONS = {
 
 export function onAppClick(ev) {
   const el = ev.target.closest && ev.target.closest('[data-act]');
-  // a drop-down acts when its choice changes (onAppChange), not when it is opened
-  if (el && el.tagName !== 'SELECT' && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
-}
-
-export function onAppChange(ev) {
-  const el = ev.target;
-  if (el && el.tagName === 'SELECT' && el.dataset && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
+  // a tap anywhere outside the open ramp picker closes it
+  if (state.hist.pickOpen && !(ev.target.closest && ev.target.closest('.hpick'))) {
+    state.hist.pickOpen = false;
+    if (!el) render();
+  }
+  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, ev);
 }

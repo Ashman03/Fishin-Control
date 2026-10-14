@@ -33,6 +33,7 @@ export const state = {
     view: 'month', // 'day' | 'week' | 'month' | 'year'
     ds: null, // the day the view is built around (YYYY-MM-DD)
     ramp: '', // a ramp id, or '' for the best ramp each day
+    pickOpen: false, // the ramp picker's list is showing
     status: 'idle', // 'idle' | 'loading' | 'ready' | 'error'
     data: null, // readSummary() of summary.json, plus byDs
     error: null,
