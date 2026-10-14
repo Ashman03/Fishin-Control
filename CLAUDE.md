@@ -43,6 +43,8 @@ CI (`.github/workflows/tests.yml`) runs the tests and the Prettier check on ever
 - Changes to `.github/` must go through a PR (the web uploader can't send it).
 - Look and feel: follow README "Look and feel". No outlined text anywhere, and no native pop-up
   menus or dialogs (use in-app dropdowns that open in place).
+- The design skills (Impeccable, UI UX Pro Max) give way to Ashley's choices: see
+  `.claude/skills/README.md`.
 
 ## Branches and releases
 
