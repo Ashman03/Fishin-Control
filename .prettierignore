@@ -3,4 +3,6 @@ dist/
 # Vendored design skills (see .claude/skills/README.md): kept exactly as published.
 .claude/skills/impeccable/
 .claude/skills/ui-ux-pro-max/
+.claude/skills/product-brainstorming/
+.claude/skills/competitive-brief/
 .impeccable/
