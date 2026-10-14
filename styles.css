@@ -1683,10 +1683,75 @@ footer {
   opacity: 0.3;
   cursor: default;
 }
-.hramp {
+/* the ramp picker: a box that opens in place to list the other ramps */
+.hpick {
+  position: relative;
+}
+.hpick-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
   min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line2);
+  background: var(--ink);
+  color: var(--paper);
+  text-align: left;
+}
+.hpick-k {
+  font-family: var(--disp);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.hpick-v {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--disp);
   font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* a chevron that turns when the list is open */
+.hpick-c {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-right: 2px solid var(--sky);
+  border-bottom: 2px solid var(--sky);
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+.hpick.open .hpick-box {
+  border-color: var(--sky);
+  background: rgba(122, 211, 245, 0.14);
+}
+.hpick.open .hpick-c {
+  margin-top: 4px;
+  transform: rotate(-135deg);
+}
+.hpick-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--sky);
+  border-top: 0;
+  background: var(--ink);
+}
+.hpick-list button {
+  min-height: 44px;
+  padding: 0 12px 0 54px;
+  border-top: 1px solid var(--line);
+  font-family: var(--disp);
+  font-size: 14px;
+  color: var(--paper);
+  text-align: left;
+}
+.hpick-list button:hover {
+  background: rgba(122, 211, 245, 0.08);
 }
 .hlink {
   padding: 0;
@@ -1936,6 +2001,14 @@ footer {
   }
   .hnav h2 {
     flex: 0 1 300px;
+  }
+  /* on a wide screen the list opens over the page, so the row above stays put */
+  .hpick-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 5;
   }
   .hbody {
     display: grid;

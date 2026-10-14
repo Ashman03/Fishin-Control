@@ -1990,6 +1990,7 @@ await describe('ui', async () => {
     assert(i >= 0, 'sample week has no windy day');
     state.sel = i;
     ui.render();
+    ui.render();
     let html = nodes.app.innerHTML;
     assert(/class="tag bad">[\d–]+ kn /.test(html), 'wind over the limit is not red');
     assert(!/class="tag mid">[\d–]+ kn /.test(html), 'wind over the limit is still amber');
@@ -3007,25 +3008,56 @@ await describe('flight log', async () => {
     assert(served.includes(history.hoursUrl('2026-09')), 'month of hours fetched');
     assert(/Looking back/.test(html) && /SWELL LIMIT 0.7 M/.test(html), 'hero and chart');
     assert(
-      (html.match(/data-act="histRamp"/g) || []).length === 1 + ZONES.length,
+      /data-act="histPick"/.test(html) && (html.match(/data-act="histRamp"/g) || []).length === ZONES.length,
       'ramp picker and site list'
     );
   });
-  await it('critique: the ramp picker is one drop-down that acts on change, not on the tap that opens it', () => {
-    const pick = (value, ev) => {
-      const el = { tagName: 'SELECT', value, dataset: { act: 'histRamp' } };
-      el.closest = () => el;
-      ui[ev]({ target: el });
+  await it('the ramp picker opens in place to list the other ramps, and closes once one is picked', () => {
+    const tap = (act, z, inPicker = true) => {
+      const el = { dataset: { act, ...(z != null ? { z, i: 'pick' } : {}) } };
+      el.closest = sel => (sel === '[data-act]' || inPicker ? el : null);
+      ui.onAppClick({ target: el });
     };
-    pick('woodgate', 'onAppClick');
-    assert(state.hist.ramp === '', 'opening the drop-down changed the ramp');
-    pick('woodgate', 'onAppChange');
-    assert(state.hist.ramp === 'woodgate', 'choice not taken');
-    assert(/<option value="woodgate" selected>/.test(nodes.app.innerHTML), 'choice not shown');
-    pick('', 'onAppChange');
-    assert(state.hist.ramp === '' && !/class="chips hramps"/.test(nodes.app.innerHTML), 'back to best ramp');
+    ui.render();
+    let html = nodes.app.innerHTML;
+    assert(
+      !/<select/.test(html) && /aria-expanded="false"/.test(html) && !/class="hpick-list"/.test(html),
+      'closed to start'
+    );
+    tap('histPick');
+    html = nodes.app.innerHTML;
+    assert(state.hist.pickOpen && /aria-expanded="true"/.test(html), 'did not open');
+    const list = html.match(/<div class="hpick-list"[\s\S]*?<\/div>/)[0];
+    assert((list.match(/<button/g) || []).length === ZONES.length, 'the other ramps: ' + list);
+    assert(
+      !/Best ramp each day/.test(list) && ZONES.every(z => list.includes(z.name)),
+      'every ramp offered, not the one shown'
+    );
+    tap('histRamp', 'woodgate');
+    html = nodes.app.innerHTML;
+    assert(state.hist.ramp === 'woodgate' && !state.hist.pickOpen, 'picked and closed');
+    assert(
+      /class="hpick-v">Walkers Point \/ Woodgate</.test(html) && !/class="hpick-list"/.test(html),
+      'box names the ramp'
+    );
+    tap('histPick');
+    assert(
+      !/data-z="woodgate" data-i="pick"/.test(nodes.app.innerHTML),
+      'the ramp shown is not offered again'
+    );
+    // a tap anywhere else closes it without changing the ramp
+    const outside = { dataset: {} };
+    outside.closest = () => null;
+    ui.onAppClick({ target: outside });
+    assert(!state.hist.pickOpen && state.hist.ramp === 'woodgate', 'tap outside');
+    tap('histPick');
+    tap('histRamp', '');
+    assert(
+      state.hist.ramp === '' && /class="hpick-v">Best ramp each day</.test(nodes.app.innerHTML),
+      'back to best'
+    );
     const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-    assert(/addEventListener\('change', onAppChange\)/.test(app), 'change not wired up');
+    assert(!/onAppChange|'change'/.test(app), 'the old drop-down wiring is still there');
   });
   await it('critique: amber is called Hold throughout the Flight log, as on the caution panel', () => {
     for (const view of ['week', 'month', 'year']) {
