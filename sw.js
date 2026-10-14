@@ -5,8 +5,8 @@
  * none. Images and fonts are cache-first; they never change without a version
  * bump, which replaces the whole app cache.
  *
- * Forecast responses are network-first and never served from cache while the
- * service answers properly. Each good response is stored with the time it was
+ * Forecast responses, and the Flight log's history files (on GitHub), are
+ * network-first and never served from cache while the service answers properly. Each good response is stored with the time it was
  * saved; when the network fails, or the service refuses (busy, rate-limited,
  * down), the stored copy is returned marked x-fc-cached: 1 with the reason,
  * and the app shows a "Saved forecast — not live" warning instead of
@@ -23,6 +23,7 @@
  */
 import { getData } from './data.js';
 import { build } from './model.js';
+import { HISTORY_BASE } from './history.js';
 import {
   goDays,
   newlyGo,
@@ -34,7 +35,7 @@ import {
   STATE_CACHE
 } from './alerts.js';
 
-const VERSION = 'v6.2.1';
+const VERSION = 'v6.3.0';
 const SHELL = 'fishin-shell-' + VERSION;
 const DATA = 'fishin-data';
 
@@ -55,10 +56,10 @@ const APP_FILES = [
   './closures.js',
   './model.js',
   './advice.js',
+  './history.js',
   './ui.js',
   './map.js',
   './art.js',
-  './importer.js',
   './font-outfit.woff2',
   './font-space-grotesk.woff2',
   './logo-128.webp',
@@ -185,7 +186,8 @@ async function cacheFirst(e) {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  if (url.hostname.endsWith('open-meteo.com')) return e.respondWith(forecast(e));
+  if (url.hostname.endsWith('open-meteo.com') || url.href.startsWith(HISTORY_BASE))
+    return e.respondWith(forecast(e));
   if (url.origin !== self.location.origin) return;
   e.respondWith(CACHE_FIRST.test(url.pathname) ? cacheFirst(e) : networkFirst(e));
 });

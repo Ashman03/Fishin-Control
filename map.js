@@ -163,12 +163,8 @@ const DEFS = `<defs>
 /**
  * @param day     a built day
  * @param selId   the selected ramp
- * @param marks   the user's marks; those with a position for the selected
- *                ramp are drawn as ringed dots, unlike the plain forecast
- *                sample points (they never leave the phone)
- * @param infoId  the mark whose details are showing, drawn larger
  */
-export function mapSVG(day, selId, marks = [], infoId = null) {
+export function mapSVG(day, selId) {
   const sel = day.zones.find(z => z.z.id === selId) || day.zones[0];
   const zc = sel.z;
   const cx = mx(zc.mlon),
@@ -198,20 +194,6 @@ export function mapSVG(day, selId, marks = [], infoId = null) {
   const samples = zc.pts
     .slice(1)
     .map(i => `<circle cx="${f1(mx(POINTS[i].lon))}" cy="${f1(my(POINTS[i].lat))}" r="3" fill="#bde9fb"/>`)
-    .join('');
-
-  const dots = marks
-    .filter(m => m.ramp === zc.id && m.lat != null && m.lon != null)
-    .map(m => {
-      const x = f1(mx(m.lon)),
-        y = f1(my(m.lat)),
-        on = m.id === infoId;
-      return `<g class="mk-dot" data-act="markInfo" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc(m.name)}">
-      <circle cx="${x}" cy="${y}" r="20" fill="transparent"/>
-      <circle cx="${x}" cy="${y}" r="${on ? 6 : 4.6}" fill="${on ? '#eaf4fb' : '#061420'}" stroke="#eaf4fb" stroke-width="2"/>
-      <circle cx="${x}" cy="${y}" r="1.6" fill="${on ? '#061420' : '#eaf4fb'}"/>
-    </g>`;
-    })
     .join('');
 
   const pins = day.zones
@@ -244,7 +226,7 @@ export function mapSVG(day, selId, marks = [], infoId = null) {
     .join('');
 
   // role="group", not "img": an image hides its contents from screen readers,
-  // and the ramp markers and marks inside are buttons
+  // and the ramp markers inside are buttons
   return `<svg class="chart-map" viewBox="0 0 ${MAPW} ${MAPH}" role="group" aria-label="Go / no-go by launch point">
     ${DEFS}
     <g clip-path="url(#mFrame)">
@@ -260,7 +242,6 @@ export function mapSVG(day, selId, marks = [], infoId = null) {
       ${TOWNS}
       ${samples}${ringLabels}
       ${COMPASS}
-      ${dots}
       ${pins}
     </g>
     ${CORNERS}

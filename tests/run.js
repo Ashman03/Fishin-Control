@@ -1071,21 +1071,9 @@ await describe('advice', async () => {
     const h = advice.logHint([3, 3, 3, 3, 3, 3].map(entry), zone, moon);
     assert(h && h.delta > 0 && h.delta <= config.TUNING.logNudgeMax);
   });
-  await it('marksFor favours closer ground when it is lumpy', () => {
-    const m = advice.marksFor(
-      [
-        { ramp: 'burnett', name: 'far', km: 18, type: 'reef' },
-        { ramp: 'burnett', name: 'near', km: 6, type: 'rubble' }
-      ],
-      'burnett',
-      'low',
-      0.9
-    );
-    assert(m[0].name === 'near');
-  });
   await it('sessions never overlap', () => {
     const b = model.build(calm(), { cfg: CFG });
-    const ss = advice.sessions(b.days[0], b.days[0].zones[0], []);
+    const ss = advice.sessions(b.days[0], b.days[0].zones[0]);
     ss.forEach((a, i) => ss.slice(i + 1).forEach(c => assert(!(a.a < c.b && c.a < a.b), 'overlap')));
   });
 });
@@ -1347,108 +1335,6 @@ await describe('art', async () => {
   });
 });
 
-/* ── importer ───────────────────────────────────────────────────────────── */
-
-await describe('importer', async () => {
-  const imp_ = await imp('importer');
-  // Humminbird's encoding, as GPSBabel writes it, to build test files
-  const EQ = 6378388.0,
-    COS2 = 0.9966349016452 ** 2;
-  const enc = (lat, lon) => {
-    const gc = Math.atan(COS2 * Math.tan((lat * Math.PI) / 180));
-    return {
-      east: Math.round((lon / 180) * 20038297.0),
-      north: Math.round(Math.log(Math.tan(Math.PI / 4 + gc / 2)) * EQ)
-    };
-  };
-  function hwr(points, { route = false, status = 1 } = {}) {
-    const recs = points.length * 36 + (route ? 136 : 0) + 64; // trailing zero padding, as on the card
-    const v = new DataView(new ArrayBuffer(recs));
-    let o = 0;
-    points.forEach(([name, lat, lon, depthCm], i) => {
-      v.setUint32(o, 0x02030024);
-      const { east, north } = enc(lat, lon);
-      v.setUint16(o + 4, i);
-      v.setUint8(o + 8, status);
-      v.setUint16(o + 10, depthCm || 0);
-      v.setInt32(o + 16, east);
-      v.setInt32(o + 20, north);
-      [...name].slice(0, 12).forEach((c, k) => v.setUint8(o + 24 + k, c.charCodeAt(0)));
-      o += 36;
-      if (route && i === 0) {
-        v.setUint32(o, 0x03030088);
-        o += 136;
-      }
-    });
-    return v.buffer;
-  }
-  const MARKS = [
-    ['Four Mile', -24.718, 152.505, 1500],
-    ['Barge wreck', -24.93, 152.56, 1200],
-    ['Lake Monduran', -24.87, 151.85, 0] // inland, 30 km away: left out
-  ];
-
-  await it('reads a Humminbird DATA.HWR: names, positions to a metre, depth', () => {
-    const w = imp_.parseHWR(hwr(MARKS, { route: true }));
-    assert(w.length === 3, 'got ' + w.length);
-    near(w[0].lat, -24.718, 1e-5, 'lat');
-    near(w[0].lon, 152.505, 1e-5, 'lon');
-    assert(w[0].name === 'Four Mile' && w[0].depth === 15, JSON.stringify(w[0]));
-    assert(w[1].name === 'Barge wreck', 'name');
-  });
-  await it('skips unused waypoint slots and refuses a file that is not one', () => {
-    assert(imp_.parseHWR(hwr(MARKS, { status: 0 })).length === 0, 'status 0 slots are empty');
-    let threw = false;
-    try {
-      imp_.parseHWR(new TextEncoder().encode('<gpx></gpx>').buffer);
-    } catch (e) {
-      threw = /not a Humminbird/.test(e.message);
-    }
-    assert(threw);
-  });
-  await it('reads GPX waypoints, including escaped names and depth', () => {
-    const gpx = `<?xml version="1.0"?><gpx><wpt lat="-24.80" lon="152.47"><name><![CDATA[Bargara bommie]]></name>
-      <extensions><h:depth>9.5</h:depth></extensions></wpt><wpt lon='152.5' lat='-24.9'><name>Pete &amp; Al's</name></wpt></gpx>`;
-    const w = imp_.parseGPX(gpx);
-    assert(
-      w.length === 2 && w[0].name === 'Bargara bommie' && w[0].depth === 9.5 && w[1].name === "Pete & Al's",
-      JSON.stringify(w)
-    );
-  });
-  await it('each mark goes to its nearest ramp, with its real distance; far-off and repeat marks are left out', () => {
-    const pts = imp_.parseHWR(hwr(MARKS));
-    const { marks, outside } = imp_.toMarks(pts, []);
-    assert(outside === 1 && marks.length === 2, JSON.stringify({ outside, n: marks.length }));
-    const [a, b] = marks;
-    assert(a.ramp === 'burnett' && b.ramp === 'elliott', a.ramp + ' ' + b.ramp);
-    near(a.km, imp_.kmBetween(-24.76, 152.41, -24.718, 152.505), 0.1, 'distance');
-    assert(b.type === 'wreck' && a.type === 'reef', 'types');
-    assert(imp_.toMarks(pts, marks).repeats === 2, 'importing twice adds nothing');
-  });
-  await it('the nearest mark is found within 2 km, and only marks with a position count', () => {
-    const marks = [
-      { name: 'A', lat: -24.7, lon: 152.5 },
-      { name: 'B', lat: -24.71, lon: 152.5 },
-      { name: 'Hand', km: 3 }
-    ];
-    assert(imp_.nearestMark(-24.709, 152.5, marks).name === 'B');
-    assert(imp_.nearestMark(-24.9, 152.9, marks) === null, 'nothing within 2 km');
-  });
-  await it('a blank or damaged position is dropped, never read as 0°, 0°', () => {
-    const m = store.cleanMark({ id: 'x', name: 'n', ramp: 'burnett', km: 3, lat: '', lon: '' }, 0);
-    assert(!('lat' in m) && !('lon' in m), JSON.stringify(m));
-    const half = store.cleanMark({ id: 'x', name: 'n', ramp: 'burnett', km: 3, lat: -24.7, lon: 'x' }, 0);
-    assert(!('lat' in half), 'half a position is no position');
-  });
-  await it('imported marks keep their position through storage', () => {
-    const { marks } = imp_.toMarks(imp_.parseHWR(hwr(MARKS)), []);
-    const back = store.cleanMark(JSON.parse(JSON.stringify(marks[0])), 0);
-    assert(back.lat === marks[0].lat && back.lon === marks[0].lon && back.imported, JSON.stringify(back));
-    const hand = store.cleanMark({ id: 'x', name: 'n', ramp: 'burnett', km: 3 }, 0);
-    assert(!('lat' in hand), 'a hand-entered mark has no position');
-  });
-});
-
 /* ── store ──────────────────────────────────────────────────────────────── */
 
 await describe('store', async () => {
@@ -1475,27 +1361,20 @@ await describe('store', async () => {
     store.loadStored();
     assert(store.state.log.length === 1);
   });
-  await it('stored marks and log entries come back as clean values, never markup', () => {
+  await it('stored log entries come back as clean values, never markup', () => {
     const mem = {
-      'fishin-marks': JSON.stringify({
-        v: 1,
-        data: [
-          { id: 'a', name: 'Lump', ramp: 'burnett', km: '<img src=x onerror=alert(1)>', depth: 9, type: 'x' }
-        ]
-      }),
       'fishin-log': JSON.stringify({
         v: 1,
         data: [
-          { id: 'b', date: '2026-09-01', ramp: 'burnett', rating: 99, wind: 'lots' },
+          { id: 'b', date: '2026-09-01', ramp: 'burnett', rating: 99, wind: 'lots', mark: 'Four Mile' },
           { id: 'c', date: '<script>', ramp: 'burnett', rating: 1 }
         ]
       })
     };
-    globalThis.localStorage = { getItem: k => mem[k] ?? null, setItem() {} };
+    globalThis.localStorage = { getItem: k => mem[k] ?? null, setItem() {}, removeItem() {} };
     store.loadStored();
-    const [m] = store.state.marks;
-    assert(m.km === 0 && m.depth === 9 && m.type === 'reef', JSON.stringify(m));
     assert(store.state.log.length === 1, 'entry with a bad date kept');
+    assert(!('mark' in store.state.log[0]), 'a retired mark name is dropped from an old entry');
     const [e] = store.state.log;
     assert(e.rating === 3 && e.wind === null, JSON.stringify(e));
   });
@@ -1505,7 +1384,7 @@ await describe('store', async () => {
     console.warn = () => {};
     store.loadStored();
     console.warn = warn;
-    assert(Array.isArray(store.state.log) && store.state.marks.length > 0);
+    assert(Array.isArray(store.state.log) && store.state.log.length === 0);
   });
 });
 
@@ -1523,7 +1402,7 @@ await describe('ui', async () => {
   store.loadStored();
   ui.rebuild();
 
-  for (const tab of ['plan', 'marks', 'log']) {
+  for (const tab of ['plan', 'log']) {
     await it(`${tab} tab renders with no undefined or NaN`, () => {
       state.tab = tab;
       ui.render();
@@ -1737,14 +1616,6 @@ await describe('ui', async () => {
       past: state.past
     });
     assert(e.wind === null && e.swell === null && e.tide === 'unknown' && e.moon);
-  });
-  await it('a hostile mark name is escaped everywhere it appears', () => {
-    state.marks = [
-      { id: 'x"y', name: '<img src=x onerror=alert(1)>"', ramp: 'burnett', km: 5, depth: 9, type: 'reef' }
-    ];
-    state.tab = 'marks';
-    ui.render();
-    assert(!nodes.app.innerHTML.includes('<img') && nodes.app.innerHTML.includes('&lt;img'));
   });
   await it('the caution and advisory panel has eight stations', () => {
     state.tab = 'plan';
@@ -2119,6 +1990,7 @@ await describe('ui', async () => {
     assert(i >= 0, 'sample week has no windy day');
     state.sel = i;
     ui.render();
+    ui.render();
     let html = nodes.app.innerHTML;
     assert(/class="tag bad">[\d–]+ kn /.test(html), 'wind over the limit is not red');
     assert(!/class="tag mid">[\d–]+ kn /.test(html), 'wind over the limit is still amber');
@@ -2261,7 +2133,8 @@ await describe('ui', async () => {
     state.tab = 'log';
     ui.render();
     const nav = nodes.app.innerHTML.match(/<nav class="tabs"[\s\S]*?<\/nav>/)[0];
-    ['Forecast', 'My marks', 'Catch log'].forEach(l => assert(nav.includes(l), l));
+    ['Forecast', 'Flight log', 'Catch log'].forEach(l => assert(nav.includes(l), l));
+    assert(!/marks/i.test(nav), 'My marks is gone');
     assert((nav.match(/aria-current="page"/g) || []).length === 1, 'one current');
     assert(/data-tab="log" class="on" aria-current="page"/.test(nav), 'log marked');
     state.tab = 'plan';
@@ -2572,7 +2445,7 @@ await describe('ui', async () => {
     const a = ui.controlKey(el('BUTTON', { act: 'logSp', name: 'Grunter' }));
     const b = ui.controlKey(el('BUTTON', { act: 'logSp', name: 'Flathead' }));
     assert(a !== b, 'species chips share a key: ' + a);
-    const odd = ui.controlKey(el('BUTTON', { act: 'delMark', id: 'm1\nx"y' }));
+    const odd = ui.controlKey(el('BUTTON', { act: 'delLog', id: 'm1\nx"y' }));
     assert(!/\n/.test(odd) && odd.includes('\\a ') && odd.includes('\\"'), 'unsafe key: ' + odd);
   });
   await it('a forecast with fields missing says so on the forecast screen', () => {
@@ -2612,7 +2485,6 @@ await describe('ui', async () => {
     state.demo = true;
     state.loadError = 'too many requests — rate limiting';
     state.tab = 'plan';
-    state.marks = [];
     ui.render();
     assert(nodes.app.innerHTML.includes('too many requests'));
     state.demo = false;
@@ -2654,47 +2526,8 @@ await describe('ui', async () => {
   await it('river sessions use the river wording and never need an ocean window', () => {
     const d = state.days[0];
     const z = d.zones[0];
-    const ss = advice.sessions(d, z, state.marks, config.ESTUARIES[2]);
+    const ss = advice.sessions(d, z, config.ESTUARIES[2]);
     assert(ss.length > 0 && ss.every(x => x.where === 'Burnett River' && !/Outside is out/.test(x.how)));
-  });
-  await it('importing a file from the Marks tab adds the marks and reports what happened', async () => {
-    const before = state.marks.length;
-    const gpx =
-      '<gpx><wpt lat="-24.718" lon="152.505"><name>Four Mile</name></wpt><wpt lat="-24.87" lon="151.85"><name>Dam</name></wpt></gpx>';
-    const file = {
-      name: 'marks.gpx',
-      text: async () => gpx,
-      arrayBuffer: async () => new TextEncoder().encode(gpx).buffer
-    };
-    state.tab = 'marks';
-    await ui.importMarks(file);
-    assert(state.marks.length === before + 1, 'one mark in range');
-    assert(/Imported 1 mark\. 1 more than 25 km/.test(state.importMsg), state.importMsg);
-    assert(nodes.app.innerHTML.includes('Four Mile') && nodes.app.innerHTML.includes('clearImported'));
-    await ui.importMarks({
-      name: 'junk.bin',
-      text: async () => 'nothing',
-      arrayBuffer: async () => new ArrayBuffer(8)
-    });
-    assert(/Couldn't read junk\.bin/.test(state.importMsg), state.importMsg);
-  });
-  await it('imported marks show on the map for the selected ramp only, with details on tap', async () => {
-    const { mapSVG } = await imp('map');
-    const m = state.marks.find(x => x.imported);
-    const svg = mapSVG(state.days[0], 'burnett', state.marks, null);
-    assert(
-      (svg.match(/class="mk-dot"/g) || []).length ===
-        state.marks.filter(x => x.ramp === 'burnett' && x.lat != null).length
-    );
-    assert(!/class="mk-dot"/.test(mapSVG(state.days[0], 'baffle', state.marks, null)), 'other ramp');
-    state.tab = 'plan';
-    state.view = 'ocean';
-    state.zsel = 'burnett';
-    ui.ACTIONS.markInfo({ dataset: { id: m.id } });
-    assert(/class="sub mark-info"><b>Four Mile<\/b>/.test(nodes.app.innerHTML), 'caption');
-    ui.ACTIONS.markInfo({ dataset: { id: m.id } });
-    assert(!/mark-info/.test(nodes.app.innerHTML), 'second tap hides it');
-    state.marks = state.marks.filter(x => !x.imported);
   });
   await it('the catch log takes species by tap and keeps them through a rating change', () => {
     state.tab = 'log';
@@ -2712,27 +2545,7 @@ await describe('ui', async () => {
     );
     assert(/data-name="Flathead" class="on"/.test(nodes.app.innerHTML), 'shown as picked');
   });
-  await it('saving on the water tags the nearest mark from the phone location', async () => {
-    const pos = { coords: { latitude: -24.7182, longitude: 152.5051 } };
-    // Node has its own read-only navigator: swap it for one with a GPS fix, then put it back
-    const realNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { geolocation: { getCurrentPosition: ok => ok(pos) } },
-      configurable: true
-    });
-    state.marks = [
-      {
-        id: 'a',
-        name: 'Four Mile',
-        ramp: 'burnett',
-        km: 10,
-        depth: 15,
-        type: 'reef',
-        lat: -24.718,
-        lon: 152.505
-      },
-      { id: 'b', name: 'Far reef', ramp: 'burnett', km: 15, depth: 18, type: 'reef', lat: -24.6, lon: 152.6 }
-    ];
+  await it('saving a session keeps what was caught, the rating and the notes, then clears the form', () => {
     const today = util.isoDay(new Date());
     nodes.ld = { value: today };
     nodes.lr = { value: 'burnett' };
@@ -2745,68 +2558,18 @@ await describe('ui', async () => {
       notes: ''
     };
     const n = state.log.length;
-    await ui.ACTIONS.addLog();
+    ui.ACTIONS.addLog();
     const e = state.log[state.log.length - 1];
     assert(state.log.length === n + 1, 'saved');
-    assert(
-      e.species === 'Snapper, Grass sweetlip' && e.rating === 3 && e.mark === 'Four Mile',
-      JSON.stringify(e)
-    );
+    assert(e.species === 'Snapper, Grass sweetlip' && e.rating === 3 && !('mark' in e), JSON.stringify(e));
     assert(e.notes === 'early bite' && state.logDraft === null, 'notes kept, form cleared');
-    if (realNav) Object.defineProperty(globalThis, 'navigator', realNav);
-    else delete globalThis.navigator;
     state.log = state.log.slice(0, n);
-    state.marks = [];
-    ['ld', 'lr', 'lnotes'].forEach(k => delete nodes[k]);
-  });
-  await it('a second tap on Save while the location is coming does not log twice', async () => {
-    const waiting = [];
-    const realNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { geolocation: { getCurrentPosition: ok => waiting.push(ok) } },
-      configurable: true
-    });
-    state.marks = [
-      {
-        id: 'a',
-        name: 'Four Mile',
-        ramp: 'burnett',
-        km: 10,
-        depth: 15,
-        type: 'reef',
-        lat: -24.718,
-        lon: 152.505
-      }
-    ];
-    const today = util.isoDay(new Date());
-    nodes.ld = { value: today };
-    nodes.lr = { value: 'burnett' };
-    nodes.lnotes = { value: '' };
-    state.logDraft = { date: today, ramp: 'burnett', picked: ['Snapper'], rating: 2, notes: '' };
-    const n = state.log.length;
-    const first = ui.ACTIONS.addLog();
-    const second = ui.ACTIONS.addLog(); // tapped again before the GPS answers
-    waiting.forEach(ok => ok({ coords: { latitude: -24.718, longitude: 152.505 } }));
-    await Promise.all([first, second]);
-    assert(state.log.length === n + 1, 'saved ' + (state.log.length - n) + ' times');
-    assert(state.savingLog === false, 'guard released');
-    if (realNav) Object.defineProperty(globalThis, 'navigator', realNav);
-    else delete globalThis.navigator;
-    state.log = state.log.slice(0, n);
-    state.marks = [];
     ['ld', 'lr', 'lnotes'].forEach(k => delete nodes[k]);
   });
   await it('the map is a group of controls, not an image (an image hides its buttons from screen readers)', async () => {
     const { mapSVG } = await imp('map');
-    const svg = mapSVG(state.days[0], 'burnett', [], null);
+    const svg = mapSVG(state.days[0], 'burnett');
     assert(/^<svg class="chart-map"[^>]*role="group"/.test(svg) && /role="button"/.test(svg));
-  });
-  await it('the file picker stays reachable from the keyboard', () => {
-    state.tab = 'marks';
-    ui.render();
-    const input = nodes.app.innerHTML.match(/<input type="file"[^>]*>/)[0];
-    assert(!/\shidden\b/.test(input) && /class="vh"/.test(input), input);
-    state.tab = 'plan';
   });
   await it('a go-day alert can open the app on its day', () => {
     state.tab = 'log';
@@ -2826,10 +2589,626 @@ await describe('ui', async () => {
     state.raw.cached = true;
     state.raw.savedAt = Date.now();
     state.tab = 'plan';
-    state.marks = [];
     ui.render();
     assert(nodes.app.innerHTML.includes('Saved forecast'));
     state.raw.cached = false;
+  });
+});
+
+/* ── Flight log (history.js, tools/history.js and the tab) ─────────────── */
+
+await describe('flight log', async () => {
+  const fs = await import('fs');
+  const os = await import('os');
+  const path = await import('path');
+  const history = await imp('history');
+  const tool = await import('../tools/history.js');
+  const ui = await imp('ui');
+  const { state } = store;
+  const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'fc-history-'));
+
+  /**
+   * A stand-in for Open-Meteo's archive: hourly figures for every sample point
+   * between the dates asked for. Day n (from 2020-01-01) cycles through calm
+   * and rough, so a run of days has Go and No go days in it. `tweak(H, kind)`
+   * edits the hourly block before it is sent.
+   */
+  function archive(tweak = () => {}) {
+    const calls = [];
+    const fetcher = async url => {
+      calls.push(url);
+      const u = new URL(url);
+      const a = u.searchParams.get('start_date'),
+        b = u.searchParams.get('end_date');
+      const times = [];
+      for (let t = +util.localDate(a + 'T00:00'); t <= +util.localDate(b + 'T23:00'); t += util.HOUR) {
+        const d = new Date(t);
+        times.push(util.isoDay(d) + 'T' + util.pad(d.getHours()) + ':00');
+      }
+      const dayN = k => history.daysBetween('2020-01-01', times[k].slice(0, 10));
+      const days = [...new Set(times.map(t => t.slice(0, 10)))];
+      const marine = u.hostname.startsWith('marine');
+      const json = POINTS.map(() => {
+        const H = { time: times };
+        if (marine) {
+          H.swell_wave_height = times.map((_, k) => [0.4, 0.5, 1.1, 0.6][dayN(k) % 4]);
+          H.wave_height = H.swell_wave_height.map(v => v + 0.1);
+          H.swell_wave_period = times.map(() => 10);
+          H.wave_period = times.map(() => 8);
+          H.swell_wave_direction = times.map(() => 110);
+          H.wind_wave_height = times.map(() => 0.2);
+          H.sea_level_height_msl = times.map((_, k) => Math.sin((k / 12.42) * 2 * Math.PI));
+          H.sea_surface_temperature = times.map(() => 24);
+          H.ocean_current_velocity = times.map(() => 0.4);
+          H.ocean_current_direction = times.map(() => 0);
+        } else {
+          H.wind_speed_10m = times.map((_, k) => [5, 7, 14, 6][dayN(k) % 4]);
+          H.wind_gusts_10m = H.wind_speed_10m.map(w => w * 1.3);
+          H.wind_direction_10m = times.map(() => 120);
+          H.precipitation = times.map(() => 0);
+          H.pressure_msl = times.map(() => 1015);
+          H.weather_code = times.map(() => 1);
+          H.cape = times.map(() => 0);
+        }
+        tweak(H, marine ? 'marine' : 'wind');
+        return marine
+          ? { hourly: H }
+          : {
+              hourly: H,
+              hourly_units: { wind_speed_10m: 'kn', wind_gusts_10m: 'kn' },
+              daily: { time: days, sunrise: days.map(d => d + 'T05:30'), sunset: days.map(d => d + 'T17:50') }
+            };
+      });
+      return { ok: true, status: 200, json };
+    };
+    return { fetcher, calls };
+  }
+
+  // one full build, shared by the tab tests below
+  const dir = tmp();
+  const full = archive();
+  const report = await tool.updateHistory({ dir, today: '2026-10-14', fetcher: full.fetcher, pause: 0 });
+  const summaryJson = JSON.parse(fs.readFileSync(path.join(dir, 'summary.json'), 'utf8'));
+  const summary = history.readSummary(summaryJson);
+
+  await it('the first run fills exactly three years, to yesterday', () => {
+    assert(report.stored === 1096 && summaryJson.first === '2023-10-14', JSON.stringify(report));
+    assert(summary.days[summary.days.length - 1].ds === '2026-10-13', 'last day is yesterday');
+    assert(!report.errors.length && !report.gaps.length, JSON.stringify(report));
+  });
+  await it('the stored files stay light: about 110 KB of summary, under 60 KB a month of hours', () => {
+    const size = fs.statSync(path.join(dir, 'summary.json')).size;
+    assert(size < 130e3, 'summary is ' + size + ' bytes');
+    const months = fs.readdirSync(path.join(dir, 'hours'));
+    assert(months.length === 37, months.length + ' month files');
+    months.forEach(f => {
+      const s = fs.statSync(path.join(dir, 'hours', f)).size;
+      assert(s < 60e3, f + ' is ' + s + ' bytes');
+    });
+  });
+  await it('archive requests ask for the app’s own fields at every sample point, a month at a time', () => {
+    const wind = full.calls.find(u => u.includes('historical-forecast-api'));
+    const sea = full.calls.find(u => u.includes('marine-api'));
+    assert(wind && sea, 'both archives asked');
+    const q = new URL(wind).searchParams;
+    assert(q.get('hourly') === data.FORECAST_VARS && q.get('wind_speed_unit') === 'kn', 'wind fields');
+    assert(q.get('latitude').split(',').length === POINTS.length, 'every sample point');
+    assert(new URL(sea).searchParams.get('hourly') === data.MARINE_VARS, 'swell fields');
+    // 37 months, two archives each: a month per request keeps each call small
+    assert(full.calls.length === 74, full.calls.length + ' requests');
+  });
+  await it('each stored day is the app’s own verdict on that day', async () => {
+    // build the same archive directly and compare a run of days
+    const { fetcher } = archive();
+    const from = '2026-09-01',
+      to = '2026-09-10';
+    const [w, m] = await Promise.all([
+      fetcher(tool.pastWindUrl(history.addDays(from, -3), history.addDays(to, 1))),
+      fetcher(tool.pastSwellUrl(history.addDays(from, -3), history.addDays(to, 1)))
+    ]);
+    const built = model.build(
+      { fc: w.json, mar: m.json },
+      { cfg: CFG, log: [], now: util.localDate('2026-10-14') }
+    );
+    for (let ds = from; ds <= to; ds = history.addDays(ds, 1)) {
+      const d = built.past.find(x => x.ds === ds);
+      const s = summary.byDs ? summary.byDs.get(ds) : summary.days.find(x => x.ds === ds);
+      assert(
+        s.overall === d.overall && s.bestId === d.zones[0].z.id,
+        ds + ' ' + s.overall + ' vs ' + d.overall
+      );
+      ZONES.forEach((z, i) => {
+        const zone = d.zones.find(x => x.z.id === z.id);
+        assert(s.ramps[i].score === zone.score, ds + ' ' + z.id);
+        assert(!!s.ramps[i].win === zone.win.length > 0, ds + ' ' + z.id + ' window');
+      });
+    }
+    const goDays = summary.days.filter(d => d.overall >= history.GO_LINE).length;
+    assert(goDays > 0 && goDays < summary.days.length, 'the archive has both Go and No go days: ' + goDays);
+  });
+  await it('the next morning fetches only the last few days, and nothing older than three years is kept', async () => {
+    const d2 = tmp();
+    fs.cpSync(dir, d2, { recursive: true });
+    const next = archive();
+    const r = await tool.updateHistory({ dir: d2, today: '2026-11-05', fetcher: next.fetcher, pause: 0 });
+    const s = JSON.parse(fs.readFileSync(path.join(d2, 'summary.json'), 'utf8'));
+    assert(s.first === '2023-11-05' && r.stored === 1096, JSON.stringify(r));
+    assert(next.calls.length === 4, 'October and November only: ' + next.calls.length);
+    assert(!fs.existsSync(path.join(d2, 'hours', '2023-10.json')), 'October 2023 hours kept');
+    const nov = JSON.parse(fs.readFileSync(path.join(d2, 'hours', '2023-11.json'), 'utf8'));
+    assert(!nov.days['2023-11-04'] && nov.days['2023-11-05'], 'the day before the first kept');
+    const again = archive();
+    await tool.updateHistory({ dir: d2, today: '2026-11-05', fetcher: again.fetcher, pause: 0 });
+    assert(again.calls.length === 2, 'a second run the same day re-checks only the recent days');
+  });
+  await it('a day with holes in the wind is left out, not stored as a no go, and retried for a while', async () => {
+    const d3 = tmp();
+    // gusts missing through the middle of 5 Oct 2026
+    const holey = archive((H, kind) => {
+      if (kind !== 'wind') return;
+      H.time.forEach((t, k) => {
+        if (t.startsWith('2026-10-05T1')) H.wind_gusts_10m[k] = null;
+      });
+    });
+    const r = await tool.updateHistory({
+      dir: d3,
+      today: '2026-10-14',
+      fetcher: holey.fetcher,
+      pause: 0,
+      maxMonths: 1
+    });
+    const s = JSON.parse(fs.readFileSync(path.join(d3, 'summary.json'), 'utf8'));
+    const i = history.daysBetween(s.first, '2026-10-05');
+    assert(s.days[i] === null && s.gaps.includes('2026-10-05'), JSON.stringify(r.gaps));
+    assert(r.left === 36, 'the rest of the three years waits for the next run: ' + r.left);
+    assert(tool.wanted(s, '2026-10-13').includes('2026-10-05'), 'retried while recent');
+    assert(!tool.wanted(s, '2026-11-30').includes('2026-10-05'), 'given up once old');
+  });
+  await it('a refused or empty archive request stores nothing for that month', async () => {
+    const d4 = tmp();
+    const down = async () => ({ ok: false, status: 400, error: 'bad request' });
+    const r = await tool.updateHistory({
+      dir: d4,
+      today: '2026-10-14',
+      fetcher: down,
+      pause: 0,
+      maxMonths: 2
+    });
+    assert(r.stored === 0 && r.errors.length === 2, JSON.stringify(r));
+    assert(/could not fetch/i.test(tool.describeReport(r)), 'reported');
+  });
+  await it('review: a day with holes in the swell is left out, not stored as a calm Go day', async () => {
+    const d5 = tmp();
+    // a rough sea everywhere, with the swell missing from 5 to 9 Oct 2026
+    const holey = archive((H, kind) => {
+      if (kind !== 'marine') return;
+      H.time.forEach((t, k) => {
+        const ds = t.slice(0, 10);
+        const gone = ds >= '2026-10-05' && ds <= '2026-10-09';
+        H.swell_wave_height[k] = gone ? null : 2.5;
+        H.wave_height[k] = gone ? null : 2.6;
+      });
+    });
+    const r = await tool.updateHistory({
+      dir: d5,
+      today: '2026-10-14',
+      fetcher: holey.fetcher,
+      pause: 0,
+      maxMonths: 1
+    });
+    const s = JSON.parse(fs.readFileSync(path.join(d5, 'summary.json'), 'utf8'));
+    for (let ds = '2026-10-05'; ds <= '2026-10-09'; ds = history.addDays(ds, 1)) {
+      assert(s.days[history.daysBetween(s.first, ds)] === null, ds + ' stored');
+      assert(r.gaps.includes(ds), ds + ' not reported');
+    }
+    assert(s.days[history.daysBetween(s.first, '2026-10-10')], 'a whole day either side is kept');
+  });
+  await it('a connection that drops is tried again within seconds, not after a minute', async () => {
+    const ok = archive();
+    const seen = new Set();
+    // the first try at each address never connects, as on GitHub's runners after a pause
+    const flaky = async url => {
+      if (!seen.has(url)) {
+        seen.add(url);
+        return { ok: false, status: 0, error: 'no connection (fetch failed)' };
+      }
+      return ok.fetcher(url);
+    };
+    const t0 = Date.now();
+    const got = await tool.fetchDays(['2026-09-01', '2026-09-02'], { fetcher: flaky, wait: 1e9, quick: 5 });
+    assert(!got.error && got.rows.size === 2, JSON.stringify(got.error));
+    assert(Date.now() - t0 < 5000, 'waited ' + (Date.now() - t0) + ' ms');
+  });
+  await it('review: when Open-Meteo is limiting requests the run stops, keeps what it has and says so', async () => {
+    const d6 = tmp();
+    const ok = archive();
+    let n = 0;
+    const busy = async url => (++n > 2 ? { ok: false, status: 429, error: 'busy' } : ok.fetcher(url));
+    const r = await tool.updateHistory({ dir: d6, today: '2026-10-14', fetcher: busy, pause: 0, wait: 0 });
+    assert(r.months === 1 && n === 6, 'carried on after a 429: ' + n + ' requests'); // two, then four tries
+    assert(r.left === 36 && /limiting requests/.test(tool.describeReport(r)), JSON.stringify(r));
+    assert(r.save && fs.existsSync(path.join(d6, 'summary.json')), 'the first month was not kept');
+    const slow = await tool.updateHistory({
+      dir: tmp(),
+      today: '2026-10-14',
+      fetcher: ok.fetcher,
+      pause: 0,
+      budget: -1
+    });
+    assert(
+      slow.months === 0 && slow.left === 37 && /out of time/.test(slow.errors.join()),
+      JSON.stringify(slow)
+    );
+  });
+  await it('review: a month the model cannot work out is reported, and the run goes on to the next', async () => {
+    const odd = archive((H, kind) => {
+      if (kind === 'wind' && H.time[0].startsWith('2026-08-2')) H.time = 5; // September's fetch is damaged
+    });
+    const r = await tool.updateHistory({
+      dir: tmp(),
+      today: '2026-10-14',
+      fetcher: odd.fetcher,
+      pause: 0,
+      maxMonths: 2
+    });
+    assert(
+      r.months === 1 && /2026-09 .*could not be worked out/.test(r.errors.join()),
+      JSON.stringify(r.errors)
+    );
+  });
+  await it('review: a run never saves over far more days than it ends with, and a stale one shows red', () => {
+    const v = (o, y = '2026-10-13') => tool.verdict({ before: 0, last: '2026-10-13', ...o }, y);
+    assert(!v({ stored: 0 }).save && v({ stored: 0 }).fail, 'nothing stored');
+    const shrunk = v({ stored: 31, before: 1096 });
+    assert(!shrunk.save && shrunk.fail, 'a rebuild over three good years');
+    const stale = v({ stored: 1096, before: 1096, last: '2026-10-01' });
+    assert(stale.save && stale.fail, 'fell behind but kept its work');
+    const fine = v({ stored: 1096, before: 1096 });
+    assert(fine.save && !fine.fail, 'a normal morning');
+  });
+  await it('a damaged or newer-format summary is not misread', () => {
+    assert(history.readSummary({ v: 2, first: '2026-01-01', days: [] }) === null, 'newer format');
+    assert(history.readSummary(null) === null && history.readSummary({ v: 1 }) === null, 'empty');
+    const width = history.DAY_COLS.length + history.RAMP_COLS.length * ZONES.length;
+    const row = summaryJson.days[0];
+    const s = history.readSummary({ v: 1, first: '2026-01-01', days: [row, row.slice(1), null, row] });
+    assert(s.days.length === 2 && s.days[1].ds === '2026-01-04', 'short and empty rows are skipped');
+    assert(row.length === width, 'row width');
+  });
+  await it('values from the network are coerced: markup in a stored file never reaches the page', () => {
+    const row = summaryJson.days[0].slice();
+    row[0] = '<img src=x onerror=alert(1)>';
+    assert(
+      history.readSummary({ v: 1, first: '2026-01-01', days: [row] }).days.length === 0,
+      'damaged row kept'
+    );
+    const good = summaryJson.days[0].slice();
+    good[5] = '<b>'; // tide range: optional, so it reads as missing
+    assert(history.readSummary({ v: 1, first: '2026-01-01', days: [good] }).days[0].range === null);
+    const month = {
+      days: {
+        '2026-01-01': {
+          sr: '<script>',
+          ss: '18:01',
+          tides: [
+            ['<i>', 100, 1],
+            ['03:10', 'x', 0],
+            ['09:40', 120, 1]
+          ],
+          z: [[['<b>'], [], [], [], [['<x>', 9]]]]
+        }
+      }
+    };
+    const t = history.dayTides(month, '2026-01-01');
+    assert(
+      t.sr === null && t.ss === '18:01' && t.tides.length === 1 && t.tides[0].t === '09:40',
+      JSON.stringify(t)
+    );
+    assert(history.rampHours(month, '2026-01-01', 0) === null, 'hours with no figures');
+  });
+  await it('three years is the most kept: a merge drops the oldest days', () => {
+    const row = summaryJson.days[0];
+    const rows = new Map();
+    for (let ds = '2022-01-01'; ds <= '2026-01-01'; ds = history.addDays(ds, 1)) rows.set(ds, row);
+    const m = history.mergeSummary(null, rows, 'now');
+    assert(m.first === '2023-01-02' && m.days.length === 1096, m.first + ' ' + m.days.length);
+    assert(history.firstKept('2024-03-01') === '2021-03-02', 'leap years');
+  });
+  await it('week, month and year sums count Go, in-between and no-go days by the forecast’s lines', () => {
+    const mk = (score, win) => ({
+      overall: score,
+      bestId: 'burnett',
+      ramps: ZONES.map(z => ({ id: z.id, score: z.id === 'elliott' ? 90 : score, win }))
+    });
+    const t = history.tally([mk(80, 3), mk(60, 0), mk(30, 0), mk(75, 2.5)]);
+    assert(t.go === 2 && t.amber === 1 && t.red === 1 && t.windows === 2 && t.avg === 61, JSON.stringify(t));
+    const e = history.tally([mk(80, 3), mk(30, 0)], 'elliott');
+    assert(e.go === 2 && e.avg === 90, 'one ramp is judged on its own score');
+    assert(history.weekStart('2026-10-14') === '2026-10-12', 'weeks start on Monday');
+  });
+  await it('the arrows step a day, a week, a month or a year, and never past the stored days', () => {
+    const [a, b] = ['2023-10-14', '2026-10-13'];
+    assert(ui.histStep('day', '2026-10-13', 1, a, b) === b, 'not past yesterday');
+    assert(ui.histStep('week', '2026-10-01', -1, a, b) === '2026-09-24');
+    assert(ui.histStep('month', '2026-03-31', -1, a, b) === '2026-02-01', 'a month from the 31st');
+    assert(ui.histStep('month', '2023-11-05', -1, a, b) === a, 'held at the first day');
+    assert(ui.histStep('year', '2024-02-29', 1, a, b) === '2025-02-28');
+    assert(ui.histPeriod('week', '2026-10-14').title === '12–18 Oct 2026');
+  });
+
+  /* the tab itself, with the files served by a stand-in fetch */
+  const nodes = {};
+  globalThis.document = { getElementById: id => (nodes[id] = nodes[id] || { innerHTML: '', value: '' }) };
+  const realFetch = globalThis.fetch;
+  const served = [];
+  const serve = (fail = false) =>
+    (globalThis.fetch = async url => {
+      served.push(url);
+      const rel = url.slice(history.HISTORY_BASE.length);
+      const f = path.join(dir, rel);
+      if (fail || !url.startsWith(history.HISTORY_BASE) || !fs.existsSync(f))
+        return { ok: false, status: 404, headers: { get: () => null }, json: async () => ({}) };
+      const body = JSON.parse(fs.readFileSync(f, 'utf8'));
+      return { ok: true, status: 200, headers: { get: () => null }, json: async () => body };
+    });
+  const settle = () => new Promise(r => setTimeout(r, 20));
+  const clean = html => {
+    const bad = html.match(/undefined|NaN|null/);
+    assert(
+      !bad,
+      'found ' + bad + ' near: ' + html.slice(Math.max(0, html.indexOf(bad) - 80), html.indexOf(bad) + 40)
+    );
+  };
+
+  await it('the Flight log loads nothing until its tab is opened', async () => {
+    serve();
+    state.tab = 'plan';
+    ui.render();
+    await settle();
+    assert(!served.length && state.hist.status === 'idle', 'fetched ' + served.join());
+  });
+  await it('opening the Flight log fetches the summary once and shows the month to yesterday', async () => {
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    assert(/Loading three years/.test(nodes.app.innerHTML), 'loading message');
+    await settle();
+    assert(
+      state.hist.status === 'ready' && state.hist.ds === '2026-10-13',
+      state.hist.status + ' ' + state.hist.ds
+    );
+    assert(served.length === 1 && served[0] === history.summaryUrl(), served.join());
+    const html = nodes.app.innerHTML;
+    assert(/October 2026/.test(html) && /class="cal-g"/.test(html), 'month calendar');
+    assert(/class="panel hsum"/.test(html) && /class="split"/.test(html), 'month colour and split');
+    ui.render();
+    await settle();
+    assert(served.length === 1, 'fetched again on a repaint');
+  });
+  await it('every view renders for the best ramp and for each ramp, with no undefined, NaN or null', async () => {
+    for (const ramp of ['', ...ZONES.map(z => z.id)]) {
+      ui.ACTIONS.histRamp({ dataset: { z: ramp } });
+      for (const view of ['week', 'month', 'year', 'day']) {
+        ui.ACTIONS.histView({ dataset: { view } });
+        await settle(); // the Day view fetches its month's hours
+        ui.render();
+        clean(nodes.app.innerHTML);
+      }
+    }
+    assert(
+      /<svg viewBox="0 0 420 170" role="img" aria-label="Swell, wind and gusts through the day">/.test(
+        nodes.app.innerHTML
+      ),
+      'hourly chart'
+    );
+    ui.ACTIONS.histRamp({ dataset: { z: '' } });
+  });
+  await it('the Day view draws the archived hours with the forecast’s own chart', async () => {
+    ui.ACTIONS.histDay({ dataset: { id: '2026-09-02' } });
+    await settle();
+    const html = nodes.app.innerHTML;
+    assert(served.includes(history.hoursUrl('2026-09')), 'month of hours fetched');
+    assert(/Looking back/.test(html) && /SWELL LIMIT 0.7 M/.test(html), 'hero and chart');
+    assert(
+      /data-act="histPick"/.test(html) && (html.match(/data-act="histRamp"/g) || []).length === ZONES.length,
+      'ramp picker and site list'
+    );
+  });
+  await it('the ramp picker opens in place to list the other ramps, and closes once one is picked', () => {
+    const tap = (act, z, inPicker = true) => {
+      const el = { dataset: { act, ...(z != null ? { z, i: 'pick' } : {}) } };
+      el.closest = sel => (sel === '[data-act]' || inPicker ? el : null);
+      ui.onAppClick({ target: el });
+    };
+    ui.render();
+    let html = nodes.app.innerHTML;
+    assert(
+      !/<select/.test(html) && /aria-expanded="false"/.test(html) && !/class="hpick-list"/.test(html),
+      'closed to start'
+    );
+    tap('histPick');
+    html = nodes.app.innerHTML;
+    assert(state.hist.pickOpen && /aria-expanded="true"/.test(html), 'did not open');
+    const list = html.match(/<div class="hpick-list"[\s\S]*?<\/div>/)[0];
+    assert((list.match(/<button/g) || []).length === ZONES.length, 'the other ramps: ' + list);
+    assert(
+      !/Best ramp each day/.test(list) && ZONES.every(z => list.includes(z.name)),
+      'every ramp offered, not the one shown'
+    );
+    tap('histRamp', 'woodgate');
+    html = nodes.app.innerHTML;
+    assert(state.hist.ramp === 'woodgate' && !state.hist.pickOpen, 'picked and closed');
+    assert(
+      /class="hpick-v">Walkers Point \/ Woodgate</.test(html) && !/class="hpick-list"/.test(html),
+      'box names the ramp'
+    );
+    tap('histPick');
+    assert(
+      !/data-z="woodgate" data-i="pick"/.test(nodes.app.innerHTML),
+      'the ramp shown is not offered again'
+    );
+    // a tap anywhere else closes it without changing the ramp
+    const outside = { dataset: {} };
+    outside.closest = () => null;
+    ui.onAppClick({ target: outside });
+    assert(!state.hist.pickOpen && state.hist.ramp === 'woodgate', 'tap outside');
+    tap('histPick');
+    tap('histRamp', '');
+    assert(
+      state.hist.ramp === '' && /class="hpick-v">Best ramp each day</.test(nodes.app.innerHTML),
+      'back to best'
+    );
+    const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+    assert(!/onAppChange|'change'/.test(app), 'the old drop-down wiring is still there');
+  });
+  await it('critique: amber is called Hold throughout the Flight log, as on the caution panel', () => {
+    for (const view of ['week', 'month', 'year']) {
+      ui.ACTIONS.histView({ dataset: { view } });
+      const html = nodes.app.innerHTML;
+      assert(!/in between/i.test(html), view + ' still says in between');
+      assert(/\d+ hold</.test(html), view + ' has no hold count');
+    }
+  });
+  await it('critique: the chart of days names its limit lines, and the year names months in three letters', () => {
+    ui.ACTIONS.histView({ dataset: { view: 'month' } });
+    const m = nodes.app.innerHTML;
+    assert(
+      />0\.7<\/text>/.test(m) && />10<\/text>/.test(m) && /Limits \(0\.7 m, 10 kn\)/.test(m),
+      'limit lines'
+    );
+    ui.ACTIONS.histView({ dataset: { view: 'year' } });
+    const html = nodes.app.innerHTML;
+    const names = [...html.matchAll(/class="ytile[^"]*"[^>]*>\s*<span class="caps">(\w+)</g)].map(m => m[1]);
+    assert(names.join() === 'Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec', names.join());
+    assert((html.match(/class="ystack"/g) || []).length === 12, 'a stacked bar per month');
+  });
+  await it('the year view shows a coloured tile for every month and opens a month on tap', () => {
+    ui.ACTIONS.histView({ dataset: { view: 'year' } });
+    const html = nodes.app.innerHTML;
+    // 2026 is stored to 13 October: ten months to tap, November and December greyed
+    assert((html.match(/class="ytile"/g) || []).length === 10, 'ten months in 2026');
+    assert((html.match(/class="ytile none"/g) || []).length === 2, 'two months to come');
+    ui.ACTIONS.histMonth({ dataset: { id: '2026-02' } });
+    assert(
+      state.hist.view === 'month' &&
+        state.hist.ds === '2026-02-01' &&
+        /February 2026/.test(nodes.app.innerHTML)
+    );
+  });
+  await it('a logged session shows a fish on its day, and its notes are escaped', () => {
+    const n = state.log.length;
+    state.log = state.log.concat([
+      store.cleanLogEntry(
+        { id: 'h1', date: '2026-02-07', ramp: 'burnett', rating: 3, notes: '<img src=x onerror=alert(1)>' },
+        0
+      )
+    ]);
+    ui.render();
+    const cell = nodes.app.innerHTML.match(
+      /<button class="cal-c"[^>]*data-id="2026-02-07"[\s\S]*?<\/button>/
+    );
+    assert(cell && /session logged/.test(cell[0]) && /class="logged"/.test(cell[0]), cell && cell[0]);
+    ui.ACTIONS.histDay({ dataset: { id: '2026-02-07' } });
+    const html = nodes.app.innerHTML;
+    assert(
+      /Your sessions this day/.test(html) && !html.includes('<img') && html.includes('&lt;img'),
+      'escaped'
+    );
+    assert(!/data-act="delLog"/.test(html), 'no delete button in the Flight log');
+    state.log = state.log.slice(0, n);
+  });
+  await it('a day stored without its hours says so, rather than loading for ever', async () => {
+    const ym = '2026-08';
+    state.hist.months[ym] = { v: 1, days: {} };
+    ui.ACTIONS.histDay({ dataset: { id: ym + '-04' } });
+    assert(/No hours are stored for this day/.test(nodes.app.innerHTML), 'stuck on loading');
+    delete state.hist.months[ym];
+  });
+  await it('an app left open fetches the new days when the Flight log is next opened', async () => {
+    const summaries = () => served.filter(u => u === history.summaryUrl()).length;
+    const before = summaries();
+    ui.ACTIONS.tab({ dataset: { tab: 'plan' } });
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(summaries() === before, 'refetched while fresh');
+    state.hist.at = Date.now() - 7 * util.HOUR;
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(summaries() === before + 1 && state.hist.status === 'ready', 'not refreshed');
+    serve(true);
+    state.hist.at = 0;
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(state.hist.status === 'ready' && state.hist.data, 'a failed top-up keeps what was showing');
+    serve();
+  });
+  await it('review: a top-up that adds days drops the hours already loaded for those months', async () => {
+    const old = { v: 1, days: {} };
+    Object.assign(state.hist, { last: '2026-10-11', at: 0, months: { '2026-10': old, '2026-08': old } });
+    ui.ACTIONS.tab({ dataset: { tab: 'history' } });
+    await settle();
+    assert(state.hist.last === '2026-10-13', state.hist.last);
+    assert(state.hist.months['2026-10'] !== old, 'October still shows the hours from before the new days');
+    assert(state.hist.months['2026-08'] === old, 'August need not be fetched again');
+  });
+  await it('without a connection or a saved copy, the Flight log says so and can try again', async () => {
+    Object.assign(state.hist, { status: 'idle', data: null, months: {} });
+    serve(true);
+    ui.render();
+    await settle();
+    assert(
+      state.hist.status === 'error' && /Flight log could not load/.test(nodes.app.innerHTML),
+      state.hist.status
+    );
+    serve();
+    ui.ACTIONS.histRetry();
+    await settle();
+    assert(state.hist.status === 'ready', 'retry');
+    state.tab = 'plan';
+  });
+  globalThis.fetch = realFetch;
+
+  await it('the old My marks list is deleted from the phone when the app loads', () => {
+    const removed = [];
+    globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem: k => removed.push(k) };
+    store.loadStored();
+    assert(removed.includes('fishin-marks') && removed.includes('bundy-marks'), removed.join());
+    assert(!('marks' in state) && !('markInfo' in state), 'marks state gone');
+  });
+  await it('My marks is gone from the code: no importer, no mark list, no sounder import', () => {
+    assert(!fs.existsSync(new URL('../importer.js', import.meta.url)), 'importer.js');
+    for (const f of [
+      'index.html',
+      'sw.js',
+      'ui.js',
+      'store.js',
+      'config.js',
+      'map.js',
+      'advice.js',
+      'app.js'
+    ])
+      assert(
+        !/importer|DEFAULT_MARKS|MARK_TYPES|MARK_PREF|state\.marks|importMarks|My marks/.test(
+          fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8')
+        ),
+        f
+      );
+  });
+  await it('the daily job writes only to the history-data branch, never to the live site', () => {
+    const wf = fs.readFileSync(new URL('../.github/workflows/history.yml', import.meta.url), 'utf8');
+    assert(/BRANCH: history-data/.test(wf) && /"HEAD:\$BRANCH"/.test(wf), 'pushes to history-data');
+    assert(!/HEAD:main|refs\/heads\/main/.test(wf), 'never main');
+    assert(/cron: '37 20 \* \* \*'/.test(wf) && /TZ: Australia\/Brisbane/.test(wf), 'daily, Queensland time');
+    assert(history.HISTORY_BASE.endsWith('/' + history.HISTORY_BRANCH + '/'), 'the app reads that branch');
+    assert(!/\bpush:/.test(wf), 'runs on a push');
+    assert(/elif \[ "\$found" -ne 2 \]/.test(wf), 'a failed look for the branch would start afresh');
+    assert(/if: steps\.update\.outputs\.save == 'true'/.test(wf), 'saves whatever the run ends with');
+    assert(/if: steps\.update\.outputs\.fail == 'true'/.test(wf), 'a run that fell behind shows green');
+  });
+  await it('the service worker keeps a saved copy of the Flight log files for offline', () => {
+    const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+    assert(
+      /url\.href\.startsWith\(HISTORY_BASE\)\)\s*return e\.respondWith\(forecast\(e\)\)/.test(sw),
+      sw.slice(0, 0)
+    );
   });
 });
 
@@ -2938,13 +3317,17 @@ await describe('shell', async () => {
     });
     assert(exists('fonts-OFL.txt'), 'font licence must travel with the fonts');
   });
-  await it('the only outside connection the page may make is the forecast', () => {
+  await it('the only outside connections the page may make are the forecast and the Flight log files', async () => {
     const csp = html.match(/Content-Security-Policy"\s+content="([^"]+)"/)[1];
     const hosts = [...csp.matchAll(/https:\/\/[^\s;]+/g)].map(m => m[0]);
+    const { HISTORY_BASE } = await imp('history');
+    // the Flight log is allowed its own branch's folder, not all of GitHub's raw files
     assert(
-      hosts.length && hosts.every(h => /^https:\/\/[a-z-]*api\.open-meteo\.com$/.test(h)),
+      hosts.length &&
+        hosts.every(h => /^https:\/\/[a-z-]*api\.open-meteo\.com$/.test(h) || h === HISTORY_BASE),
       hosts.join(' ')
     );
+    assert(hosts.includes(HISTORY_BASE), 'the Flight log files are blocked');
   });
   await it('the service worker installs fresh files and keeps the saved forecast across updates', () => {
     assert(

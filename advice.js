@@ -1,25 +1,10 @@
 /**
  * advice.js — turns a scored day into plain-language advice: which sessions
- * to fish, which marks suit them, what to throw, and what your own catch log
- * says. Pure: everything comes in as arguments.
+ * to fish, what to throw, and what your own catch log says. Pure: everything
+ * comes in as arguments.
  */
-import { SEASON, RIVER_SEASON, MARK_PREF, TUNING } from './config.js';
+import { SEASON, RIVER_SEASON, TUNING } from './config.js';
 import { mean, clamp, dirOf, fromNewOrFull, HOUR } from './util.js';
-
-/** Up to two marks for this ramp that suit this part of the tide and light. */
-export function marksFor(marks, zoneId, kind, swell) {
-  const pref = MARK_PREF[kind] || MARK_PREF.run;
-  return marks
-    .filter(m => m.ramp === zoneId)
-    .map(m => {
-      let q = pref.indexOf(m.type);
-      q = q < 0 ? 9 : q;
-      if (swell > 0.6 && m.km > 12) q += 3; // lumpy: favour closer ground
-      return { ...m, q };
-    })
-    .sort((a, b) => a.q - b.q || a.km - b.km)
-    .slice(0, 2);
-}
 
 export function tidePhaseAt(t, tides) {
   if (!tides || !tides.length) return 'unknown';
@@ -161,7 +146,7 @@ const RIVER_COPY = {
  * from config) asks for river sessions outright: the whole of the fishing
  * hours, weather aside.
  */
-export function sessions(day, zone, marks, river = null) {
+export function sessions(day, zone, river = null) {
   const maj = [day.me.over, day.me.under].filter(Boolean);
   let wins = zone.win.slice(),
     where = zone.z.name,
@@ -223,7 +208,6 @@ export function sessions(day, zone, marks, river = null) {
         ' The moon is overhead or underfoot inside this window — if you only get one session, take this one.';
     const inWin = zone.hours.filter(h => h.t >= c.a && h.t < c.b);
     const bar = inWin.length ? Math.max(...inWin.map(h => h.bar)) : 0;
-    const swell = inWin.length ? Math.max(...inWin.map(h => h.swell)) : 0;
     return {
       a: c.a,
       b: c.b,
@@ -234,7 +218,6 @@ export function sessions(day, zone, marks, river = null) {
       bar,
       kind: c.kind,
       tide: tidePhaseAt(new Date((+c.a + +c.b) / 2), day.tides),
-      marks: riverDay ? [] : marksFor(marks, zone.z.id, c.kind, swell),
       outside: outsideIsOut
     };
   });

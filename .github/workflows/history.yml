@@ -1,0 +1,98 @@
+# Daily update of the History tab's files. See tools/history.js and history.js.
+#
+# Each morning it adds yesterday (and firms up the two days before) from
+# Open-Meteo's archive, drops anything older than three years, and saves the
+# files to the `history-data` branch as a single commit. The live site is on
+# main and is never touched; the app reads the files straight from that branch.
+#
+# The first run fills all three years, which takes about ten minutes.
+# Run it by hand: Actions → History update → Run workflow.
+
+name: History update
+
+on:
+  schedule:
+    - cron: '37 20 * * *' # 6:37 am in Queensland, once yesterday is complete
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: history
+  cancel-in-progress: false
+
+env:
+  TZ: Australia/Brisbane
+  BRANCH: history-data
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # Only "no such branch" (exit 2) starts afresh; any other failure to
+      # look stops the run, rather than rebuilding over three good years.
+      - name: Fetch the stored history
+        run: |
+          mkdir -p data
+          set +e
+          git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null
+          found=$?
+          set -e
+          if [ "$found" -eq 0 ]; then
+            git fetch --depth=1 origin "$BRANCH"
+            git archive FETCH_HEAD | tar -x -C data
+          elif [ "$found" -ne 2 ]; then
+            echo "Could not check for the $BRANCH branch (exit $found)"; exit 1
+          fi
+
+      # IPv4 first: on the runners about half the first requests to Open-Meteo
+      # never connect (they time out after 10.5 s); a retry goes through.
+      - name: Add the missing days
+        id: update
+        env:
+          NODE_OPTIONS: --dns-result-order=ipv4first
+        run: node tools/history.js --dir data --report report.md --outputs "$GITHUB_OUTPUT"
+
+      - name: Show the report on the run page
+        if: always()
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY" || echo "The update could not run; see the step above." >> "$GITHUB_STEP_SUMMARY"
+
+      # One commit, replaced each day: the branch holds today's files and no
+      # pile of old copies.
+      - name: Save to the history-data branch
+        if: steps.update.outputs.save == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp tools/history-data-README.md data/README.md
+          cd data
+          git init -q -b "$BRANCH"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898299+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -q -m "History to $(date +%F)"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:$BRANCH"
+
+      - name: Mark the run failed when the update fell behind
+        if: steps.update.outputs.fail == 'true'
+        run: |
+          echo "The update did not complete; see the report on the run page."
+          exit 1
+
+      # GitHub pauses scheduled runs on a repository with no commits for 60
+      # days. Re-enabling the workflow on each run keeps it going.
+      - name: Keep the daily schedule switched on
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/history.yml/enable"
