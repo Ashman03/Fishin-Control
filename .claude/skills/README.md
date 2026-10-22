@@ -1,20 +1,40 @@
-# Design skills for Claude
+# Skills for Claude
 
-These two skills load automatically in every Claude Code session on this repo.
+These skills load automatically in every Claude Code session on this repo.
 They are tools for Claude only. The app does not use them, and nothing in this
 folder changes how the site works.
 
 | Skill           | Source                                                                                                                                                                            | Version | Licence    |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- |
-| `impeccable`    | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) `plugin/skills/impeccable` at `2f98774`                                                                               | 4.5.2   | Apache-2.0 |
+| `impeccable`    | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) `plugin/skills/impeccable` at `2fd24e3`                                                                               | 4.7.0   | Apache-2.0 |
 | `ui-ux-pro-max` | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) `.claude/skills/ui-ux-pro-max` at `7246805` (its `scripts/tests` folder left out) | 2.15.0  | MIT        |
 
-Both are copied as published, so Prettier skips them. To update one, copy the
+The design skills are copied as published, so Prettier skips them. To update one, copy the
 same folder again from a newer commit and change the table above.
+
+## Ideas and planning skills
+
+Two skills from Anthropic's Product Management plugin, for big-picture thinking
+about the app: new features, improvements, and what other apps do.
+
+| Skill                   | What it's for                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `product-brainstorming` | A sparring partner for ideas: explores the problem, offers several approaches, argues against the favourite |
+| `competitive-brief`     | Compares other apps (weather, marine, fishing) with Fishin' Control to find gaps worth filling              |
+
+Source: [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins)
+`product-management/skills/` at `02ffa99` (plugin 1.2.0), Apache-2.0. Copied as
+published, so Prettier skips them. The rest of that plugin (sprint planning,
+stakeholder updates, team connectors) is left out. `competitive-brief` mentions
+a `CONNECTORS.md` and tools such as a knowledge base or chat: none are connected
+here, so it works from web search alone.
+
+The rules below apply to these skills too: ideas are for Ashley to choose, and
+nothing they suggest changes scores, limits or fishing logic without Ashley's say.
 
 ## Fishin' Control rules come first
 
-Both skills carry their own taste. Where it clashes with a choice Ashley has
+The design skills carry their own taste. Where it clashes with a choice Ashley has
 made, Ashley's choice wins:
 
 - The Flight Deck launch-console look stays: square panels, HUD corner
