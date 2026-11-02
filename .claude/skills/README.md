@@ -6,8 +6,8 @@ folder changes how the site works.
 
 | Skill           | Source                                                                                                                                                                            | Version | Licence    |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- |
-| `impeccable`    | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) `plugin/skills/impeccable` at `2fd24e3`                                                                               | 4.7.0   | Apache-2.0 |
-| `ui-ux-pro-max` | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) `.claude/skills/ui-ux-pro-max` at `7246805` (its `scripts/tests` folder left out) | 2.15.0  | MIT        |
+| `impeccable`    | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) `plugin/skills/impeccable` at `e89e3ad`                                                                               | 4.8.0   | Apache-2.0 |
+| `ui-ux-pro-max` | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) `.claude/skills/ui-ux-pro-max` at `3a13158` (its `scripts/tests` folder left out) | 2.15.0  | MIT        |
 
 The design skills are copied as published, so Prettier skips them. To update one, copy the
 same folder again from a newer commit and change the table above.
