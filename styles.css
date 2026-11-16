@@ -1417,8 +1417,11 @@ details > .sub {
   height: 6px;
   background: var(--go);
 }
-.dots i.down {
+.dots i.no {
   background: var(--no);
+}
+.dots i.mid {
+  background: var(--mid);
 }
 @media (max-width: 480px) {
   .dots {

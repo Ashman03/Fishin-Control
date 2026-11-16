@@ -387,6 +387,10 @@ function barCard(zone) {
   );
 }
 
+/** A source that answered just now; the phone's saved copy is not up. */
+const live = x => x.ok && !x.saved;
+const sourceWord = x => (x.saved ? ['mid', 'saved'] : x.ok ? ['go', 'ok'] : ['no', 'down']);
+
 /**
  * The loading screen's "Forecast feeds" line once the requests are back, as
  * [state, word, label]: GO only when every source answered live. HOLD (amber,
@@ -395,7 +399,7 @@ function barCard(zone) {
  */
 export function feedsLine(raw, demo) {
   const s = (raw && raw.status) || [];
-  const up = s.filter(x => x.ok).length;
+  const up = s.filter(live).length;
   const label = `Forecast feeds · ${up} of ${s.length} up`;
   if (demo) return ['nogo', 'No go', 'Forecast feeds · offline'];
   if (raw.cached) return ['hold', 'Hold', 'Forecast feeds · saved copy'];
@@ -406,15 +410,16 @@ export function feedsLine(raw, demo) {
 function sourceStatus() {
   const s = state.raw && state.raw.status;
   if (!s || !s.length) return '';
-  const up = s.filter(x => x.ok).length;
+  const up = s.filter(live).length;
   return `<details data-key="sources"><summary><span>Data sources</span>
       <b class="num" style="color:${up === s.length ? 'var(--go)' : up ? 'var(--mid)' : 'var(--no)'}">${up} of ${s.length} up</b>
-      <span class="dots" aria-hidden="true">${s.map(x => `<i class="${x.ok ? 'ok' : 'down'}"></i>`).join('')}</span></summary>
+      <span class="dots" aria-hidden="true">${s.map(x => `<i class="${sourceWord(x)[0]}"></i>`).join('')}</span></summary>
     ${s
-      .map(
-        x => `<div class="mk"><span class="g">${esc(x.label)} <span class="ty">${esc(x.role)}${x.detail ? ' · ' + esc(x.detail) : ''}</span></span>
-      <b style="color:${x.ok ? 'var(--go)' : 'var(--no)'}">${x.ok ? 'ok' : 'down'}</b></div>`
-      )
+      .map(x => {
+        const [c, word] = sourceWord(x);
+        return `<div class="mk"><span class="g">${esc(x.label)} <span class="ty">${esc(x.role)}${x.detail ? ' · ' + esc(x.detail) : ''}</span></span>
+      <b style="color:var(--${c})">${word}</b></div>`;
+      })
       .join('')}
   </details>`;
 }

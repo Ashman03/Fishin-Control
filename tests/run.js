@@ -297,6 +297,11 @@ await describe('data', async () => {
     assert(raw.saved.join() === 'swell' && raw.savedAt === 1700000000000, JSON.stringify(raw.saved));
     const swell = raw.status.find(x => x.label === 'Swell forecast');
     assert(/saved copy \(service busy\)/.test(swell.detail), swell.detail);
+    assert(swell.saved === true, 'saved swell not marked saved');
+    const wind = raw.status.find(x => x.label === 'Wind forecast');
+    assert(wind.saved === false, 'live wind marked saved');
+    const checks = raw.status.filter(x => x.role === 'swell check');
+    assert(checks.length && checks.every(x => x.saved), 'saved swell checks not marked saved');
   });
 
   await it('swell from the backup wave model is labelled as the backup', async () => {
@@ -2470,6 +2475,32 @@ await describe('ui', async () => {
     ui.render();
     const m = nodes.app.innerHTML.match(/<b class="num" style="color:([^"]+)">0 of 2 up/);
     assert(m && m[1] === 'var(--no)', m ? m[1] : 'no summary');
+    state.raw.status = saved;
+  });
+  await it("data sources show the phone's saved copies amber, not up", () => {
+    const saved = state.raw.status;
+    state.raw.status = [
+      {
+        label: 'Wind forecast',
+        role: 'primary',
+        ok: true,
+        detail: 'saved copy (no connection)',
+        saved: true
+      },
+      { label: 'Swell forecast', role: 'primary', ok: true, detail: 'best match', saved: false },
+      { label: 'ecmwf_ifs', role: 'wind check', ok: true, detail: 'saved copy (no connection)', saved: true }
+    ];
+    state.tab = 'plan';
+    state.view = 'ocean';
+    ui.render();
+    const html = nodes.app.innerHTML;
+    const m = html.match(/<b class="num" style="color:([^"]+)">1 of 3 up/);
+    assert(m && m[1] === 'var(--mid)', m ? m[1] : 'saved copies counted as up');
+    const words = [...html.matchAll(/<b style="color:var\(--(\w+)\)">(\w+)<\/b><\/div>/g)].map(
+      x => x[1] + ' ' + x[2]
+    );
+    assert(words.join() === 'mid saved,go ok,mid saved', words.join());
+    assert(ui.feedsLine({ status: state.raw.status }, false)[2].includes('1 of 3 up'), 'loading screen');
     state.raw.status = saved;
   });
   await it('one date style everywhere: "Tue 13 Oct", never "Tue, 13 Oct"', () => {
