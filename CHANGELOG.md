@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.3.1
+
+- **Saved copies show amber in Data sources.** When a source can't be reached and the
+  phone's saved copy stands in, its row now reads "saved" in amber (the dot too), and it
+  no longer counts towards "N of N up". Before, it read "ok" in green, so a phone that
+  couldn't reach the wind forecast still showed "11 of 11 up". The loading screen's
+  "Forecast feeds" count works the same way.
+
 ## 6.3.0
 
 - **Flight log replaces My marks.** A new tab looks back over the last three years of

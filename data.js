@@ -288,7 +288,9 @@ export function parseEnsemble(hourly, label = '') {
  */
 export async function getData(onProgress = () => {}) {
   const status = [];
-  const record = (label, role, ok, detail) => status.push({ label, role, ok, detail });
+  // `saved`: the phone's copy answered, not the service, so the panel shows it amber
+  const record = (label, role, ok, detail, saved = false) =>
+    status.push({ label, role, ok, detail, saved: ok && saved });
 
   const total = 2 + MODELS.ensemble.length + MODELS.windCheck.length + MODELS.waveCheck.length;
   let done = 0;
@@ -324,7 +326,13 @@ export async function getData(onProgress = () => {}) {
     err.status = status;
     throw err;
   }
-  record('Wind forecast', 'primary', true, savedNote(fc) || (reduced ? 'reduced request' : 'best match'));
+  record(
+    'Wind forecast',
+    'primary',
+    true,
+    savedNote(fc) || (reduced ? 'reduced request' : 'best match'),
+    fc.cached
+  );
 
   // waves: best match, then a named fallback, then carry on capped
   let wave = mar.ok && hasWaves(mar.json) ? mar : null,
@@ -339,7 +347,8 @@ export async function getData(onProgress = () => {}) {
     !!wave,
     wave
       ? savedNote(wave) || (backup ? MODELS.waveFallback + ' (backup model)' : 'best match')
-      : mar.error || 'no wave values'
+      : mar.error || 'no wave values',
+    wave && wave.cached
   );
 
   // A feed can answer with a field renamed, dropped or in new units. The app
@@ -361,7 +370,7 @@ export async function getData(onProgress = () => {}) {
   MODELS.windCheck.forEach((model, i) => {
     const r = windSets[i],
       ok = r.ok && hasWind(r.json);
-    record(model, 'wind check', ok, ok ? savedNote(r) : r.error || 'no data for this location');
+    record(model, 'wind check', ok, ok ? savedNote(r) : r.error || 'no data for this location', r.cached);
     if (ok) windAlt.push({ model, sets: r.json });
   });
 
@@ -369,7 +378,7 @@ export async function getData(onProgress = () => {}) {
   MODELS.waveCheck.forEach((model, i) => {
     const r = waveSets[i],
       ok = r.ok && hasWaves(r.json);
-    record(model, 'swell check', ok, ok ? savedNote(r) : r.error || 'no data for this location');
+    record(model, 'swell check', ok, ok ? savedNote(r) : r.error || 'no data for this location', r.cached);
     if (ok) waveAlt.push({ model, sets: r.json });
   });
 
@@ -387,7 +396,8 @@ export async function getData(onProgress = () => {}) {
       found.length > 0,
       found.length
         ? [found.length + ' members', savedNote(r)].filter(Boolean).join(' · ')
-        : r.error || 'no members'
+        : r.error || 'no members',
+      r.cached
     );
   });
   const ensemble = members.length ? { members } : null;
