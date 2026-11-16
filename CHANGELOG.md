@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.3.1
 
 - **Saved copies show amber in Data sources.** When a source can't be reached and the
   phone's saved copy stands in, its row now reads "saved" in amber (the dot too), and it
